@@ -1,0 +1,178 @@
+*vantage.nvim.txt*                    Vantage: coding agents in a tmux-backed terminal
+
+
+==============================================================================
+CONTENTS                                                        *vantage.nvim*
+
+1. Introduction                                      |vantage.nvim-introduction|
+2. Requirements                                        |vantage.nvim-requirements|
+3. Installation                                        |vantage.nvim-installation|
+4. Configuration                                      |vantage.nvim-configuration|
+5. Commands                                              |vantage.nvim-commands|
+6. Key concepts                                          |vantage.nvim-concepts|
+
+==============================================================================
+1. INTRODUCTION                                *vantage.nvim-introduction*
+
+Vantage is a coding-agent manager for Neovim. It runs coding agents (Claude
+Code, Codex, dsh, …) in a tmux server and shows them in a single persistent
+`:terminal`. tmux is the state store, multiplexer, renderer and input layer —
+there is no custom TUI.
+
+The plugin owns the backend: its Lua layer drives a private tmux socket
+directly. The frontend is a `vim.ui.select` picker plus the terminal window
+that is the tmux client.
+
+==============================================================================
+2. REQUIREMENTS                                *vantage.nvim-requirements*
+
+- Neovim >= 0.10
+- tmux 3.0+ (developed against 3.6a)
+
+==============================================================================
+3. INSTALLATION                                *vantage.nvim-installation*
+
+With lazy.nvim, a local checkout: >
+
+    {
+      dir  = vim.fn.expand("~/vantage"),   -- path to this repository
+      name = "vantage",
+      cmd  = "Vantage",
+      opts = {},
+    }
+
+<
+
+`name = "vantage"` matches the `lua/vantage` module, so lazy.nvim's default
+config runs `require("vantage").setup(opts)` automatically. The plugin loads
+lazily on the first `:Vantage`.
+
+==============================================================================
+4. CONFIGURATION                              *vantage.nvim-configuration*
+
+`setup()` accepts: >
+
+    require("vantage").setup({
+      backend = "tmux",          -- pluggable backend driver (only "tmux" today)
+      socket  = "vantage",       -- private tmux socket name
+      cli = {
+        tools = {},              -- provide your own (name -> cmd array); nothing built in
+        win = {                  -- the terminal window that is the tmux client
+          layout = "float",      -- float | left | top | bottom | right
+          float  = { width = 0.9, height = 0.9, border = "rounded" },  -- "none" to hide
+          split  = { width = 80, height = 20 },
+          -- no keymaps by default; add your own (see TERMINAL FILETYPE below)
+          keys = {},
+        },
+      },
+    })
+
+<
+
+`cli.tools` is empty by default — provide every tool yourself, e.g. `tools = {
+claude = { cmd = { "claude" } } }`. `tools.<name>.cmd` is run verbatim when
+creating an Agent; it may include arguments, e.g.
+`{ cmd = { "claude", "--dangerously-skip-permissions" } }`. Nothing is built in
+or validated.
+
+The Agent's working directory is the current window's local cwd (respects
+`:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
+
+PICKERS & PROMPTS ~
+
+Selections go through `vim.ui.select`, so any `vim.ui` override (dressing.nvim,
+snacks, telescope-ui-select, …) applies. The default `vim.ui.select` is a
+numbered list; install one of those for a fuzzy, insert-mode picker. Free-text
+prompts (e.g. the new-Group name) use `input()` and are insert-mode by
+default.
+
+TERMINAL FILETYPE & KEYMAPS ~
+
+No keymaps are added by default. The terminal buffer has filetype
+`vantage_terminal`. Add keys in either of two ways:
+
+1. `cli.win.keys` — a list of 4-tuples `{ lhs, rhs, mode = "n", desc }`,
+   applied buffer-locally to the terminal when it is created. `rhs` is passed
+   verbatim to `vim.keymap.set` — a key sequence / `<cmd>` RHS, or a Lua
+   function. `mode` is `"n"`, `"t"` or `"nt"` (also a table). Example: >
+
+      require("vantage").setup({
+        cli = {
+          win = {
+            keys = {
+              { "<c-q>", "<cmd>Vantage toggle<CR>", mode = "t", desc = "toggle the terminal" },
+              { "q", "<cmd>Vantage toggle<CR>", mode = "n", desc = "toggle the terminal" },
+              { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
+            },
+          },
+        },
+      })
+
+<
+
+2. Any `ftplugin`/`autocmd` on the filetype (full control, plain `vim.keymap.set`): >
+
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "vantage_terminal",
+        callback = function(ev)
+          vim.keymap.set("n", "q", ":Vantage toggle<CR>", { buffer = ev.buf })
+          vim.keymap.set("t", "<c-q>", "<cmd>Vantage toggle<CR>", { buffer = ev.buf })
+        end,
+      })
+
+<
+
+For a normal-mode keymap that opens/toggles from anywhere in nvim (not just
+inside the terminal buffer): >
+
+      vim.keymap.set("n", "<leader>vt", "<cmd>Vantage toggle<CR>", { desc = "Toggle Vantage" })
+
+<
+
+==============================================================================
+5. COMMANDS                                    *vantage.nvim-commands*
+
+                                                          *:Vantage*
+`:Vantage`
+    Show help (no default action).
+
+`:Vantage switch [<@N>]`
+    Switch: pick an Agent to focus, or pick the `+ new agent` entry to create
+    one (choose a tool, then a Group). With `<@N>` focus directly.
+
+`:Vantage kill [<group|@N>]`
+    Kill a Group or a single Agent. With no argument, pick interactively.
+
+`:Vantage toggle`
+    Hide the terminal window if it is open, or show it again — a lightweight
+    toggle that keeps the buffer, tmux client and View alive. If there is no
+    live terminal, re-open to the last-focused Agent; if there are no Agents at
+    all, start the create wizard. Map it, e.g. `vim.keymap.set("n",
+    "<leader>vt", ":Vantage toggle<CR>")`.
+
+`:Vantage detach`
+    Detach the terminal's client (the client-detached hook destroys the View).
+    Agents keep running headless.
+
+`:Vantage status`
+    Show attached clients and sessions (debug).
+
+==============================================================================
+6. KEY CONCEPTS                                  *vantage.nvim-concepts*
+
+Group ~
+    A tmux session group: one persistent Anchor session owns the Agents.
+
+Anchor ~
+    The one persistent session in a Group that keeps its Agents alive headless.
+
+Agent ~
+    A tmux window running a coding agent, shared across a Group's Views.
+
+View ~
+    A transient grouped session attached by a client. Closing the terminal
+    detaches the client, the client-detached hook destroys the View, and the
+    Agents keep running.
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

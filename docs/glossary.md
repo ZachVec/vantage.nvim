@@ -1,0 +1,63 @@
+# Glossary
+
+One home per domain term. Code, docs, and Agent Notes use these terms exactly and honor each `_Avoid:`; add or rename a term only here. How these terms relate is [architecture.md](architecture.md).
+
+## Group
+
+A durable container of collaborating Agents, derived from them: it exists only because Agents are placed in it, and is never created or attached independently. Creating an Agent in a non-existent Group creates the Group.
+_Avoid_: workspace, topic, 主题
+
+## Anchor
+
+The one persistent session in a Group that owns its Agents. Created with the Group and never auto-destroyed; it keeps the Group (and its Agents) alive even when every View has closed. Views are grouped sessions attached to it. Destroyed only by `kill <group>`.
+_Avoid_: leader, base session
+
+## Agent
+
+A running coding-agent process (claude, codex, dsh, …) operating in a working directory (Cwd), shared across a Group's Views. An Agent lives until it is killed with `kill` or exits on its own; closing a Client never kills it.
+_Avoid_: worker
+
+## View
+
+A transient session within a Group, giving a single Client an independent display of an Agent. Each attach creates a View; the Views of a Group share the same Agents but each shows its own active Agent. A View ends when its own client detaches (its terminal is closed) — the Anchor and other Views survive. When all of a Group's Agents die, the Anchor and every View die with it. Views never accumulate.
+_Avoid_: session, workspace
+
+## Cwd
+
+The working directory an Agent runs in. Resolved by the Frontend (the current window's local cwd, respecting `:lcd`/`:tcd`) and passed to the Backend explicitly; the Backend never infers it.
+_Avoid_: repo, directory
+
+## State
+
+A transient status of an Agent (done, waiting-for-confirmation, …). Not yet surfaced; the plugin leaves room for it.
+_Avoid_: status
+
+## Backend
+
+The plugin's Lua domain layer that owns all state and domain logic and drives a terminal multiplexer. It is a pluggable interface: a Driver such as `tmux` implements it, with room for `zellij` and others later. Every operation is explicit: the Backend never infers context from the caller's environment.
+_Avoid_: api, server
+
+## Driver
+
+A concrete multiplexer implementation behind the Backend interface — `tmux` today, `zellij` later.
+_Avoid_: adapter
+
+## Frontend
+
+The plugin's UI layer: the Picker (vim.ui.select) and the single `:terminal` that is the Client. Backend and Frontend live in the same plugin.
+_Avoid_: client, ui
+
+## Client
+
+A display surface attached to a View (backed by a tmux client). The Frontend operates exactly one: the single `:terminal`, re-targeted with each switch.
+_Avoid_: terminal, screen
+
+## Picker
+
+The plugin's selection UI (vim.ui.select in v0, swappable later — fzf-lua, snacks, …).
+_Avoid_: launcher
+
+## Tool
+
+A named launch command (`name` → `cmd` array) offered when creating an Agent. Configured under `cli.tools`.
+_Avoid_: command, template
