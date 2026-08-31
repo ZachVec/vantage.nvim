@@ -17,6 +17,7 @@ Vantage is a single Neovim plugin:
 
 - Neovim ≥ 0.10
 - tmux 3.0+ (developed against 3.6a)
+- [nvim-treesitter-textobjects](https://github.com/nvim-treesitter/nvim-treesitter-textobjects) (optional; for the `{function}` / `{class}` prompt placeholders)
 
 ## Install
 
@@ -43,6 +44,7 @@ docs.
 :Vantage kill @1                           " kill an Agent (or a Group by name)
 :Vantage toggle                            " hide/show the terminal (creates if empty)
 :Vantage detach                            " detach the client (kills the View; Agents survive)
+:Vantage prompt                            " pick a prompt and type it into the focused Agent
 :Vantage status                            " debug: clients + sessions
 ```
 
@@ -61,6 +63,7 @@ require("vantage").setup({
   backend = "tmux",          -- pluggable backend driver (only "tmux" today)
   socket  = "vantage",       -- private tmux socket name
   picker  = "native",        -- native | fzf-lua | snacks
+  prompts = {},              -- provide your own (name -> template); nothing built in
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
@@ -85,7 +88,35 @@ tools = {
 `tools.<name>.cmd` is run verbatim when creating an Agent (it may include
 arguments); nothing is built in or validated. An Agent's working directory is
 the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
-`create --cwd <dir>`.
+`create --cwd <dir>`. A tool may also carry a `format` function
+(`fun(text): string`), applied to a rendered prompt just before it is sent.
+
+### Prompt templates
+
+`prompts` maps names to text templates, empty by default. `:Vantage prompt`
+picks one via `vim.ui.select` (not the pluggable picker — there is nothing to
+preview) and types it into the focused Agent's input; it never auto-submits.
+Templates may use four placeholders, Claude-style location references relative
+to the focused Agent's cwd:
+
+| Placeholder | Expands to |
+|-------------|------------|
+| `{file}`     | `@path/to/file.lua` |
+| `{line}`     | `@path/to/file.lua :L42` (cursor line) |
+| `{function}` | `function foo @path/to/file.lua :L42:C3` |
+| `{class}`    | `class Foo @path/to/file.lua :L42:C3` |
+
+`{function}` / `{class}` need nvim-treesitter-textobjects; without it (or
+outside a function/class) the prompt is skipped with a warning. An unknown
+placeholder is left literal at runtime and reported by `:checkhealth vantage`.
+
+```lua
+prompts = {
+  review   = "Review {file} for bugs and improvements.",
+  fix_line = "Fix {line}.",
+  document = "Add documentation to {function}.",
+}
+```
 
 ### Pickers & prompts
 
