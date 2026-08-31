@@ -95,6 +95,34 @@ local function send_prompt(name)
   Backend.get().send_keys(agent.target, text)
 end
 
+--- Pick a prompt name via vim.ui.select (no preview, so the pluggable Picker is
+--- not used) and send it to the focused Agent. The current window is restored
+--- afterwards so the cursor stays where it was (e.g. the terminal).
+local function prompt_wizard()
+  local names = {}
+  for name in pairs(Config.options.prompts) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  if #names == 0 then
+    Util.warn("no prompts configured (setup { prompts = { ... } })")
+    return
+  end
+  local win = vim.api.nvim_get_current_win()
+  local function restore()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_set_current_win(win)
+    end
+  end
+  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
+    if name then
+      send_prompt(name)
+    end
+    restore()
+    vim.schedule(restore)
+  end)
+end
+
 --- Hide/show the terminal (lightweight); with no live terminal, re-open to the
 --- last Agent, create one if there are none, or pick otherwise.
 function M.toggle()
@@ -148,9 +176,7 @@ function M.run(args)
   elseif subcommand == "detach" then
     Client.detach()
   elseif subcommand == "prompt" then
-    Picker.get().pick_prompt(function(name)
-      send_prompt(name)
-    end)
+    prompt_wizard()
   elseif subcommand == "status" then
     local status_info = Backend.get().status()
     local lines = { "sessions:" }

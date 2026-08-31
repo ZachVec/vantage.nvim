@@ -31,7 +31,6 @@
 ---@field pick_tool fun(callback: fun(tool_name: string))
 ---@field pick_group fun(callback: fun(group: string))
 ---@field pick_kill fun(callback: fun(target: string))
----@field pick_prompt fun(callback: fun(name: string))
 
 local M = {}
 

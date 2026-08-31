@@ -82,22 +82,4 @@ function M.pick_kill(callback)
   end)
 end
 
----@param callback fun(name: string)
-function M.pick_prompt(callback)
-  local items = Items.prompt_items()
-  if not items then
-    return
-  end
-  vim.ui.select(items, {
-    prompt = Items.prompt,
-    format_item = function(item)
-      return item.text
-    end,
-  }, function(item)
-    if item then
-      callback(item.name)
-    end
-  end)
-end
-
 return M

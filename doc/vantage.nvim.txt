@@ -85,7 +85,8 @@ another tool.
 PROMPT TEMPLATES ~
 
 `prompts` maps names to text templates, empty by default. `:Vantage prompt`
-picks one and types it into the focused Agent's input (no auto-submit). A
+picks one via `vim.ui.select` (not the pluggable Picker — there is nothing to
+preview) and types it into the focused Agent's input (no auto-submit). A
 template may use four placeholders, all Claude-style location references
 relative to the Agent's cwd:
 

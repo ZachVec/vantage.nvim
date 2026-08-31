@@ -124,24 +124,4 @@ function M.pick_kill(callback)
   })
 end
 
----@param callback fun(name: string)
-function M.pick_prompt(callback)
-  local items = Items.prompt_items()
-  if not items then
-    return
-  end
-  pick({
-    items = items,
-    format = "text",
-    confirm = function(picker, item)
-      picker:close()
-      if item then
-        vim.schedule(function()
-          callback(item.name)
-        end)
-      end
-    end,
-  })
-end
-
 return M
