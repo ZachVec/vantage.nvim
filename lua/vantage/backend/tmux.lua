@@ -102,14 +102,15 @@ function M.list()
     "#{@agent-cmd}",
     "#{@agent-cwd}",
     "#{@agent-name}",
+    "#{@agent-tool}",
     "#{@agent-state}",
   }, "\t")
   local lines = exec_lines("list-windows", "-a", "-f", "#{@agent-cmd}", "-F", format_fields)
   local seen = {}
   local agents = {}
   for _, line in ipairs(lines) do
-    local group, target, cmd, cwd, name, state =
-      line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
+    local group, target, cmd, cwd, name, tool, state =
+      line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
     if group ~= "" and target ~= "" and not seen[target] then
       seen[target] = true
       agents[#agents + 1] = {
@@ -118,6 +119,7 @@ function M.list()
         cmd = cmd,
         cwd = cwd,
         name = name,
+        tool = (tool ~= "" and tool) or nil,
         state = (state ~= "" and state) or nil,
       }
     end
@@ -144,7 +146,7 @@ function M.groups()
 end
 
 --- Create an Agent in a Group, creating the Group if it does not exist.
----@param opts { group: string, cmd: string, cwd: string, name?: string }
+---@param opts { group: string, cmd: string, cwd: string, name?: string, tool?: string }
 ---@return vantage.Agent?
 function M.create(opts)
   local running = M.ensure_server()
@@ -169,8 +171,17 @@ function M.create(opts)
   exec("set-window-option", "-t", window_id, "@agent-cmd", opts.cmd)
   exec("set-window-option", "-t", window_id, "@agent-cwd", opts.cwd)
   exec("set-window-option", "-t", window_id, "@agent-name", name)
+  exec("set-window-option", "-t", window_id, "@agent-tool", opts.tool or "")
 
-  return { group = opts.group, target = window_id, cmd = opts.cmd, cwd = opts.cwd, name = name, state = nil }
+  return {
+    group = opts.group,
+    target = window_id,
+    cmd = opts.cmd,
+    cwd = opts.cwd,
+    name = name,
+    tool = (opts.tool and opts.tool ~= "") and opts.tool or nil,
+    state = nil,
+  }
 end
 
 --- Re-target an existing View to the given Agent window.
@@ -252,6 +263,19 @@ function M.capture_pane(target, max_lines)
     lines[#lines] = nil
   end
   return lines
+end
+
+--- Type text into an Agent's pane as literal keystrokes plus a trailing newline
+--- (LF), without submitting (no Enter/CR): the user reviews and presses Enter.
+---
+--- Portability note for future drivers: a zellij driver can express this via
+--- `zellij action write` / `write-chars`, but those act only on the focused
+--- pane (no pane id), so they require an attached, focused client — unlike
+--- tmux, which targets any window here even while the Client is hidden.
+---@param target string Agent window id (@N)
+---@param text string
+function M.send_keys(target, text)
+  exec("send-keys", "-t", target, "-l", "--", text .. "\n")
 end
 
 --- The command to attach a terminal client to a View, run as a `term` job by

@@ -15,8 +15,8 @@ The Picker is a pluggable Frontend interface that mirrors the Backend seam.
 `lua/vantage/picker/init.lua` resolves the configured implementation through a
 whitelist registry (a raw user string is never `require`d) and exposes
 `Picker.get()`. Each implementation — `native`, `fzf-lua`, `snacks` — exposes
-the same four domain pickers (`pick_agent`, `pick_tool`, `pick_group`,
-`pick_kill`) with identical callback contracts, selected via
+the same five domain pickers (`pick_agent`, `pick_tool`, `pick_group`,
+`pick_kill`, `pick_prompt`) with identical callback contracts, selected via
 `setup { picker = … }` (default `native`). Callers go through `Picker.get()`.
 
 Shared item construction lives in `picker/items.lua`: it builds rich items

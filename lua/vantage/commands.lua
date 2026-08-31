@@ -3,6 +3,7 @@ local Backend = require("vantage.backend")
 local Client = require("vantage.client")
 local Config = require("vantage.config")
 local Picker = require("vantage.picker")
+local Prompt = require("vantage.prompt")
 local Util = require("vantage.util")
 
 local M = {}
@@ -16,6 +17,7 @@ local function usage()
       "  :Vantage kill [<group|@N>]   kill a Group or Agent (interactive if no arg)",
       "  :Vantage toggle              hide/show the terminal (creates if empty)",
       "  :Vantage detach              detach the client (kills the View; Agents survive)",
+      "  :Vantage prompt              pick a prompt and type it into the focused Agent",
       "  :Vantage status              show clients + sessions",
     }, "\n"),
     vim.log.levels.INFO
@@ -33,10 +35,11 @@ local function find_agent(target)
 end
 
 ---@param group string
+---@param tool_name string
 ---@param cmd string
 ---@param cwd string
-local function do_create(group, cmd, cwd)
-  local agent = Backend.get().create({ group = group, cmd = cmd, cwd = cwd })
+local function do_create(group, tool_name, cmd, cwd)
+  local agent = Backend.get().create({ group = group, cmd = cmd, cwd = cwd, tool = tool_name })
   if agent then
     Client.focus(agent)
   end
@@ -46,7 +49,7 @@ local function create_wizard()
   Picker.get().pick_tool(function(tool_name)
     local tool = Config.options.cli.tools[tool_name]
     Picker.get().pick_group(function(group)
-      do_create(group, table.concat(tool.cmd, " "), Util.cwd())
+      do_create(group, tool_name, table.concat(tool.cmd, " "), Util.cwd())
     end)
   end)
 end
@@ -60,6 +63,36 @@ local function pick_or_new()
       Client.focus(choice.agent)
     end
   end)
+end
+
+--- Render a prompt against the focused Agent's context and type it into the
+--- Agent's input (no auto-submit).
+---@param name string
+local function send_prompt(name)
+  local agent = Client.last_agent_alive()
+  if not agent then
+    Util.warn("no focused agent — use :Vantage switch or toggle first")
+    return
+  end
+  local template = Config.options.prompts[name]
+  if template == nil then
+    Util.warn(("no such prompt '%s'"):format(name))
+    return
+  end
+  local text, failed = Prompt.render(template, Prompt.context(agent))
+  if text == nil then
+    Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
+    return
+  end
+  local tool = agent.tool and Config.options.cli.tools[agent.tool]
+  if tool and tool.format then
+    text = tool.format(text)
+    if text == nil or text == "" then
+      Util.warn(("prompt '%s' dropped by its format hook"):format(name))
+      return
+    end
+  end
+  Backend.get().send_keys(agent.target, text)
 end
 
 --- Hide/show the terminal (lightweight); with no live terminal, re-open to the
@@ -114,6 +147,10 @@ function M.run(args)
     M.toggle()
   elseif subcommand == "detach" then
     Client.detach()
+  elseif subcommand == "prompt" then
+    Picker.get().pick_prompt(function(name)
+      send_prompt(name)
+    end)
   elseif subcommand == "status" then
     local status_info = Backend.get().status()
     local lines = { "sessions:" }
@@ -138,7 +175,7 @@ function M.complete(arglead, cmdline)
   if cmdline:match("^%s*Vantage%s*$") or cmdline:match("^%s*Vantage%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
-    end, { "switch", "kill", "toggle", "detach", "status" })
+    end, { "switch", "kill", "toggle", "detach", "prompt", "status" })
   end
   return {}
 end

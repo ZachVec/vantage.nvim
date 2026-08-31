@@ -8,7 +8,7 @@ Vantage must run several long-lived coding agents, keep them alive after the edi
 
 ## Decision
 
-tmux is the state store, multiplexer, renderer, and input layer. The plugin drives a private tmux socket (`tmux -L <socket>`, default `vantage`, configurable via `setup { socket = … }`) and stores all domain state in tmux's own objects — session groups, windows, and window options like `@agent-cmd` / `@agent-cwd` / `@agent-name`. There is no custom TUI: the only "UI" is a Neovim `:terminal` that attaches as a tmux client. Global tmux config (a `client-detached` hook, history limit, no status line) is applied idempotently once the server is running.
+tmux is the state store, multiplexer, renderer, and input layer. The plugin drives a private tmux socket (`tmux -L <socket>`, default `vantage`, configurable via `setup { socket = … }`) and stores all domain state in tmux's own objects — session groups, windows, and window options like `@agent-cmd` / `@agent-cwd` / `@agent-name` / `@agent-tool`. There is no custom TUI: the only "UI" is a Neovim `:terminal` that attaches as a tmux client. Global tmux config (a `client-detached` hook, history limit, no status line) is applied idempotently once the server is running.
 
 ## Alternatives considered
 

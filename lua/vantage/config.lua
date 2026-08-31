@@ -2,6 +2,7 @@
 
 ---@class vantage.Tool A launch command (name -> cmd array).
 ---@field cmd string[]
+---@field format? fun(text: string): string per-Agent text transform before sending a prompt
 
 ---@class vantage.Agent A running coding-agent process.
 ---@field group string
@@ -9,6 +10,7 @@
 ---@field cmd string
 ---@field cwd string
 ---@field name string
+---@field tool? string the cli.tools key that created it (for the format hook)
 ---@field state? string
 
 ---@class vantage.Win Terminal window options.
@@ -21,6 +23,7 @@
 ---@field backend string
 ---@field socket string
 ---@field picker string
+---@field prompts table<string, string> named prompt templates (name -> template)
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks).
@@ -28,6 +31,7 @@
 ---@field pick_tool fun(callback: fun(tool_name: string))
 ---@field pick_group fun(callback: fun(group: string))
 ---@field pick_kill fun(callback: fun(target: string))
+---@field pick_prompt fun(callback: fun(name: string))
 
 local M = {}
 
@@ -39,13 +43,20 @@ local defaults = {
   socket = "vantage",
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
+  --- Named prompt templates (name -> template string) offered by
+  --- `:Vantage prompt`. Empty by default: provide your own; nothing is built
+  --- in. Templates may use the placeholders {file}, {line}, {function} and
+  --- {class}, rendered relative to the focused Agent's cwd.
+  prompts = {},
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
     --- Empty by default: provide your own; nothing is built in or validated.
+    --- A tool may also carry a `format` function, applied to a rendered prompt
+    --- just before it is sent to the Agent.
     --- Example:
     ---   tools = {
     ---     claude = { cmd = { "claude" } },
-    ---     codex  = { cmd = { "codex" } },
+    ---     codex  = { cmd = { "codex" }, format = function(text) return text end },
     ---   },
     tools = {},
     --- The persistent :terminal window that is the tmux client.
@@ -74,9 +85,26 @@ local defaults = {
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
+--- Monotonic stamp for the most-recently-visited window, read by prompt.lua.
+local visit_counter = 0
+
+--- (Re)register the WinEnter autocmd that stamps each window with the visit
+--- counter, so Prompt context resolves against the last non-terminal window.
+function M.track_window_visits()
+  vim.api.nvim_create_augroup("VantageWinVisit", { clear = true })
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = "VantageWinVisit",
+    callback = function()
+      visit_counter = visit_counter + 1
+      vim.w[vim.api.nvim_get_current_win()].vantage_visit = visit_counter
+    end,
+  })
+end
+
 ---@param opts? vantage.Config
 function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+  M.track_window_visits()
 
   pcall(vim.api.nvim_create_user_command, "Vantage", function(args)
     require("vantage.commands").run(args)

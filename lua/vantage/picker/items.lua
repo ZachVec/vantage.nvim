@@ -54,6 +54,25 @@ function M.tool_items()
   return items
 end
 
+--- Sorted prompt names. nil (with a warning) when prompts is empty.
+---@return { name: string, text: string }[]?
+function M.prompt_items()
+  local names = {}
+  for name in pairs(Config.options.prompts) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  if #names == 0 then
+    Util.warn("no prompts configured (setup { prompts = { ... } })")
+    return nil
+  end
+  local items = {}
+  for _, name in ipairs(names) do
+    items[#items + 1] = { name = name, text = name }
+  end
+  return items
+end
+
 --- Existing Groups + the "+ new group" sentinel. nil when there are no Groups
 --- yet: the caller skips the picker and prompts for the name directly.
 ---@return { name: string, text: string }[]?

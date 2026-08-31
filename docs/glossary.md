@@ -61,3 +61,8 @@ _Avoid_: launcher
 
 A named launch command (`name` → `cmd` array) offered when creating an Agent. Configured under `cli.tools`.
 _Avoid_: command, template
+
+## Prompt
+
+A named text template typed into a focused Agent's input. Configured under `setup { prompts = { name = "…" } }`; rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) before being sent.
+_Avoid_: snippet
