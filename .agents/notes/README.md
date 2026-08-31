@@ -39,6 +39,8 @@ The archive is path-encoded as `archived/{class}/yyyy-mm-dd-topic-title.md`; `im
 
 Once archived, a note is permanently frozen: do not edit, translate, reformat, update, move, or delete it, and do not treat it as authority for current behavior. Active prose may still link into an archived note when it intentionally cites history. `make notes` enforces the archive metadata; this repo intentionally omits the cryptographic archive manifest — the [bootstrap Agent Note](implemented/process/2026-08-31-agent-notes.md) owns that choice.
 
+The [`archive-agent-notes`](../skills/archive-agent-notes/SKILL.md) skill operationalizes the archive, reject, and delete steps above; the supersession rule in [AGENTS.md](AGENTS.md) invokes it.
+
 ## When to write one
 
 Every non-trivial change MUST add or update at least one Agent Note in the same change. A change is non-trivial when it alters behavior, architecture, a contract shared across files, process or tooling, testing strategy, an on-disk or configuration format, or another decision a maintainer may reasonably revisit. A proposal for substantial future work starts in `proposed/`; a decision already made starts in `implemented/`. Pick the class folder that matches the decision.

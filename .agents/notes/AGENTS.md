@@ -2,6 +2,6 @@
 
 Agent Notes are effectively RFCs written by agents: durable proposals and decision records that preserve rationale, alternatives, consequences, and required verification. Follow the [Agent Note rules](./README.md).
 
-**Every new Agent Note triggers a supersession check.** Search the active tree for older notes covering the same decision or mechanism, and archive or consolidate every qualifying implemented note in the same change. Keep partial supersessions active and cross-linked.
+**Every new Agent Note triggers a supersession check.** Search the active tree for older notes covering the same decision or mechanism, classify any full or partial supersession with the [`archive-agent-notes`](../skills/archive-agent-notes/SKILL.md) skill, and archive or consolidate every qualifying implemented note in the same change. Keep partial supersessions active and cross-linked.
 
 Files under [`archived/`](archived/AGENTS.md) are frozen historical snapshots: never edit them or treat them as current authority.
