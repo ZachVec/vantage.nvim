@@ -14,6 +14,40 @@ local function module_available(mod)
     or #vim.api.nvim_get_runtime_file(("lua/%s/init.lua"):format(path), false) > 0
 end
 
+--- Validate configured prompt placeholders (name -> template).
+local function check_prompts()
+  local prompts = require("vantage.config").options.prompts or {}
+  local known = { file = true, line = true, ["function"] = true, ["class"] = true }
+  local unknown = {}
+  local uses_symbol = false
+  for _, template in pairs(prompts) do
+    if type(template) == "string" then
+      for token in template:gmatch("{([%w_]+)}") do
+        if not known[token] then
+          unknown[token] = true
+        elseif token == "function" or token == "class" then
+          uses_symbol = true
+        end
+      end
+    end
+  end
+  if next(prompts) == nil then
+    ok("prompts: none configured")
+  elseif next(unknown) ~= nil then
+    local names = {}
+    for token in pairs(unknown) do
+      names[#names + 1] = "{" .. token .. "}"
+    end
+    table.sort(names)
+    err(("prompts: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
+  else
+    ok("prompts: all placeholders known")
+  end
+  if uses_symbol and not module_available("nvim-treesitter-textobjects.shared") then
+    warn("prompts use {function}/{class} but nvim-treesitter-textobjects is not installed")
+  end
+end
+
 function M.check()
   start("vantage")
 
@@ -50,6 +84,8 @@ function M.check()
       err(("picker '%s' configured but '%s' is not installed"):format(picker, dep))
     end
   end
+
+  check_prompts()
 end
 
 return M

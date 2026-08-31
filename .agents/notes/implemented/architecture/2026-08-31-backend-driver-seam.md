@@ -8,7 +8,7 @@ The multiplexer choice (tmux) should not be welded into every call site, or a fu
 
 ## Decision
 
-The Backend is a thin interface: `lua/vantage/backend/init.lua` resolves `require("vantage.backend." .. config.backend)` and exposes one surface (`list`, `groups`, `create`, `attach`, `select_window`, `kill`, `status`, `ensure_server`, `has_session`, `capture_pane`, `client_command`, `health`). `tmux` is the only driver today and owns all domain logic. Callers never touch tmux directly — `commands.lua`, `picker.lua`, `client.lua`, and `health.lua` go through `Backend.get()`. The Backend never infers context: cwd, group, and target are passed in explicitly.
+The Backend is a thin interface: `lua/vantage/backend/init.lua` resolves `require("vantage.backend." .. config.backend)` and exposes one surface (`list`, `groups`, `create`, `attach`, `select_window`, `kill`, `status`, `ensure_server`, `has_session`, `capture_pane`, `send_keys`, `client_command`, `health`). `tmux` is the only driver today and owns all domain logic. Callers never touch tmux directly — `commands.lua`, `picker.lua`, `client.lua`, and `health.lua` go through `Backend.get()`. The Backend never infers context: cwd, group, and target are passed in explicitly.
 
 ## Alternatives considered
 
