@@ -10,8 +10,8 @@ Vantage is a single Neovim plugin:
 - **Backend** — the plugin's Lua domain layer, driving a private tmux socket
   directly. It is a pluggable interface (`tmux` today, room for `zellij` later)
   and holds all state and domain logic.
-- **Frontend** — a `vim.ui.select` picker plus the `:terminal` window that is
-  the tmux client.
+- **Frontend** — a pluggable picker (`native` / `fzf-lua` / `snacks`) plus the
+  `:terminal` window that is the tmux client.
 
 ## Requirements
 
@@ -60,6 +60,7 @@ and destroys its View — Agents keep running headless until killed.
 require("vantage").setup({
   backend = "tmux",          -- pluggable backend driver (only "tmux" today)
   socket  = "vantage",       -- private tmux socket name
+  picker  = "native",        -- native | fzf-lua | snacks
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
@@ -88,10 +89,16 @@ the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 
 ### Pickers & prompts
 
-Selections go through `vim.ui.select`, so any `vim.ui` override (dressing.nvim,
-snacks, telescope-ui-select, …) applies. The built-in `vim.ui.select` is a
-numbered list — install one of those for a fuzzy, insert-mode picker. Free-text
-prompts (e.g. the new-Group name) use `input()` and are insert-mode by default.
+Selections go through a pluggable picker, chosen by `picker`:
+
+- `"native"` — built-in `vim.ui.select` (default). Respects any global
+  `vim.ui.select` override (dressing.nvim, snacks' ui_select, …).
+- `"fzf-lua"` — fzf-lua; requires the fzf-lua plugin.
+- `"snacks"` — snacks.nvim picker; requires snacks.nvim.
+
+`fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
+output). Free-text prompts (e.g. the new-Group name) use `input()` and are
+insert-mode by default.
 
 ### Terminal filetype & keymaps
 
