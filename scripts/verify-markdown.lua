@@ -46,6 +46,18 @@ if git.code == 0 then
     end
   end
 end
+-- Untracked Markdown files under .agents/ and docs/ (new notes and developer
+-- docs not yet committed), so the gate covers them before they land in git.
+local untracked = vim
+  .system({ "git", "ls-files", "--others", "--exclude-standard", "--", ".agents/", "docs/" }, { text = true, cwd = repo_root })
+  :wait()
+if untracked.code == 0 then
+  for line in (untracked.stdout or ""):gmatch("[^\r\n]+") do
+    if line:find("%S") and line:find("%.md$") then
+      files[#files + 1] = line
+    end
+  end
+end
 if #files == 0 then
   io.stdout:write("note: no Markdown files to check\n")
   os.exit(0)
