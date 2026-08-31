@@ -161,6 +161,20 @@ vim.wait(4000, function()
   return false
 end)
 
+-- marksman only resolves cross-file links when it accepts the workspace
+-- folder. A git worktree stores `.git` as a file (not a directory), so marksman
+-- logs "Workspace folder is bogus" and falls back to single-file mode, which
+-- skips cross-file link checking. Fail loudly instead of reporting a clean
+-- pass on a check that did nothing. A tracked `.marksman.toml` marker keeps
+-- marksman in workspace mode even inside worktrees.
+if stderr_buf:find("Workspace folder is bogus", 1, true) then
+  io.stderr:write(
+    "verify-markdown: marksman rejected the workspace folder and fell back to single-file mode, so no links were checked. A git worktree causes this; ensure the repo has a tracked .marksman.toml marker file.\n"
+  )
+  vim.fn.jobstop(job)
+  os.exit(1)
+end
+
 local failing = 0
 local reported = 0
 for _, f in ipairs(files) do

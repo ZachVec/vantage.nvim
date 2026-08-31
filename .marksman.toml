@@ -1,0 +1,5 @@
+# Marksman treats a directory as a "real workspace" only if it contains a VCS
+# directory (.git/.hg/.svn/.jj) or this file. A git worktree stores .git as a
+# file (not a directory), so without this marker marksman logs "Workspace
+# folder is bogus" and falls back to single-file mode, which skips cross-file
+# link checking. Keep this marker so `make markdown` checks links in worktrees.
