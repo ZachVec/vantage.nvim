@@ -32,20 +32,19 @@ the terminal window that is the tmux client.
 ==============================================================================
 3. INSTALLATION                                *vantage.nvim-installation*
 
-With lazy.nvim, a local checkout: >
+Install with your favorite package manager. With lazy.nvim: >
 
     {
-      dir  = vim.fn.expand("~/vantage"),   -- path to this repository
-      name = "vantage",
+      "ZachVec/vantage.nvim",
       cmd  = "Vantage",
       opts = {},
     }
 
 <
 
-`name = "vantage"` matches the `lua/vantage` module, so lazy.nvim's default
-config runs `require("vantage").setup(opts)` automatically. The plugin loads
-lazily on the first `:Vantage`.
+lazy.nvim resolves the module name `vantage` from the repo and runs
+`require("vantage").setup(opts)` automatically. The plugin loads lazily on the
+first `:Vantage`.
 
 ==============================================================================
 4. CONFIGURATION                              *vantage.nvim-configuration*
