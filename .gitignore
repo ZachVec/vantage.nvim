@@ -1,0 +1,6 @@
+# Logs and temporary files
+*.log
+*.tmp
+
+# Local tooling downloaded for checks (not part of the project)
+.tools/
