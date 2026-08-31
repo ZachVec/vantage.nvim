@@ -44,7 +44,7 @@ _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker (vim.ui.select) and the single `:terminal` that is the Client. Backend and Frontend live in the same plugin.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Client. Backend and Frontend live in the same plugin.
 _Avoid_: client, ui
 
 ## Client
@@ -54,7 +54,7 @@ _Avoid_: terminal, screen
 
 ## Picker
 
-The plugin's selection UI (vim.ui.select in v0, swappable later — fzf-lua, snacks, …).
+The plugin's selection UI, pluggable via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`.
 _Avoid_: launcher
 
 ## Tool

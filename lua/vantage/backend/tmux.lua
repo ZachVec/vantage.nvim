@@ -238,4 +238,20 @@ function M.has_session(name)
   return exec("has-session", "-t", name) == 0
 end
 
+--- Snapshot the last `max_lines` lines of an Agent's pane (for picker previews).
+---@param target string Agent window id (@N)
+---@param max_lines? integer default 50
+---@return string[]
+function M.capture_pane(target, max_lines)
+  local code, stdout = run("capture-pane", "-p", "-S", "-" .. (max_lines or 50), "-t", target)
+  if code ~= 0 then
+    return {}
+  end
+  local lines = vim.split(stdout or "", "\n", { plain = true })
+  if lines[#lines] == "" then
+    lines[#lines] = nil
+  end
+  return lines
+end
+
 return M

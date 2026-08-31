@@ -1,6 +1,6 @@
 # Vantage Architecture
 
-A coding-agent manager built as a Neovim plugin. Its [Backend](glossary.md#backend) is a Lua domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); its [Frontend](glossary.md#frontend) is the plugin's own UI — a vim.ui.select [Picker](glossary.md#picker) plus a single `:terminal` that is the [Client](glossary.md#client). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
+A coding-agent manager built as a Neovim plugin. Its [Backend](glossary.md#backend) is a Lua domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); its [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) (`native` / `fzf-lua` / `snacks`) plus a single `:terminal` that is the [Client](glossary.md#client). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
 
 Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
 
@@ -21,4 +21,4 @@ Creating the first Agent uses `new-session` (which also starts the server and ap
 ## Layering and seams
 
 - The **Backend** is a pluggable interface: a concrete **Driver** (tmux today, zellij later) implements it, selected via `setup { backend = … }`. Callers go through `Backend.get()` and never touch tmux directly; the Backend never infers context — cwd, group, and target are passed in explicitly.
-- The **Frontend** operates exactly one **Client** (the single `:terminal`), re-targeted with each switch, and selects through the **Picker** (`vim.ui.select` today, swappable for fzf-lua / snacks / …).
+- The **Frontend** operates exactly one **Client** (the single `:terminal`), re-targeted with each switch, and selects through the **Picker**, a pluggable interface of its own: a picker implementation (`native` / `fzf-lua` / `snacks`) is chosen via `setup { picker = … }` and resolved through `Picker.get()`. Implementations own rendering (including per-Agent pane previews); shared item construction lives in `picker/items.lua`, and pane previews go through the Backend (`capture_pane`) so the Frontend never touches tmux directly.

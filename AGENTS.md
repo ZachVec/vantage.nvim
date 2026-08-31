@@ -10,7 +10,7 @@ lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
   client.lua       the single :terminal that is the tmux client
   commands.lua     :Vantage subcommand dispatch
   config.lua       defaults + shared LuaLS types
-  picker.lua       vim.ui.select selection UI
+  picker/          pluggable selection UI (native / fzf-lua / snacks)
   health.lua       :checkhealth vantage
   util.lua         shared helpers
 doc/               vim help docs (:h vantage.nvim)

@@ -20,8 +20,8 @@ Code, Codex, dsh, …) in a tmux server and shows them in a single persistent
 there is no custom TUI.
 
 The plugin owns the backend: its Lua layer drives a private tmux socket
-directly. The frontend is a `vim.ui.select` picker plus the terminal window
-that is the tmux client.
+directly. The frontend is a pluggable picker (native / fzf-lua / snacks) plus
+the terminal window that is the tmux client.
 
 ==============================================================================
 2. REQUIREMENTS                                *vantage.nvim-requirements*
@@ -55,6 +55,7 @@ lazily on the first `:Vantage`.
     require("vantage").setup({
       backend = "tmux",          -- pluggable backend driver (only "tmux" today)
       socket  = "vantage",       -- private tmux socket name
+      picker  = "native",        -- native | fzf-lua | snacks
       cli = {
         tools = {},              -- provide your own (name -> cmd array); nothing built in
         win = {                  -- the terminal window that is the tmux client
@@ -80,11 +81,17 @@ The Agent's working directory is the current window's local cwd (respects
 
 PICKERS & PROMPTS ~
 
-Selections go through `vim.ui.select`, so any `vim.ui` override (dressing.nvim,
-snacks, telescope-ui-select, …) applies. The default `vim.ui.select` is a
-numbered list; install one of those for a fuzzy, insert-mode picker. Free-text
-prompts (e.g. the new-Group name) use `input()` and are insert-mode by
-default.
+Selections go through a pluggable picker, chosen by `picker`:
+
+  `picker = "native"`   built-in `vim.ui.select` (default). Respects any
+                        global `vim.ui.select` override (dressing.nvim,
+                        snacks' ui_select, …).
+  `picker = "fzf-lua"`  fzf-lua; requires the fzf-lua plugin.
+  `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
+
+`fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
+output). Free-text prompts (e.g. the new-Group name) use `input()` and are
+insert-mode by default.
 
 TERMINAL FILETYPE & KEYMAPS ~
 

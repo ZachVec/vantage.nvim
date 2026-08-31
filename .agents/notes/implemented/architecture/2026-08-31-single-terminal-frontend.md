@@ -1,4 +1,4 @@
-# Agent Note: Single re-targeted :terminal client, vim.ui.select picker, no default keymaps
+# Agent Note: Single re-targeted :terminal client, pluggable picker, no default keymaps
 
 Status: implemented
 
@@ -9,7 +9,7 @@ The Frontend needs to display agents and let the user switch, create, and kill t
 ## Decision
 
 - Exactly one Neovim `:terminal` (filetype `vantage_terminal`) is the Client; focus re-targets that same terminal to the chosen agent instead of opening new ones.
-- Selection goes through `vim.ui.select`, so any `vim.ui` override (dressing, snacks, telescope-ui-select, fzf-lua, …) applies; the module boundary (`picker.lua`) is the future swap seam.
+- Selection goes through the pluggable [Picker](2026-08-31-pluggable-picker-frontend.md) (`native` / `fzf-lua` / `snacks`), chosen via `setup { picker = … }`.
 - No keymaps are added by default, and `cli.tools` is empty — the user provides tools (`name → cmd array`) and keymaps via `cli.win.keys` or a `FileType` autocmd.
 
 ## Alternatives considered
@@ -20,7 +20,7 @@ Buffer/window sprawl and no single "current agent" surface; re-targeting one ter
 
 ### Why not a built-in fuzzy picker?
 
-It would duplicate fzf-lua/snacks and fight user overrides; `vim.ui.select` defers to whatever the user already installed.
+It would duplicate fzf-lua/snacks and fight user overrides; the pluggable Picker integrates fzf-lua/snacks natively instead.
 
 ### Why not ship default tools and keymaps?
 

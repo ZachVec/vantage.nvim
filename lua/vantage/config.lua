@@ -20,7 +20,14 @@
 ---@class vantage.Config
 ---@field backend string
 ---@field socket string
+---@field picker string
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
+
+---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks).
+---@field pick_agent fun(callback: fun(choice: { kind: "agent"|"new", agent?: vantage.Agent }))
+---@field pick_tool fun(callback: fun(tool_name: string))
+---@field pick_group fun(callback: fun(group: string))
+---@field pick_kill fun(callback: fun(target: string))
 
 local M = {}
 
@@ -30,6 +37,8 @@ local defaults = {
   backend = "tmux",
   --- Private tmux socket name, isolating Vantage from the daily tmux server.
   socket = "vantage",
+  --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
+  picker = "native",
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
     --- Empty by default: provide your own; nothing is built in or validated.

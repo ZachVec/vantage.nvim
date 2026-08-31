@@ -43,9 +43,9 @@ local function do_create(group, cmd, cwd)
 end
 
 local function create_wizard()
-  Picker.pick_tool(function(tool_name)
+  Picker.get().pick_tool(function(tool_name)
     local tool = Config.options.cli.tools[tool_name]
-    Picker.pick_group(function(group)
+    Picker.get().pick_group(function(group)
       do_create(group, table.concat(tool.cmd, " "), Util.cwd())
     end)
   end)
@@ -53,7 +53,7 @@ end
 
 --- Pick an Agent, or create a new one via the "new" entry in the picker.
 local function pick_or_new()
-  Picker.pick_agent(function(choice)
+  Picker.get().pick_agent(function(choice)
     if choice.kind == "new" then
       create_wizard()
     else
@@ -104,7 +104,7 @@ function M.run(args)
     end
   elseif subcommand == "kill" then
     if #remaining == 0 then
-      Picker.pick_kill(function(target)
+      Picker.get().pick_kill(function(target)
         Backend.get().kill(target)
       end)
       return
