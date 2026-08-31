@@ -24,22 +24,17 @@ function M.check()
     return
   end
 
-  if vim.fn.executable("tmux") == 1 then
-    local version = vim.trim(vim.fn.system({ "tmux", "-V" }))
-    ok(("tmux found: %s"):format(version))
-  else
-    err("tmux not found in PATH")
-    return
-  end
-
-  local socket = require("vantage.config").options.socket
-  local code = vim.system({ "tmux", "-L", socket, "list-sessions" }, { text = true }):wait().code
-  if code == 0 then
-    ok(("vantage tmux socket '%s' is running"):format(socket))
-  elseif code == 1 then
-    ok(("vantage tmux socket '%s' not started yet (starts on first use)"):format(socket))
-  else
-    warn(("tmux socket '%s' check returned exit code %s"):format(socket, tostring(code)))
+  for _, check in ipairs(require("vantage.backend").get().health()) do
+    if check.status == "ok" then
+      ok(check.message)
+    elseif check.status == "warn" then
+      warn(check.message)
+    else
+      err(check.message)
+    end
+    if check.fatal then
+      return
+    end
   end
 
   local picker = require("vantage.config").options.picker

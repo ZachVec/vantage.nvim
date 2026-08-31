@@ -254,4 +254,33 @@ function M.capture_pane(target, max_lines)
   return lines
 end
 
+--- The command to attach a terminal client to a View, run as a `term` job by
+--- the Frontend. Lives here so the Frontend never hardcodes tmux.
+---@param view string tmux View session name
+---@return string[]
+function M.client_command(view)
+  return { "tmux", "-L", socket(), "attach-session", "-t", view }
+end
+
+--- Health checks for the tmux driver: binary presence and socket state.
+---@return { status: "ok"|"warn"|"err", message: string, fatal?: boolean }[]
+function M.health()
+  if vim.fn.executable("tmux") ~= 1 then
+    return { { status = "err", message = "tmux not found in PATH", fatal = true } }
+  end
+  local version = vim.trim(vim.fn.system({ "tmux", "-V" }))
+  local checks = { { status = "ok", message = ("tmux found: %s"):format(version) } }
+  local code = exec("list-sessions")
+  if code == 0 then
+    checks[#checks + 1] = { status = "ok", message = ("vantage tmux socket '%s' is running"):format(socket()) }
+  elseif code == 1 then
+    checks[#checks + 1] =
+      { status = "ok", message = ("vantage tmux socket '%s' not started yet (starts on first use)"):format(socket()) }
+  else
+    checks[#checks + 1] =
+      { status = "warn", message = ("tmux socket '%s' check returned exit code %s"):format(socket(), tostring(code)) }
+  end
+  return checks
+end
+
 return M

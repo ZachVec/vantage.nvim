@@ -27,10 +27,6 @@ local M = {
   last_agent = nil,
 }
 
-local function socket()
-  return Config.options.socket
-end
-
 function M.reset()
   M.job, M.buffer, M.window, M.view = nil, nil, nil, nil
 end
@@ -237,7 +233,7 @@ function M.attach_terminal(view)
   M.view = view
   configure_window()
 
-  local job = vim.fn.jobstart({ "tmux", "-L", socket(), "attach-session", "-t", view }, { term = true })
+  local job = vim.fn.jobstart(Backend.get().client_command(view), { term = true })
   if job <= 0 then
     Util.notify("failed to start the terminal")
     M.detach()
