@@ -18,12 +18,14 @@ Vantage is a single Neovim plugin:
 - Neovim ≥ 0.10
 - tmux 3.0+ (developed against 3.6a)
 
-## Install (lazy.nvim, local checkout)
+## Install
+
+Install with your favorite package manager. With
+[lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  dir  = vim.fn.expand("~/vantage"),   -- path to this repository
-  name = "vantage",                    -- matches lua/vantage, so default config runs setup(opts)
+  "ZachVec/vantage.nvim",
   cmd  = "Vantage",
   opts = {},
 }
