@@ -37,7 +37,7 @@ There is no test suite or standalone linter wired yet; add one (and its `make` t
 - Every module is `local M = {}` … `return M`; imports use `require("vantage.…")`.
 - Public functions carry LuaLS annotations (`---@param`, `---@return`, `---@class`); shared types live in `config.lua`.
 - The [domain glossary](docs/glossary.md) is authoritative — use each term and honor each `_Avoid:` exactly; add or rename a term only there.
-- Keep user-visible commands, help text, and defaults in sync in [doc/vantage.nvim.txt](doc/vantage.nvim.txt).
+- Keep the public docs current in the same change: if a change makes [README.md](README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **Non-trivial changes MUST include an Agent Note in the same change;** only mechanical/local edits are exempt ([when to write](.agents/notes/README.md#when-to-write-one)).
 
 ## Editing these instructions
