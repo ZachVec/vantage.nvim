@@ -209,7 +209,7 @@ local function show_annotation(annotation)
 
   local win = vim.api.nvim_open_win(buf, false, {
     relative = "cursor",
-    row = -height - 1, -- above the cursor (a negative row is above)
+    row = 1,
     col = 0,
     width = width,
     height = height,
