@@ -105,8 +105,13 @@ end
 --- afterwards so the cursor stays where it was (e.g. the terminal).
 local function prompt_wizard()
   local names = {}
+  local has_annotations = #Annotation.collect() > 0
   for name in pairs(Config.options.prompts) do
-    names[#names + 1] = name
+    if name == "{annotations}" and not has_annotations then
+      -- hide the built-in {annotations} prompt while there is nothing to send
+    else
+      names[#names + 1] = name
+    end
   end
   table.sort(names)
   local win = vim.api.nvim_get_current_win()

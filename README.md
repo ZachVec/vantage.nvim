@@ -68,9 +68,10 @@ require("vantage").setup({
   backend = "tmux",          -- pluggable backend driver (only "tmux" today)
   socket  = "vantage",       -- private tmux socket name
   picker  = "native",        -- native | fzf-lua | snacks
-  prompts = {               -- built-in {file}/{line}; add/override yours (additive)
+  prompts = {               -- built-in {file}/{line}/{annotations}; add/override yours
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
+    ["{annotations}"] = "{annotations}",
   },
   annotations = {           -- notes on line ranges, sent via {annotations}
     item = "{lines} {note}",  -- per-annotation template
@@ -105,14 +106,16 @@ the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 
 ### Prompt templates
 
-`prompts` maps names to text templates. Two are built in — `{file}` and
-`{line}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw location
-references are always available. `:Vantage prompt` picks one via `vim.ui.select`
-(not the pluggable picker — there is nothing to preview) and types it into the
-focused Agent's input; it never auto-submits. Your `prompts` merge additively: a
-name you set overrides the built-in, and names you leave unset are kept.
-Templates may use five placeholders, four of which are Claude-style location
-references relative to the focused Agent's cwd:
+`prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
+and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
+location references and the accumulated Annotations are always available. The
+`{annotations}` prompt is hidden while there are no Annotations. `:Vantage
+prompt` picks one via `vim.ui.select` (not the pluggable picker — there is
+nothing to preview) and pastes it into the focused Agent's input; it never
+auto-submits. Your `prompts` merge additively: a name you set overrides the
+built-in, and names you leave unset are kept. Templates may use five
+placeholders, four of which are Claude-style location references relative to
+the focused Agent's cwd:
 
 | Placeholder | Expands to |
 |-------------|------------|

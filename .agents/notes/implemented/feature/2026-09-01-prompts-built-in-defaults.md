@@ -12,21 +12,25 @@ reference into the Agent — should work out of the box, without setup.
 
 ## Decision
 
-`prompts` ships with two built-in identity templates:
+`prompts` ships with three built-in identity templates:
 
 ```lua
 prompts = {
   ["{file}"] = "{file}",
   ["{line}"] = "{line}",
+  ["{annotations}"] = "{annotations}",
 }
 ```
 
 Each is named by its own placeholder and expands to nothing but that
-placeholder, so the raw location references are always available. Composed
-prompts (`review`, `fix`, `explain`, …) are deliberately not built in — they
-are opinionated prose and belong in the user's `setup`. User `prompts` merge
-additively (the existing `vim.tbl_deep_extend("force", defaults, opts)`): a
-name the user sets overrides the built-in, and names left unset are kept.
+placeholder, so the raw location references and the accumulated Annotations are
+always available. The `{annotations}` prompt is hidden from `:Vantage prompt`
+while there are no Annotations, so a zero-config install with none sees only
+`{file}` and `{line}`. Composed prompts (`review`, `fix`, `explain`, …) are
+deliberately not built in — they are opinionated prose and belong in the user's
+`setup`. User `prompts` merge additively (the existing
+`vim.tbl_deep_extend("force", defaults, opts)`): a name the user sets overrides
+the built-in, and names left unset are kept.
 
 `{function}` and `{class}` are not built in either: they need the optional
 nvim-treesitter-textobjects plugin, and shipping them would make every default

@@ -30,16 +30,19 @@ and no background highlight, so nothing shifts layout or obscures code; when
 the number column is off there is nothing to tint, so nothing draws (the
 annotation stays reachable via `list`).
 
-Sending reuses the Prompt pipeline: `{annotations}` is a new prompt placeholder
+Sending reuses the Prompt pipeline: `{annotations}` is a prompt placeholder
 whose resolver renders every annotation through the per-annotation template
 `annotations.item` (default `"{lines} {note}"`) and returns nil when there are
 none, so an empty set skips the send exactly like any other empty placeholder.
-The item template's fields are `{note}`, `{lines}` (`@<relpath> :L<start>-<end>`),
-`{code}` (the selected lines), and the `{file}`/`{start}`/`{end}` building
-blocks. The rendered text then flows through the existing per-tool `format`
-hook and `send_keys` unchanged. After a successful send of a template
-containing `{annotations}`, `annotations.clear_on_send` (default true) clears
-every annotation.
+It ships as a built-in identity prompt (like `{file}`/`{line}`) and is hidden
+from `:Vantage prompt` while there are no annotations. The item template's
+fields are `{note}`, `{lines}` (`@<relpath> :L<start>-<end>`), `{code}` (the
+selected lines), and the `{file}`/`{start}`/`{end}` building blocks. The
+rendered text then flows through the existing per-tool `format` hook and
+`send_keys`, which pastes via bracketed paste so the embedded newlines survive
+(see the [prompts note](2026-08-31-prompts.md)). After a successful send of a
+template containing `{annotations}`, `annotations.clear_on_send` (default true)
+clears every annotation.
 
 ## Alternatives considered
 

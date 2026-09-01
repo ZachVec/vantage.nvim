@@ -48,15 +48,18 @@ local defaults = {
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
   --- Named prompt templates (name -> template string) offered by
-  --- `:Vantage prompt`. Two are built in — {file} and {line}, as identity
-  --- templates ("{file}" -> "{file}") — so the raw location references are
-  --- always available. User prompts merge additively: a name you set overrides
-  --- the built-in, and names you leave unset are kept. Templates may use the
-  --- placeholders {file}, {line}, {function} and {class}, rendered relative to
-  --- the focused Agent's cwd.
+  --- `:Vantage prompt`. Three are built in — {file}, {line}, and {annotations},
+  --- as identity templates ("{file}" -> "{file}") — so the raw location
+  --- references and the accumulated Annotations are always available. The
+  --- {annotations} prompt is hidden when there are no Annotations. User prompts
+  --- merge additively: a name you set overrides the built-in, and names you
+  --- leave unset are kept. Templates may use the placeholders {file}, {line},
+  --- {function}, {class}, and {annotations}, rendered relative to the focused
+  --- Agent's cwd.
   prompts = {
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
+    ["{annotations}"] = "{annotations}",
   },
   --- Annotations: notes anchored to line ranges in normal files, batched into
   --- the focused Agent through the {annotations} prompt placeholder.
