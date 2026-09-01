@@ -31,9 +31,7 @@ local function check_prompts()
       end
     end
   end
-  if next(prompts) == nil then
-    ok("prompts: none configured")
-  elseif next(unknown) ~= nil then
+  if next(unknown) ~= nil then
     local names = {}
     for token in pairs(unknown) do
       names[#names + 1] = "{" .. token .. "}"

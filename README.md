@@ -63,7 +63,10 @@ require("vantage").setup({
   backend = "tmux",          -- pluggable backend driver (only "tmux" today)
   socket  = "vantage",       -- private tmux socket name
   picker  = "native",        -- native | fzf-lua | snacks
-  prompts = {},              -- provide your own (name -> template); nothing built in
+  prompts = {               -- built-in {file}/{line}; add/override yours (additive)
+    ["{file}"] = "{file}",
+    ["{line}"] = "{line}",
+  },
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
@@ -93,9 +96,12 @@ the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 
 ### Prompt templates
 
-`prompts` maps names to text templates, empty by default. `:Vantage prompt`
-picks one via `vim.ui.select` (not the pluggable picker — there is nothing to
-preview) and types it into the focused Agent's input; it never auto-submits.
+`prompts` maps names to text templates. Two are built in — `{file}` and
+`{line}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw location
+references are always available. `:Vantage prompt` picks one via `vim.ui.select`
+(not the pluggable picker — there is nothing to preview) and types it into the
+focused Agent's input; it never auto-submits. Your `prompts` merge additively: a
+name you set overrides the built-in, and names you leave unset are kept.
 Templates may use four placeholders, Claude-style location references relative
 to the focused Agent's cwd:
 
@@ -107,8 +113,9 @@ to the focused Agent's cwd:
 | `{class}`    | `class Foo @path/to/file.lua :L42:C3` |
 
 `{function}` / `{class}` need nvim-treesitter-textobjects; without it (or
-outside a function/class) the prompt is skipped with a warning. An unknown
-placeholder is left literal at runtime and reported by `:checkhealth vantage`.
+outside a function/class) the prompt is skipped with a warning — that is why
+they are not built in. An unknown placeholder is left literal at runtime and
+reported by `:checkhealth vantage`.
 
 ```lua
 prompts = {

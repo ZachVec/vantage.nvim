@@ -64,5 +64,5 @@ _Avoid_: command, template
 
 ## Prompt
 
-A named text template typed into a focused Agent's input. Configured under `setup { prompts = { name = "…" } }`; rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) before being sent.
+A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) before being sent.
 _Avoid_: snippet
