@@ -65,6 +65,10 @@ first `:Vantage`.
       annotations = {          -- notes on line ranges, sent via {annotations}
         item = "{lines} {note}",  -- per-annotation template
         clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+        keys = {                  -- note-float keymaps (normal mode)
+          exit = "<Esc>",         -- commit the note and close (empty = delete)
+          -- delete = "<leader>d", -- optional: delete directly
+        },
       },
       cli = {
         tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -131,12 +135,24 @@ The Agent's working directory is the current window's local cwd (respects
 ANNOTATIONS ~
 
 An Annotation is a note anchored to a line range in a normal file. Add one
-with `:Vantage annotation add` (over the visual selection, else the current
-line), then read, edit, or remove them with `:Vantage annotation
-list|edit|delete|clear`. Annotations tint the range's line numbers only — no
+with `:Vantage annotate add` (over the visual selection, else the current
+line); `:Vantage annotate` opens a picker of annotations — selecting one jumps
+to its range and opens an editable note float. `:Vantage annotate clear`
+removes every annotation. Annotations tint the range's line numbers only — no
 sign column, no layout shift, no code obscuring; when the number column is off
-they are not drawn (but stay reachable via `list`). They live in memory only:
-lost on buffer unload/reload or Neovim exit, and never written to the file.
+they are not drawn. They live in memory only: lost on buffer unload/reload or
+Neovim exit, and never written to the file.
+
+The note float is a normal scratch buffer (normal mode), so editing is ordinary
+Vim — multi-line notes and undo included. The only added keymap is
+`annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
+float; an empty note deletes the annotation after a confirmation. An optional
+`annotations.keys.delete` deletes directly.
+
+The picker is the pluggable one (`native` / `fzf-lua` / `snacks`): fzf-lua and
+snacks preview each annotation through `annotations.item` (what you see is what
+gets sent) and offer an in-place `<c-x>` delete; native has no preview and no
+keymaps, so it is selection only.
 
 Send the accumulated annotations to the focused Agent through a Prompt that
 uses `{annotations}`, e.g. `prompts = { notes = "My notes:\n{annotations}" }`.
@@ -240,22 +256,16 @@ inside the terminal buffer): >
     `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
     auto-submit). Warns when there is no focused Agent.
 
-`:Vantage annotation add`
+`:Vantage annotate`
+    Open the Annotation picker (pluggable; fzf-lua/snacks preview each note and
+    offer an in-place `<c-x>` delete). Selecting one jumps to its range and
+    opens an editable note float.
+
+`:Vantage annotate add`
     Add an Annotation over the command's range — a visual selection, or the
-    current line when none — after asking for the note text.
+    current line when none — and open an empty note float.
 
-`:Vantage annotation list`
-    Pick an Annotation and show its note in a floating window, jumping to its
-    range and emphasizing the range's line numbers. The window closes when the
-    cursor moves (like `K` hover).
-
-`:Vantage annotation edit`
-    Pick an Annotation and edit its note text.
-
-`:Vantage annotation delete`
-    Pick an Annotation and remove it.
-
-`:Vantage annotation clear`
+`:Vantage annotate clear`
     Remove every Annotation (after a confirmation).
 
 `:Vantage status`

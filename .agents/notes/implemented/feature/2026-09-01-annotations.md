@@ -16,19 +16,27 @@ attach a note to a specific range of a normal file and batch-send the set.
 An `Annotation` is a free-text note anchored to a line range in a normal
 buffer, collected in memory only: a per-buffer registry maps an extmark id to
 `{ buf, start_row, end_row, note }`, and the extmark carries the range plus a
-`number_hl_group` tint. Annotations are created, read, edited, and deleted
-through the `:Vantage annotation add|list|edit|delete|clear` subcommands: `add`
-takes the command's range (a visual selection, else the current line) and asks
-for the note via `vim.ui.input`; `list`/`edit`/`delete` pick via `vim.ui.select`
-(like prompts, bypassing the pluggable Picker — there is nothing to preview);
-`list` jumps to the range, tints it, and shows the note in a floating window.
+`number_hl_group` tint. They are managed through the `:Vantage annotate`
+subcommands — `annotate` (open the picker), `annotate add` (a range + a note
+float), and `annotate clear` (clear all). Selecting in the picker jumps to the
+range and opens an editable note float: a plain scratch buffer in normal mode,
+so editing is ordinary Vim (multi-line, undo). The one added normal-mode
+keymap, `annotations.keys.exit` (default `<Esc>`), commits the note and closes
+the float; an empty note deletes the annotation after a `vim.ui.select`
+confirmation. `annotations.keys.delete` (unset by default) deletes directly.
+
+The picker goes through the pluggable Picker via a new `pick_annotation`
+method: fzf-lua and snacks preview each annotation through the same
+`annotations.item` template (WYSIWYG) and offer an in-place `<c-x>` delete;
+native (`vim.ui.select`) has neither preview nor keymaps, so it is selection
+only.
 
 Rendering is deliberately number-column-only: the annotation's range tints the
 line numbers (`VantageAnnotation`, resting) and swaps to
-`VantageAnnotationActive` while its note is being read. There is no sign column
+`VantageAnnotationActive` while its note float is open. There is no sign column
 and no background highlight, so nothing shifts layout or obscures code; when
 the number column is off there is nothing to tint, so nothing draws (the
-annotation stays reachable via `list`).
+annotation stays reachable via `annotate`).
 
 Sending reuses the Prompt pipeline: `{annotations}` is a prompt placeholder
 whose resolver renders every annotation through the per-annotation template
@@ -53,7 +61,7 @@ signs coexist), shifting the whole window; a background `hl_group` obscures the
 code. The number-column tint (`number_hl_group`) is layout-stable, never
 touches code, and needs only one extmark for the whole range. The cost is a
 dependency on `number`/`relativenumber` being on — accepted: with it off,
-nothing draws and `list` remains the way in.
+nothing draws and `annotate` remains the way in.
 
 ### Why not a dedicated `:Vantage annotation send`?
 
@@ -76,5 +84,9 @@ on-disk format; persistence remains a possible follow-up.
   "no `{selection}`/`{input}`" scope is unchanged, and the two notes cross-link.
 - Annotations are lost on buffer unload/reload or Neovim exit and never edit
   the file; users who want durable comments must use source comments instead.
-- The `Vantage` user command gains `range = true` so `annotation add` can take
+- The `Vantage` user command gains `range = true` so `annotate add` can take
   the visual selection; every other subcommand ignores the range.
+- The note float is a plain scratch buffer with only the `keys.exit` (and
+  optional `keys.delete`) keymaps added, so the user's own keymaps apply inside
+  it — Vim-consistent, at the cost of their global mappings (e.g. `<leader>`)
+  also firing there.

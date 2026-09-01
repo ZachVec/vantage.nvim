@@ -45,11 +45,9 @@ docs.
 :Vantage toggle                            " hide/show the terminal (creates if empty)
 :Vantage detach                            " detach the client (kills the View; Agents survive)
 :Vantage prompt                            " pick a prompt and type it into the focused Agent
-:Vantage annotation add                    " annotate a range (visual selection, or current line)
-:Vantage annotation list                   " pick an annotation and read it
-:Vantage annotation edit                   " edit an annotation's note
-:Vantage annotation delete                 " remove an annotation
-:Vantage annotation clear                  " remove every annotation
+:Vantage annotate                          " open the annotation picker (read/edit a note)
+:Vantage annotate add                      " annotate a range (visual selection, or current line)
+:Vantage annotate clear                    " remove every annotation
 :Vantage status                            " debug: clients + sessions
 ```
 
@@ -76,6 +74,10 @@ require("vantage").setup({
   annotations = {           -- notes on line ranges, sent via {annotations}
     item = "{lines} {note}",  -- per-annotation template
     clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+    keys = {                  -- note-float keymaps (normal mode)
+      exit = "<Esc>",         -- commit the note and close (empty = delete)
+      -- delete = "<leader>d", -- optional: delete directly
+    },
   },
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -141,14 +143,19 @@ prompts = {
 ### Annotations
 
 An Annotation is a note anchored to a line range in a normal file. Add one with
-`:Vantage annotation add` (over the visual selection, or the current line when
-there is none), then read/edit/delete with
-`:Vantage annotation list|edit|delete` and clear with
-`:Vantage annotation clear`. The `list` preview closes when the cursor moves
-(like `K` hover). Annotations tint the range's line numbers only — no layout
-shift, no code obscuring; when the number column is off they are not drawn (but
-stay reachable via `list`). They live in memory only: lost on buffer
-unload/reload or Neovim exit.
+`:Vantage annotate add` (over the visual selection, or the current line when
+there is none); `:Vantage annotate` opens a picker — selecting one jumps to its
+range and opens an editable note float — and `:Vantage annotate clear` removes
+them all. Annotations tint the range's line numbers only — no layout shift, no
+code obscuring; when the number column is off they are not drawn. They live in
+memory only: lost on buffer unload/reload or Neovim exit.
+
+The note float is a normal scratch buffer (normal mode), so editing is ordinary
+Vim — multi-line notes and undo included. The only added keymap is
+`annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
+float; an empty note deletes the annotation after a confirmation. The picker is
+pluggable: fzf-lua/snacks preview each note through `annotations.item` and offer
+an in-place `<c-x>` delete; native is selection-only.
 
 Send them to the focused Agent through a prompt that uses `{annotations}`:
 

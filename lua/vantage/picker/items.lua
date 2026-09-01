@@ -100,4 +100,34 @@ function M.prompt_new_group(callback)
   end)
 end
 
+--- The cwd to relativize annotation previews against: the focused Agent's cwd,
+--- else the current window's local cwd.
+---@return string
+function M.annotation_cwd()
+  local agent = require("vantage.client").last_agent_alive()
+  return agent and agent.cwd or Util.cwd()
+end
+
+--- Annotations (as { annotation, text }) for the picker, or nil (with a warning)
+--- when there are none.
+---@return { annotation: vantage.Annotation, text: string }[]?
+function M.annotation_items()
+  local Annotation = require("vantage.annotation")
+  local annotations = Annotation.collect()
+  if #annotations == 0 then
+    Util.warn("no annotations — add one with :Vantage annotate add")
+    return nil
+  end
+  local items = {}
+  for _, annotation in ipairs(annotations) do
+    local path = Util.tilde(vim.api.nvim_buf_get_name(annotation.buf) or "")
+    local first = (vim.split(annotation.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
+    items[#items + 1] = {
+      annotation = annotation,
+      text = ("%s:L%d-%d  %s"):format(path, annotation.start_row, annotation.end_row, first),
+    }
+  end
+  return items
+end
+
 return M

@@ -139,4 +139,49 @@ function M.pick_kill(callback)
   })
 end
 
+--- Preview an annotation through the configured `item` template (WYSIWYG).
+---@param items table[]
+---@return fun(selected: string[]): string
+local function annotation_preview(items)
+  local Annotation = require("vantage.annotation")
+  return function(selected)
+    local item = items[index_of(selected)]
+    if not item then
+      return ""
+    end
+    return Annotation.render_item(item.annotation, Items.annotation_cwd())
+  end
+end
+
+---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
+function M.pick_annotation(opts)
+  local items = Items.annotation_items()
+  if not items then
+    return
+  end
+  fzf().fzf_exec(entries(items), {
+    prompt = Items.prompt,
+    actions = {
+      ["default"] = function(selected)
+        local item = items[index_of(selected)]
+        if item then
+          vim.schedule(function()
+            opts.select(item.annotation)
+          end)
+        end
+      end,
+      ["ctrl-x"] = function(selected)
+        local item = items[index_of(selected)]
+        if item then
+          vim.schedule(function()
+            opts.delete(item.annotation)
+            M.pick_annotation(opts) -- re-open with the updated list
+          end)
+        end
+      end,
+    },
+    preview = annotation_preview(items),
+  })
+end
+
 return M

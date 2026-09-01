@@ -82,4 +82,24 @@ function M.pick_kill(callback)
   end)
 end
 
+--- Native has no preview and no in-picker keymaps: `vim.ui.select` offers only
+--- selection, so the `delete` callback is unused here.
+---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
+function M.pick_annotation(opts)
+  local items = Items.annotation_items()
+  if not items then
+    return
+  end
+  vim.ui.select(items, {
+    prompt = Items.prompt,
+    format_item = function(item)
+      return item.text
+    end,
+  }, function(item)
+    if item then
+      opts.select(item.annotation)
+    end
+  end)
+end
+
 return M

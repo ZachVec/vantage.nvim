@@ -230,6 +230,15 @@ local function render_item(annotation, template, cwd)
   )
 end
 
+--- Render one annotation through the configured `item` template (for picker
+--- previews: what you see is what gets sent).
+---@param annotation vantage.Annotation
+---@param cwd string focused Agent cwd (relativization base)
+---@return string
+function M.render_item(annotation, cwd)
+  return render_item(annotation, Config.options.annotations.item, cwd)
+end
+
 --- Render every annotation through the configured `item` template into one
 --- string, or nil when there are none (so the prompt skips with a warning).
 ---@param cwd string focused Agent cwd (relativization base)

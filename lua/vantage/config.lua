@@ -19,9 +19,14 @@
 ---@field split table
 ---@field keys table[]
 
+---@class vantage.AnnotationKeys Note-float keymaps (normal mode, buffer-local).
+---@field exit string commit the note and close the float
+---@field delete? string delete the annotation directly (optional; unset by default)
+
 ---@class vantage.AnnotationConfig
 ---@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
 ---@field clear_on_send boolean clear after a sent prompt contains {annotations}
+---@field keys vantage.AnnotationKeys
 
 ---@class vantage.Config
 ---@field backend string
@@ -36,6 +41,7 @@
 ---@field pick_tool fun(callback: fun(tool_name: string))
 ---@field pick_group fun(callback: fun(group: string))
 ---@field pick_kill fun(callback: fun(target: string))
+---@field pick_annotation fun(opts: { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) })
 
 local M = {}
 
@@ -71,6 +77,13 @@ local defaults = {
     --- Clear every annotation after a prompt containing {annotations} is typed
     --- into the Agent. Set false to keep them for re-sending.
     clear_on_send = true,
+    --- Note-float keymaps (normal mode, buffer-local). `exit` commits the note
+    --- and closes the float; an empty note deletes the annotation (after a
+    --- confirmation). `delete` optionally deletes the annotation directly.
+    keys = {
+      exit = "<Esc>",
+      -- delete = "<leader>d",
+    },
   },
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
@@ -135,7 +148,7 @@ function M.setup(opts)
     require("vantage.commands").run(args)
   end, {
     nargs = "*",
-    range = true, -- `:Vantage annotation add` uses the range as the annotation span
+    range = true, -- `:Vantage annotate add` uses the range as the annotation span
     complete = function(arglead, cmdline)
       return require("vantage.commands").complete(arglead, cmdline)
     end,
