@@ -104,10 +104,6 @@ local function prompt_wizard()
     names[#names + 1] = name
   end
   table.sort(names)
-  if #names == 0 then
-    Util.warn("no prompts configured (setup { prompts = { ... } })")
-    return
-  end
   local win = vim.api.nvim_get_current_win()
   local function restore()
     if vim.api.nvim_win_is_valid(win) then
