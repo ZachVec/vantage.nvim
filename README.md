@@ -141,9 +141,10 @@ An Annotation is a note anchored to a line range in a normal file. Add one with
 `:Vantage annotation add` (over the visual selection, or the current line when
 there is none), then read/edit/delete with
 `:Vantage annotation list|edit|delete` and clear with
-`:Vantage annotation clear`. Annotations tint the range's line numbers only —
-no layout shift, no code obscuring; when the number column is off they are not
-drawn (but stay reachable via `list`). They live in memory only: lost on buffer
+`:Vantage annotation clear`. The `list` preview closes when the cursor moves
+(like `K` hover). Annotations tint the range's line numbers only — no layout
+shift, no code obscuring; when the number column is off they are not drawn (but
+stay reachable via `list`). They live in memory only: lost on buffer
 unload/reload or Neovim exit.
 
 Send them to the focused Agent through a prompt that uses `{annotations}`:

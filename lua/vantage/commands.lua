@@ -181,7 +181,8 @@ local function jump_to_annotation(annotation)
 end
 
 --- Show an annotation's note in a floating window; the range tint reverts when
---- the window closes (BufWipeout).
+--- the window closes. Like `K` hover, the window is non-focusable and closes as
+--- soon as the cursor moves, insert mode is entered, or the buffer is left.
 ---@param annotation vantage.Annotation
 local function show_annotation(annotation)
   if not jump_to_annotation(annotation) then
@@ -206,10 +207,23 @@ local function show_annotation(annotation)
     col = 0,
     width = width,
     height = height,
+    focusable = false,
     style = "minimal",
     border = "rounded",
   })
 
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+    Annotation.set_active(annotation.buf, annotation.id, false)
+  end
+
+  vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "BufLeave" }, {
+    buffer = annotation.buf,
+    once = true,
+    callback = close,
+  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     buffer = buf,
     once = true,
@@ -217,12 +231,6 @@ local function show_annotation(annotation)
       Annotation.set_active(annotation.buf, annotation.id, false)
     end,
   })
-  vim.keymap.set("n", "q", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = buf, nowait = true, desc = "close annotation" })
-  vim.keymap.set("n", "<Esc>", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = buf, nowait = true, desc = "close annotation" })
 end
 
 --- Add an annotation over the command's range (a visual selection, else the

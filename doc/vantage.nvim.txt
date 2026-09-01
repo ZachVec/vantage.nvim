@@ -243,7 +243,8 @@ inside the terminal buffer): >
 
 `:Vantage annotation list`
     Pick an Annotation and show its note in a floating window, jumping to its
-    range and emphasizing the range's line numbers.
+    range and emphasizing the range's line numbers. The window closes when the
+    cursor moves (like `K` hover).
 
 `:Vantage annotation edit`
     Pick an Annotation and edit its note text.
