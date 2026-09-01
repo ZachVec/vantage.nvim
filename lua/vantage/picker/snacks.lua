@@ -141,7 +141,7 @@ function M.pick_files(callback)
   pick("files", {
     confirm = function(picker)
       local paths = {}
-      for _, item in ipairs(picker:selected()) do
+      for _, item in ipairs(picker:selected({ fallback = true })) do
         local path = require("snacks.picker.util").path(item)
         if path then
           paths[#paths + 1] = path
@@ -162,7 +162,7 @@ function M.pick_buffers(callback)
   pick("buffers", {
     confirm = function(picker)
       local paths = {}
-      for _, item in ipairs(picker:selected()) do
+      for _, item in ipairs(picker:selected({ fallback = true })) do
         local path = Items.buffer_file_path(item.buf)
         if path then
           paths[#paths + 1] = path

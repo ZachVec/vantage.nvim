@@ -90,58 +90,67 @@ local function send_text(agent, name, text)
 end
 
 --- Run a built-in Action: open its picker and type the selected references.
---- Scheduled so the prompt-name selector can finish closing first.
+--- Scheduled so the prompt-name selector can finish closing first; `on_done`
+--- runs after the picker confirms (or immediately when unsupported).
 ---@param name string "files" | "buffers"
 ---@param agent vantage.Agent
-local function send_action(name, agent)
+---@param on_done fun()
+local function send_action(name, agent, on_done)
   local pick = name == "files" and Picker.get().pick_files or Picker.get().pick_buffers
   if type(pick) ~= "function" then
+    on_done()
     return -- picker doesn't support the Action (native, or unavailable)
   end
   vim.schedule(function()
     pick(function(paths)
-      if #paths == 0 then
-        return -- empty selection: no-op
+      if #paths > 0 then
+        send_text(agent, name, Prompt.render_paths(agent, paths))
       end
-      send_text(agent, name, Prompt.render_paths(agent, paths))
+      on_done()
     end)
   end)
 end
 
 --- Render a Template against the focused Agent's context and type it in, or run
---- a built-in Action. Returns true when an Action opened a picker (async).
+--- a built-in Action. `on_done` runs after the text is sent (or skipped).
 ---@param name string
----@return boolean?
-local function send_prompt(name)
+---@param on_done fun()
+local function send_prompt(name, on_done)
   local agent = Client.last_agent_alive()
   if not agent then
     Util.warn("no focused agent — use :Vantage switch or toggle first")
+    on_done()
     return
   end
   if Prompt.actions[name] then
-    send_action(name, agent)
-    return true
+    send_action(name, agent, on_done)
+    return
   end
   local template = Config.options.prompts[name]
   if template == nil then
     Util.warn(("no such prompt '%s'"):format(name))
+    on_done()
     return
   end
   local text, failed = Prompt.render(template, Prompt.context(agent))
   if text == nil then
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
+    on_done()
     return
   end
-  if send_text(agent, name, text)
+  if
+    send_text(agent, name, text)
     and template:find("{annotations}", 1, true)
-    and Config.options.annotations.clear_on_send then
+    and Config.options.annotations.clear_on_send
+  then
     Annotation.clear()
   end
+  on_done()
 end
 
 --- Pick a Prompt (Template or Action) name via vim.ui.select and send it. The
---- window is restored afterwards for Templates; Actions open their own picker
---- and manage focus themselves.
+--- current window is restored after the send (for Actions, after its picker
+--- closes) so focus returns to where it was.
 local function prompt_wizard()
   local names = {}
   local has_annotations = #Annotation.collect() > 0
@@ -166,12 +175,16 @@ local function prompt_wizard()
       vim.api.nvim_set_current_win(win)
     end
   end
-  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
-    if name and send_prompt(name) then
-      return -- Action opened a picker: let it own focus
-    end
+  local function on_done()
     restore()
     vim.schedule(restore)
+  end
+  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
+    if name then
+      send_prompt(name, on_done)
+    else
+      on_done()
+    end
   end)
 end
 
