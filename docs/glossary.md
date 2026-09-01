@@ -54,7 +54,7 @@ _Avoid_: terminal, screen
 
 ## Picker
 
-The plugin's pluggable selection UI for choices with something to preview — the Agent list and the kill list — chosen via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`. Selections with nothing to preview (the Tool and Group choice during Agent creation, and `:Vantage prompt`) use `vim.ui.select` directly, not the Picker.
+The plugin's pluggable selection UI for choices with something to preview — the Agent list, the kill list, and the `files` / `buffers` Actions — chosen via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`. The Actions are available only under `fzf-lua` / `snacks`. Selections with nothing to preview (the Tool and Group choice during Agent creation, and the `:Vantage prompt` name list) use `vim.ui.select` directly, not the Picker.
 _Avoid_: launcher
 
 ## Tool
@@ -64,8 +64,20 @@ _Avoid_: command, template
 
 ## Prompt
 
-A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) or the accumulated Annotations (`{annotations}`) before being sent.
+## Prompt
+
+A named entry typed into a focused Agent's input, chosen via `:Vantage prompt`. Two kinds: a Template (a string rendered against the current context) and an Action (a built-in `files` / `buffers` that opens a picker and types the selected references).
 _Avoid_: snippet
+
+## Template
+
+The string kind of a Prompt: a text template with placeholders (`{file}`, `{line}`, `{function}`, `{class}`), rendered against the focused Agent's cwd before being sent; `{annotations}` renders the accumulated Annotations. Three are built in — `{file}`, `{line}`, and `{annotations}`, as identity templates — and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept).
+_Avoid_: snippet
+
+## Action
+
+The picker kind of a Prompt: a built-in `files` or `buffers` that opens a picker, lets the user select several files or buffers, and types the resulting location references into the focused Agent. Available only with the `fzf-lua` or `snacks` Picker.
+_Avoid_: dynamic prompt, picker prompt, interactive prompt
 
 ## Annotation
 

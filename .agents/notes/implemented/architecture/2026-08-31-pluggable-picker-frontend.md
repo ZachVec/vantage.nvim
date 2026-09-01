@@ -15,10 +15,12 @@ The Picker is a pluggable Frontend interface that mirrors the Backend seam.
 `lua/vantage/picker/init.lua` resolves the configured implementation through a
 whitelist registry (a raw user string is never `require`d) and exposes
 `Picker.get()`. Each implementation — `native`, `fzf-lua`, `snacks` — exposes
-two domain pickers (`pick_agent`, `pick_kill`) with identical callback
-contracts, selected via `setup { picker = … }` (default `native`). Callers go
-through `Picker.get()`. Tool and Group choice later moved out to plain
-`vim.ui.select` — see [the plain-selection note](2026-09-02-plain-selection-via-ui-select.md).
+the domain pickers `pick_agent` / `pick_kill` with identical callback contracts,
+selected via `setup { picker = … }` (default `native`); `fzf-lua` and `snacks`
+additionally expose `pick_files` / `pick_buffers` for the files/buffers Actions
+(see [the files/buffers note](../feature/2026-09-02-prompt-files-buffers-actions.md)).
+Callers go through `Picker.get()`. Tool and Group choice later moved out to
+plain `vim.ui.select` — see [the plain-selection note](2026-09-02-plain-selection-via-ui-select.md).
 
 Shared item construction lives in `picker/items.lua`: it builds rich items
 (each carrying a `text` display string plus the domain fields a callback

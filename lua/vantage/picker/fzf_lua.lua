@@ -11,6 +11,11 @@ local function fzf()
   return require("fzf-lua")
 end
 
+--- The fzf-lua path module (lazy, like `fzf()`).
+local function fzf_path()
+  return require("fzf-lua.path")
+end
+
 --- "1. text" entries; the prefix encodes the 1-based index so a returned
 --- display string maps back to its item.
 ---@param items table[]
@@ -141,6 +146,55 @@ function M.pick_annotation(opts)
       end
       return Annotation.render_item(item.annotation, Items.annotation_cwd())
     end,
+  })
+end
+
+--- Selected file paths as absolute paths. Delegates to fzf-lua's `files`
+--- provider (fd/fdfind → rg → find; multi-select is on by default) and recovers
+--- each absolute path via `fzf-lua.path.entry_to_file`.
+---@param callback fun(paths: string[])
+function M.pick_files(callback)
+  fzf().files({
+    actions = {
+      ["default"] = function(selected, opts)
+        local paths = {}
+        for _, sel in ipairs(selected) do
+          local entry = fzf_path().entry_to_file(sel, opts)
+          if entry.path and entry.path ~= "" then
+            paths[#paths + 1] = vim.fs.normalize(entry.path)
+          end
+        end
+        vim.schedule(function()
+          callback(paths)
+        end)
+      end,
+    },
+  })
+end
+
+--- Selected buffer paths as absolute paths, filtered to real files via
+--- `Items.buffer_file_path`. Delegates to fzf-lua's `buffers` provider and
+--- recovers each buffer number via `fzf-lua.path.entry_to_file`.
+---@param callback fun(paths: string[])
+function M.pick_buffers(callback)
+  fzf().buffers({
+    actions = {
+      ["default"] = function(selected, opts)
+        local paths = {}
+        for _, sel in ipairs(selected) do
+          local entry = fzf_path().entry_to_file(sel, opts)
+          if entry.bufnr then
+            local path = Items.buffer_file_path(entry.bufnr)
+            if path then
+              paths[#paths + 1] = path
+            end
+          end
+        end
+        vim.schedule(function()
+          callback(paths)
+        end)
+      end,
+    },
   })
 end
 

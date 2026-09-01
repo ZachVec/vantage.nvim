@@ -16,8 +16,8 @@ local M = {}
 ---@field item { agent?: vantage.Agent, annotation?: vantage.Annotation, text: string }
 ---@field preview vantage.SnacksPreviewPane
 
-local function pick(opts)
-  return require("snacks.picker").pick(opts)
+local function pick(source, opts)
+  return require("snacks.picker").pick(source, opts)
 end
 
 --- Preview the current item's agent pane.
@@ -130,6 +130,49 @@ function M.pick_annotation(opts)
         },
       },
     },
+  })
+end
+
+--- Selected file paths as absolute paths. Delegates to the snacks `files`
+--- source (fd → rg --files → find), so `.gitignore` and the source defaults
+--- apply; multi-select uses snacks' built-in selection.
+---@param callback fun(paths: string[])
+function M.pick_files(callback)
+  pick("files", {
+    confirm = function(picker)
+      local paths = {}
+      for _, item in ipairs(picker:selected()) do
+        local path = require("snacks.picker.util").path(item)
+        if path then
+          paths[#paths + 1] = path
+        end
+      end
+      picker:close()
+      vim.schedule(function()
+        callback(paths)
+      end)
+    end,
+  })
+end
+
+--- Selected buffer paths as absolute paths, filtered to real files via
+--- `Items.buffer_file_path`. Delegates to the snacks `buffers` source.
+---@param callback fun(paths: string[])
+function M.pick_buffers(callback)
+  pick("buffers", {
+    confirm = function(picker)
+      local paths = {}
+      for _, item in ipairs(picker:selected()) do
+        local path = Items.buffer_file_path(item.buf)
+        if path then
+          paths[#paths + 1] = path
+        end
+      end
+      picker:close()
+      vim.schedule(function()
+        callback(paths)
+      end)
+    end,
   })
 end
 

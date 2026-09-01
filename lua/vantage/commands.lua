@@ -70,14 +70,57 @@ local function pick_or_new()
   end)
 end
 
---- Render a prompt against the focused Agent's context and type it into the
---- Agent's input (no auto-submit).
+--- Apply the tool format hook and type the text into the Agent's input (no
+--- auto-submit). Returns false when the format hook dropped the text.
+---@param agent vantage.Agent
+---@param name string prompt name, for warnings
+---@param text string
+---@return boolean
+local function send_text(agent, name, text)
+  local tool = agent.tool and Config.options.cli.tools[agent.tool]
+  if tool and tool.format then
+    text = tool.format(text)
+    if text == nil or text == "" then
+      Util.warn(("prompt '%s' dropped by its format hook"):format(name))
+      return false
+    end
+  end
+  Backend.get().send_keys(agent.target, text)
+  return true
+end
+
+--- Run a built-in Action: open its picker and type the selected references.
+--- Scheduled so the prompt-name selector can finish closing first.
+---@param name string "files" | "buffers"
+---@param agent vantage.Agent
+local function send_action(name, agent)
+  local pick = name == "files" and Picker.get().pick_files or Picker.get().pick_buffers
+  if type(pick) ~= "function" then
+    return -- picker doesn't support the Action (native, or unavailable)
+  end
+  vim.schedule(function()
+    pick(function(paths)
+      if #paths == 0 then
+        return -- empty selection: no-op
+      end
+      send_text(agent, name, Prompt.render_paths(agent, paths))
+    end)
+  end)
+end
+
+--- Render a Template against the focused Agent's context and type it in, or run
+--- a built-in Action. Returns true when an Action opened a picker (async).
 ---@param name string
+---@return boolean?
 local function send_prompt(name)
   local agent = Client.last_agent_alive()
   if not agent then
     Util.warn("no focused agent — use :Vantage switch or toggle first")
     return
+  end
+  if Prompt.actions[name] then
+    send_action(name, agent)
+    return true
   end
   local template = Config.options.prompts[name]
   if template == nil then
@@ -89,23 +132,16 @@ local function send_prompt(name)
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
     return
   end
-  local tool = agent.tool and Config.options.cli.tools[agent.tool]
-  if tool and tool.format then
-    text = tool.format(text)
-    if text == nil or text == "" then
-      Util.warn(("prompt '%s' dropped by its format hook"):format(name))
-      return
-    end
-  end
-  Backend.get().send_keys(agent.target, text)
-  if template:find("{annotations}", 1, true) and Config.options.annotations.clear_on_send then
+  if send_text(agent, name, text)
+    and template:find("{annotations}", 1, true)
+    and Config.options.annotations.clear_on_send then
     Annotation.clear()
   end
 end
 
---- Pick a prompt name via vim.ui.select (no preview, so the pluggable Picker is
---- not used) and send it to the focused Agent. The current window is restored
---- afterwards so the cursor stays where it was (e.g. the terminal).
+--- Pick a Prompt (Template or Action) name via vim.ui.select and send it. The
+--- window is restored afterwards for Templates; Actions open their own picker
+--- and manage focus themselves.
 local function prompt_wizard()
   local names = {}
   local has_annotations = #Annotation.collect() > 0
@@ -113,6 +149,13 @@ local function prompt_wizard()
     if name == "{annotations}" and not has_annotations then
       -- hide the built-in {annotations} prompt while there is nothing to send
     else
+      names[#names + 1] = name
+    end
+  end
+  -- Built-in Actions need the files/buffers pickers (fzf-lua/snacks), so they
+  -- are offered only when the resolved Picker implements them.
+  if type(Picker.get().pick_files) == "function" then
+    for name in pairs(Prompt.actions) do
       names[#names + 1] = name
     end
   end
@@ -124,8 +167,8 @@ local function prompt_wizard()
     end
   end
   vim.ui.select(names, { prompt = "Prompt: " }, function(name)
-    if name then
-      send_prompt(name)
+    if name and send_prompt(name) then
+      return -- Action opened a picker: let it own focus
     end
     restore()
     vim.schedule(restore)
