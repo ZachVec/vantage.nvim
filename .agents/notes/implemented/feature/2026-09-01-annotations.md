@@ -1,0 +1,77 @@
+# Agent Note: Annotations — notes anchored to ranges, batched via {annotations}
+
+Status: implemented
+
+## Problem
+
+Agents are interactive REPLs: the only way to give one context is to type it.
+[Prompts](2026-08-31-prompts.md) solve "recall a canned message", but a coding
+session also accumulates ad-hoc observations across many files — "this block is
+duplicated", "rename this later", "why is this doing X?" — that the user wants
+to collect as they read and then hand to the Agent in one go. Nothing let you
+attach a note to a specific range of a normal file and batch-send the set.
+
+## Decision
+
+An `Annotation` is a free-text note anchored to a line range in a normal
+buffer, collected in memory only: a per-buffer registry maps an extmark id to
+`{ buf, start_row, end_row, note }`, and the extmark carries the range plus a
+`number_hl_group` tint. Annotations are created, read, edited, and deleted
+through the `:Vantage annotation add|list|edit|delete|clear` subcommands: `add`
+takes the command's range (a visual selection, else the current line) and asks
+for the note via `vim.ui.input`; `list`/`edit`/`delete` pick via `vim.ui.select`
+(like prompts, bypassing the pluggable Picker — there is nothing to preview);
+`list` jumps to the range, tints it, and shows the note in a floating window.
+
+Rendering is deliberately number-column-only: the annotation's range tints the
+line numbers (`VantageAnnotation`, resting) and swaps to
+`VantageAnnotationActive` while its note is being read. There is no sign column
+and no background highlight, so nothing shifts layout or obscures code; when
+the number column is off there is nothing to tint, so nothing draws (the
+annotation stays reachable via `list`).
+
+Sending reuses the Prompt pipeline: `{annotations}` is a new prompt placeholder
+whose resolver renders every annotation through the per-annotation template
+`annotations.item` (default `"{lines} {note}"`) and returns nil when there are
+none, so an empty set skips the send exactly like any other empty placeholder.
+The item template's fields are `{note}`, `{lines}` (`@<relpath> :L<start>-<end>`),
+`{code}` (the selected lines), and the `{file}`/`{start}`/`{end}` building
+blocks. The rendered text then flows through the existing per-tool `format`
+hook and `send_keys` unchanged. After a successful send of a template
+containing `{annotations}`, `annotations.clear_on_send` (default true) clears
+every annotation.
+
+## Alternatives considered
+
+### Why not show the range with a sign column or background highlight?
+
+A gutter sign makes the sign column appear (and can widen it when other plugins'
+signs coexist), shifting the whole window; a background `hl_group` obscures the
+code. The number-column tint (`number_hl_group`) is layout-stable, never
+touches code, and needs only one extmark for the whole range. The cost is a
+dependency on `number`/`relativenumber` being on — accepted: with it off,
+nothing draws and `list` remains the way in.
+
+### Why not a dedicated `:Vantage annotation send`?
+
+Sending is exactly "type a rendered message into the focused Agent", which is
+Prompt's job; a second send path would duplicate focused-Agent resolution, the
+per-tool `format` hook, and `send_keys`. A `{annotations}` placeholder reuses
+the whole pipeline and lets users wrap the batch in their own prose through a
+normal prompt template.
+
+### Why not persist annotations to disk?
+
+A file format (location, schema, `.gitignore` interaction) is a much larger
+commitment than the session-scoped in-memory state the rest of the plugin
+already keeps in tmux. In-memory matches the Agent/View lifetime and adds no
+on-disk format; persistence remains a possible follow-up.
+
+## Consequences
+
+- `{annotations}` is the first dynamic prompt placeholder; the prompts note's
+  "no `{selection}`/`{input}`" scope is unchanged, and the two notes cross-link.
+- Annotations are lost on buffer unload/reload or Neovim exit and never edit
+  the file; users who want durable comments must use source comments instead.
+- The `Vantage` user command gains `range = true` so `annotation add` can take
+  the visual selection; every other subcommand ignores the range.

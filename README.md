@@ -45,6 +45,11 @@ docs.
 :Vantage toggle                            " hide/show the terminal (creates if empty)
 :Vantage detach                            " detach the client (kills the View; Agents survive)
 :Vantage prompt                            " pick a prompt and type it into the focused Agent
+:Vantage annotation add                    " annotate a range (visual selection, or current line)
+:Vantage annotation list                   " pick an annotation and read it
+:Vantage annotation edit                   " edit an annotation's note
+:Vantage annotation delete                 " remove an annotation
+:Vantage annotation clear                  " remove every annotation
 :Vantage status                            " debug: clients + sessions
 ```
 
@@ -66,6 +71,10 @@ require("vantage").setup({
   prompts = {               -- built-in {file}/{line}; add/override yours (additive)
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
+  },
+  annotations = {           -- notes on line ranges, sent via {annotations}
+    item = "{lines} {note}",  -- per-annotation template
+    clear_on_send = true,     -- clear after a sent prompt uses {annotations}
   },
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -102,8 +111,8 @@ references are always available. `:Vantage prompt` picks one via `vim.ui.select`
 (not the pluggable picker — there is nothing to preview) and types it into the
 focused Agent's input; it never auto-submits. Your `prompts` merge additively: a
 name you set overrides the built-in, and names you leave unset are kept.
-Templates may use four placeholders, Claude-style location references relative
-to the focused Agent's cwd:
+Templates may use five placeholders, four of which are Claude-style location
+references relative to the focused Agent's cwd:
 
 | Placeholder | Expands to |
 |-------------|------------|
@@ -111,6 +120,7 @@ to the focused Agent's cwd:
 | `{line}`     | `@path/to/file.lua :L42` (cursor line) |
 | `{function}` | `function foo @path/to/file.lua :L42:C3` |
 | `{class}`    | `class Foo @path/to/file.lua :L42:C3` |
+| `{annotations}` | every Annotation, rendered by `annotations.item` |
 
 `{function}` / `{class}` need nvim-treesitter-textobjects; without it (or
 outside a function/class) the prompt is skipped with a warning — that is why
@@ -124,6 +134,31 @@ prompts = {
   document = "Add documentation to {function}.",
 }
 ```
+
+### Annotations
+
+An Annotation is a note anchored to a line range in a normal file. Add one with
+`:Vantage annotation add` (over the visual selection, or the current line when
+there is none), then read/edit/delete with
+`:Vantage annotation list|edit|delete` and clear with
+`:Vantage annotation clear`. Annotations tint the range's line numbers only —
+no layout shift, no code obscuring; when the number column is off they are not
+drawn (but stay reachable via `list`). They live in memory only: lost on buffer
+unload/reload or Neovim exit.
+
+Send them to the focused Agent through a prompt that uses `{annotations}`:
+
+```lua
+require("vantage").setup({
+  prompts = { notes = "My notes:\n{annotations}" },
+})
+```
+
+`annotations.item` is the per-annotation template, with fields `{note}`,
+`{lines}` (`@path/to/file.lua :L10-L20`), `{code}` (the selected lines),
+`{file}`, `{start}`, `{end}`. Default is `"{lines} {note}"`; to include the
+code use `item = "{lines} {note}\n{code}"`. With `clear_on_send = true`
+(default), a successful send that used `{annotations}` clears the annotations.
 
 ### Pickers & prompts
 

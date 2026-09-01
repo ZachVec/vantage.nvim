@@ -61,6 +61,10 @@ first `:Vantage`.
         ["{file}"] = "{file}",
         ["{line}"] = "{line}",
       },
+      annotations = {          -- notes on line ranges, sent via {annotations}
+        item = "{lines} {note}",  -- per-annotation template
+        clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+      },
       cli = {
         tools = {},              -- provide your own (name -> cmd array); nothing built in
         win = {                  -- the terminal window that is the tmux client
@@ -92,13 +96,14 @@ references are always available. `:Vantage prompt` picks one via `vim.ui.select`
 (not the pluggable Picker — there is nothing to preview) and types it into the
 focused Agent's input (no auto-submit). Your `prompts` merge additively: a name
 you set overrides the built-in, and names you leave unset are kept. A template
-may use four placeholders, all Claude-style location references relative to the
-Agent's cwd:
+may use five placeholders, four of which are Claude-style location references
+relative to the Agent's cwd:
 
-  `{file}`       `@path/to/file.lua`
-  `{line}`       `@path/to/file.lua :L42` (cursor line)
-  `{function}`   `function foo @path/to/file.lua :L42:C3`
-  `{class}`      `class Foo @path/to/file.lua :L42:C3`
+  `{file}`         `@path/to/file.lua`
+  `{line}`         `@path/to/file.lua :L42` (cursor line)
+  `{function}`     `function foo @path/to/file.lua :L42:C3`
+  `{class}`        `class Foo @path/to/file.lua :L42:C3`
+  `{annotations}`  every Annotation, each rendered by `annotations.item`
 
 `{function}` and `{class}` need nvim-treesitter-textobjects; without it (or
 outside a function/class) the prompt is skipped with a warning — that is why
@@ -119,6 +124,31 @@ Examples: >
 
 The Agent's working directory is the current window's local cwd (respects
 `:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
+
+ANNOTATIONS ~
+
+An Annotation is a note anchored to a line range in a normal file. Add one
+with `:Vantage annotation add` (over the visual selection, else the current
+line), then read, edit, or remove them with `:Vantage annotation
+list|edit|delete|clear`. Annotations tint the range's line numbers only — no
+sign column, no layout shift, no code obscuring; when the number column is off
+they are not drawn (but stay reachable via `list`). They live in memory only:
+lost on buffer unload/reload or Neovim exit, and never written to the file.
+
+Send the accumulated annotations to the focused Agent through a Prompt that
+uses `{annotations}`, e.g. `prompts = { notes = "My notes:\n{annotations}" }`.
+`annotations.item` is the per-annotation template; its fields are:
+
+  `{note}`    the annotation text
+  `{lines}`   `@path/to/file.lua :L10-L20` (`:L10` for a single line)
+  `{code}`    the selected lines, leading/trailing blank lines dropped
+  `{file}`    the relative path (no `@`, no `:L`)
+  `{start}`   the first line number
+  `{end}`     the last line number
+
+The default `item` is `"{lines} {note}"`; to also send the code use
+`item = "{lines} {note}\n{code}"`. When `clear_on_send` is true (default), a
+successful send whose template used `{annotations}` clears all annotations.
 
 PICKERS & PROMPTS ~
 
@@ -204,8 +234,25 @@ inside the terminal buffer): >
 
 `:Vantage prompt`
     Pick a Prompt and type it into the focused Agent's input (renders
-    `{file}` / `{line}` / `{function}` / `{class}` against the current context;
-    no auto-submit). Warns when there is no focused Agent.
+    `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
+    auto-submit). Warns when there is no focused Agent.
+
+`:Vantage annotation add`
+    Add an Annotation over the command's range — a visual selection, or the
+    current line when none — after asking for the note text.
+
+`:Vantage annotation list`
+    Pick an Annotation and show its note in a floating window, jumping to its
+    range and emphasizing the range's line numbers.
+
+`:Vantage annotation edit`
+    Pick an Annotation and edit its note text.
+
+`:Vantage annotation delete`
+    Pick an Annotation and remove it.
+
+`:Vantage annotation clear`
+    Remove every Annotation (after a confirmation).
 
 `:Vantage status`
     Show attached clients and sessions (debug).

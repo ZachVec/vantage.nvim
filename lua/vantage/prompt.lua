@@ -1,10 +1,13 @@
 --- Prompt domain: named text templates typed into a focused Agent's input.
 ---
 --- A Prompt is a string template under `setup { prompts = { name = "…" } }`,
---- expanded against the current context before being sent. Four placeholders:
---- `{file}`, `{line}`, `{function}`, `{class}` — all rendered as Claude-style
---- location references relative to the focused Agent's cwd.
+--- expanded against the current context before being sent. Placeholders:
+--- `{file}`, `{line}`, `{function}`, `{class}` render Claude-style location
+--- references relative to the focused Agent's cwd; `{annotations}` renders all
+--- accumulated Annotations.
 local M = {}
+
+local Util = require("vantage.util")
 
 ---@class vantage.PromptCtx
 ---@field buf integer context buffer
@@ -13,7 +16,7 @@ local M = {}
 ---@field cwd string focused Agent cwd (relativization base)
 
 --- Known placeholder names. Anything else is left literal (healthcheck flags it).
-local PLACEHOLDERS = { file = true, line = true, ["function"] = true, ["class"] = true }
+local PLACEHOLDERS = { file = true, line = true, ["function"] = true, ["class"] = true, annotations = true }
 
 -- ---------------------------------------------------------------------------
 -- Context
@@ -52,9 +55,7 @@ end
 ---@param path string absolute file path
 ---@return string
 local function loc_file(cwd, path)
-  local ok, rel = pcall(vim.fs.relpath, cwd, path)
-  local name = (ok and rel and rel ~= "" and rel ~= ".") and rel or path
-  return "@" .. name
+  return "@" .. Util.relpath(cwd, path)
 end
 
 --- "@<path>".
@@ -171,6 +172,9 @@ local resolvers = {
   end,
   ["class"] = function(ctx)
     return resolve_symbol(ctx, "class")
+  end,
+  annotations = function(ctx)
+    return require("vantage.annotation").render(ctx.cwd)
   end,
 }
 

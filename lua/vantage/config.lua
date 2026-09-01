@@ -19,11 +19,16 @@
 ---@field split table
 ---@field keys table[]
 
+---@class vantage.AnnotationConfig
+---@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
+---@field clear_on_send boolean clear after a sent prompt contains {annotations}
+
 ---@class vantage.Config
 ---@field backend string
 ---@field socket string
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
+---@field annotations vantage.AnnotationConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks).
@@ -52,6 +57,17 @@ local defaults = {
   prompts = {
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
+  },
+  --- Annotations: notes anchored to line ranges in normal files, batched into
+  --- the focused Agent through the {annotations} prompt placeholder.
+  annotations = {
+    --- Per-annotation template rendered for each annotation inside {annotations}.
+    --- Fields: {note} (the text), {lines} (`@<relpath> :L<start>-<end>`),
+    --- {code} (the selected lines), and {file}/{start}/{end} as building blocks.
+    item = "{lines} {note}",
+    --- Clear every annotation after a prompt containing {annotations} is typed
+    --- into the Agent. Set false to keep them for re-sending.
+    clear_on_send = true,
   },
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
@@ -110,11 +126,13 @@ end
 function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   M.track_window_visits()
+  require("vantage.annotation").setup()
 
   pcall(vim.api.nvim_create_user_command, "Vantage", function(args)
     require("vantage.commands").run(args)
   end, {
     nargs = "*",
+    range = true, -- `:Vantage annotation add` uses the range as the annotation span
     complete = function(arglead, cmdline)
       return require("vantage.commands").complete(arglead, cmdline)
     end,

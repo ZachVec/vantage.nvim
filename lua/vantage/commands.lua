@@ -1,4 +1,5 @@
 --- The :Vantage user command: subcommand dispatch.
+local Annotation = require("vantage.annotation")
 local Backend = require("vantage.backend")
 local Client = require("vantage.client")
 local Config = require("vantage.config")
@@ -18,6 +19,7 @@ local function usage()
       "  :Vantage toggle              hide/show the terminal (creates if empty)",
       "  :Vantage detach              detach the client (kills the View; Agents survive)",
       "  :Vantage prompt              pick a prompt and type it into the focused Agent",
+      "  :Vantage annotation <action> annotate ranges (add|list|edit|delete|clear)",
       "  :Vantage status              show clients + sessions",
     }, "\n"),
     vim.log.levels.INFO
@@ -93,6 +95,9 @@ local function send_prompt(name)
     end
   end
   Backend.get().send_keys(agent.target, text)
+  if template:find("{annotations}", 1, true) and Config.options.annotations.clear_on_send then
+    Annotation.clear()
+  end
 end
 
 --- Pick a prompt name via vim.ui.select (no preview, so the pluggable Picker is
@@ -116,6 +121,163 @@ local function prompt_wizard()
     end
     restore()
     vim.schedule(restore)
+  end)
+end
+
+-- ---------------------------------------------------------------------------
+-- Annotations: notes anchored to line ranges, batched through {annotations}
+-- ---------------------------------------------------------------------------
+
+--- A picker label: `~path:L<start>-<end> <note-first-line>`.
+---@param annotation vantage.Annotation
+---@return string
+local function annotation_label(annotation)
+  local path = Util.tilde(vim.api.nvim_buf_get_name(annotation.buf) or "")
+  local first = (vim.split(annotation.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
+  return ("%s:L%d-%d  %s"):format(path, annotation.start_row, annotation.end_row, first)
+end
+
+--- Pick an annotation via vim.ui.select and hand it to `on_choice`. Like
+--- `prompt_wizard`, this bypasses the pluggable Picker: there is nothing to
+--- preview, so `vim.ui.select` (and any global override) is the right surface.
+---@param on_choice fun(annotation: vantage.Annotation)
+local function pick_annotation(on_choice)
+  local annotations = Annotation.collect()
+  if #annotations == 0 then
+    Util.warn("no annotations — add one with :Vantage annotation add")
+    return
+  end
+  local items = {}
+  for i, annotation in ipairs(annotations) do
+    items[i] = annotation_label(annotation)
+  end
+  vim.ui.select(items, { prompt = "Annotation: " }, function(choice)
+    if choice == nil then
+      return
+    end
+    local annotation = annotations[vim.fn.index(items, choice) + 1]
+    if annotation then
+      on_choice(annotation)
+    end
+  end)
+end
+
+--- Focus the annotation's buffer and start line, and emphasize its range.
+---@param annotation vantage.Annotation
+---@return boolean
+local function jump_to_annotation(annotation)
+  if not vim.api.nvim_buf_is_valid(annotation.buf) then
+    return false
+  end
+  local win = vim.fn.bufwinid(annotation.buf)
+  if win ~= -1 then
+    vim.api.nvim_set_current_win(win)
+  else
+    vim.api.nvim_win_set_buf(0, annotation.buf)
+  end
+  vim.api.nvim_win_set_cursor(0, { annotation.start_row, 0 })
+  Annotation.set_active(annotation.buf, annotation.id, true)
+  return true
+end
+
+--- Show an annotation's note in a floating window; the range tint reverts when
+--- the window closes (BufWipeout).
+---@param annotation vantage.Annotation
+local function show_annotation(annotation)
+  if not jump_to_annotation(annotation) then
+    return
+  end
+  local buf = vim.api.nvim_create_buf(false, true)
+  local lines = vim.split(annotation.note, "\n", { plain = true })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.bo[buf].modifiable = false
+
+  local max_len = 0
+  for _, line in ipairs(lines) do
+    max_len = math.max(max_len, #line)
+  end
+  local width = math.max(20, math.min(max_len + 2, math.floor(vim.o.columns * 0.6)))
+  local height = math.max(3, math.min(#lines + 2, math.floor(vim.o.lines * 0.5)))
+
+  local win = vim.api.nvim_open_win(buf, false, {
+    relative = "cursor",
+    row = 1,
+    col = 0,
+    width = width,
+    height = height,
+    style = "minimal",
+    border = "rounded",
+  })
+
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      Annotation.set_active(annotation.buf, annotation.id, false)
+    end,
+  })
+  vim.keymap.set("n", "q", function()
+    pcall(vim.api.nvim_win_close, win, true)
+  end, { buffer = buf, nowait = true, desc = "close annotation" })
+  vim.keymap.set("n", "<Esc>", function()
+    pcall(vim.api.nvim_win_close, win, true)
+  end, { buffer = buf, nowait = true, desc = "close annotation" })
+end
+
+--- Add an annotation over the command's range (a visual selection, else the
+--- current line) after asking for the note text.
+---@param line1 integer
+---@param line2 integer
+local function annotation_add(line1, line2)
+  local buf = vim.api.nvim_get_current_buf()
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name == nil or name == "" then
+    Util.warn("annotations need a named buffer — save the file first")
+    return
+  end
+  vim.ui.input({ prompt = "Annotation note: " }, function(note)
+    if note == nil or vim.trim(note) == "" then
+      return
+    end
+    if Annotation.add(buf, line1, line2, note) == nil then
+      Util.warn("failed to add annotation")
+    end
+  end)
+end
+
+--- Edit the note text of the chosen annotation.
+local function annotation_edit()
+  pick_annotation(function(annotation)
+    if not jump_to_annotation(annotation) then
+      return
+    end
+    vim.ui.input({ prompt = "Edit annotation: ", default = annotation.note }, function(note)
+      if note ~= nil and vim.trim(note) ~= "" then
+        Annotation.edit(annotation.buf, annotation.id, note)
+      end
+      Annotation.set_active(annotation.buf, annotation.id, false)
+    end)
+  end)
+end
+
+--- Delete the chosen annotation.
+local function annotation_delete()
+  pick_annotation(function(annotation)
+    Annotation.delete(annotation.buf, annotation.id)
+  end)
+end
+
+--- Clear all annotations after a confirmation.
+local function annotation_clear()
+  if #Annotation.collect() == 0 then
+    Util.warn("no annotations to clear")
+    return
+  end
+  vim.ui.select({ "Yes", "No" }, { prompt = "Clear all annotations? " }, function(choice)
+    if choice == "Yes" then
+      Annotation.clear()
+    end
   end)
 end
 
@@ -173,6 +335,21 @@ function M.run(args)
     Client.detach()
   elseif subcommand == "prompt" then
     prompt_wizard()
+  elseif subcommand == "annotation" then
+    local action = remaining[1] or "list"
+    if action == "add" then
+      annotation_add(args.line1, args.line2)
+    elseif action == "list" then
+      pick_annotation(show_annotation)
+    elseif action == "edit" then
+      annotation_edit()
+    elseif action == "delete" then
+      annotation_delete()
+    elseif action == "clear" then
+      annotation_clear()
+    else
+      Util.warn(("unknown annotation action '%s'"):format(action))
+    end
   elseif subcommand == "status" then
     local status_info = Backend.get().status()
     local lines = { "sessions:" }
@@ -194,10 +371,16 @@ end
 ---@param cmdline string
 ---@return string[]
 function M.complete(arglead, cmdline)
+  local subcommands = { "switch", "kill", "toggle", "detach", "prompt", "annotation", "status" }
+  if cmdline:match("^%s*Vantage%s+annotation%s+%S*%s*$") then
+    return vim.tbl_filter(function(s)
+      return vim.startswith(s, arglead)
+    end, { "add", "list", "edit", "delete", "clear" })
+  end
   if cmdline:match("^%s*Vantage%s*$") or cmdline:match("^%s*Vantage%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
-    end, { "switch", "kill", "toggle", "detach", "prompt", "status" })
+    end, subcommands)
   end
   return {}
 end
