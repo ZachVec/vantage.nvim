@@ -212,16 +212,33 @@ local function show_annotation(annotation)
     border = "rounded",
   })
 
+  local augroup = vim.api.nvim_create_augroup("VantageAnnotationPreview", { clear = true })
+
   local function close()
+    pcall(vim.api.nvim_del_augroup_by_id, augroup)
     if vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_win_close, win, true)
     end
     Annotation.set_active(annotation.buf, annotation.id, false)
   end
 
-  vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "BufLeave" }, {
+  -- `jump_to_annotation` positioned the cursor at the annotation's start line;
+  -- the deferred CursorMoved from that positioning must not close the preview,
+  -- so close only once the cursor leaves that exact position.
+  local target_row = annotation.start_row
+  vim.api.nvim_create_autocmd("CursorMoved", {
     buffer = annotation.buf,
-    once = true,
+    group = augroup,
+    callback = function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if cursor[1] ~= target_row or cursor[2] ~= 0 then
+        close()
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "InsertEnter", "BufLeave" }, {
+    buffer = annotation.buf,
+    group = augroup,
     callback = close,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -244,14 +261,13 @@ local function annotation_add(line1, line2)
     Util.warn("annotations need a named buffer — save the file first")
     return
   end
-  vim.ui.input({ prompt = "Annotation note: " }, function(note)
-    if note == nil or vim.trim(note) == "" then
-      return
-    end
-    if Annotation.add(buf, line1, line2, note) == nil then
-      Util.warn("failed to add annotation")
-    end
-  end)
+  local note = vim.trim(vim.fn.input({ prompt = "Annotation note: " }))
+  if note == "" then
+    return
+  end
+  if Annotation.add(buf, line1, line2, note) == nil then
+    Util.warn("failed to add annotation")
+  end
 end
 
 --- Edit the note text of the chosen annotation.
@@ -260,12 +276,11 @@ local function annotation_edit()
     if not jump_to_annotation(annotation) then
       return
     end
-    vim.ui.input({ prompt = "Edit annotation: ", default = annotation.note }, function(note)
-      if note ~= nil and vim.trim(note) ~= "" then
-        Annotation.edit(annotation.buf, annotation.id, note)
-      end
-      Annotation.set_active(annotation.buf, annotation.id, false)
-    end)
+    local note = vim.trim(vim.fn.input({ prompt = "Edit annotation: ", default = annotation.note }))
+    Annotation.set_active(annotation.buf, annotation.id, false)
+    if note ~= "" then
+      Annotation.edit(annotation.buf, annotation.id, note)
+    end
   end)
 end
 
