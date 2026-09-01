@@ -54,7 +54,7 @@ _Avoid_: terminal, screen
 
 ## Picker
 
-The plugin's selection UI, pluggable via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`.
+The plugin's pluggable selection UI for choices with something to preview — the Agent list and the kill list — chosen via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`. Selections with nothing to preview (the Tool and Group choice during Agent creation, and `:Vantage prompt`) use `vim.ui.select` directly, not the Picker.
 _Avoid_: launcher
 
 ## Tool

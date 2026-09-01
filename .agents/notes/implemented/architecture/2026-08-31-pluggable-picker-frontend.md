@@ -15,16 +15,16 @@ The Picker is a pluggable Frontend interface that mirrors the Backend seam.
 `lua/vantage/picker/init.lua` resolves the configured implementation through a
 whitelist registry (a raw user string is never `require`d) and exposes
 `Picker.get()`. Each implementation — `native`, `fzf-lua`, `snacks` — exposes
-the same four domain pickers (`pick_agent`, `pick_tool`, `pick_group`,
-`pick_kill`) with identical callback contracts, selected via
-`setup { picker = … }` (default `native`). Callers go through `Picker.get()`.
+two domain pickers (`pick_agent`, `pick_kill`) with identical callback
+contracts, selected via `setup { picker = … }` (default `native`). Callers go
+through `Picker.get()`. Tool and Group choice later moved out to plain
+`vim.ui.select` — see [the plain-selection note](2026-09-02-plain-selection-via-ui-select.md).
 
 Shared item construction lives in `picker/items.lua`: it builds rich items
-(each carrying a `text` display string plus the domain fields a callback needs)
-and owns the free-text Group prompt. Implementations own only rendering and
-choice recovery; `fzf-lua` and `snacks` render an Agent's pane preview through a
-new Backend method `capture_pane(target, max_lines)`, so the Frontend never
-touches tmux directly.
+(each carrying a `text` display string plus the domain fields a callback
+needs). Implementations own only rendering and choice recovery; `fzf-lua` and
+`snacks` render an Agent's pane preview through a Backend method
+`capture_pane(target, max_lines)`, so the Frontend never touches tmux directly.
 
 - `native` drives `vim.ui.select` directly (respecting any global
   `vim.ui.select` override the user already has).
@@ -62,7 +62,7 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
 
 - A new picker implementation adds one module and one registry entry; nothing
   above `picker/` changes.
-- The Backend interface gains `capture_pane` (read-only, a few lines) so picker
+- The Backend interface exposes `capture_pane` (read-only, a few lines) so picker
   previews obey the "never touch tmux directly" invariant; it is a portable
   operation (zellij can snapshot a pane too).
 - `native` still respects a global `vim.ui.select` override, so default behavior

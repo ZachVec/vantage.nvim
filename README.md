@@ -50,7 +50,8 @@ docs.
 
 Creating an Agent happens through two channels: `:Vantage toggle` when there
 are no Agents yet, or the `+ new agent` entry in the `:Vantage switch` picker.
-When no Group exists yet, you go straight to the Group-name prompt.
+The tool and Group choice use `vim.ui.select` (there is nothing to preview);
+when no Group exists yet, you go straight to the Group-name prompt.
 
 The first focus opens the `:terminal` and attaches it to the agent; later
 focuses re-target that same terminal. Closing the terminal detaches the client
@@ -127,7 +128,8 @@ prompts = {
 
 ### Pickers & prompts
 
-Selections go through a pluggable picker, chosen by `picker`:
+The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
+through a pluggable picker, chosen by `picker`:
 
 - `"native"` — built-in `vim.ui.select` (default). Respects any global
   `vim.ui.select` override (dressing.nvim, snacks' ui_select, …).
@@ -135,7 +137,9 @@ Selections go through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Free-text prompts (e.g. the new-Group name) use `input()` and are
+output). Selections with nothing to preview — the tool and Group choice when
+creating an Agent, and `:Vantage prompt` — use `vim.ui.select` directly, not
+the picker. Free-text prompts (e.g. the new-Group name) use `input()` and are
 insert-mode by default.
 
 ### Terminal filetype & keymaps
