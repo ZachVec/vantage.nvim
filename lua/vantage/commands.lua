@@ -162,12 +162,13 @@ local function pick_annotation(on_choice)
   end)
 end
 
---- Focus the annotation's buffer and start line, and emphasize its range.
+--- Focus the annotation's buffer and jump to its start line (first non-blank
+--- column), and emphasize its range.
 ---@param annotation vantage.Annotation
----@return boolean
+---@return integer? the column jumped to (0-based), or nil on failure
 local function jump_to_annotation(annotation)
   if not vim.api.nvim_buf_is_valid(annotation.buf) then
-    return false
+    return nil
   end
   local win = vim.fn.bufwinid(annotation.buf)
   if win ~= -1 then
@@ -175,9 +176,13 @@ local function jump_to_annotation(annotation)
   else
     vim.api.nvim_win_set_buf(0, annotation.buf)
   end
-  vim.api.nvim_win_set_cursor(0, { annotation.start_row, 0 })
+  local line = vim.api.nvim_buf_get_lines(annotation.buf, annotation.start_row - 1, annotation.start_row, false)[1]
+    or ""
+  local _, first = line:find("%S")
+  local col = first and (first - 1) or 0
+  vim.api.nvim_win_set_cursor(0, { annotation.start_row, col })
   Annotation.set_active(annotation.buf, annotation.id, true)
-  return true
+  return col
 end
 
 --- Show an annotation's note in a floating window; the range tint reverts when
@@ -185,7 +190,8 @@ end
 --- soon as the cursor moves, insert mode is entered, or the buffer is left.
 ---@param annotation vantage.Annotation
 local function show_annotation(annotation)
-  if not jump_to_annotation(annotation) then
+  local target_col = jump_to_annotation(annotation)
+  if target_col == nil then
     return
   end
   local buf = vim.api.nvim_create_buf(false, true)
@@ -203,7 +209,7 @@ local function show_annotation(annotation)
 
   local win = vim.api.nvim_open_win(buf, false, {
     relative = "cursor",
-    row = 1,
+    row = -height - 1, -- above the cursor (a negative row is above)
     col = 0,
     width = width,
     height = height,
@@ -231,7 +237,7 @@ local function show_annotation(annotation)
     group = augroup,
     callback = function()
       local cursor = vim.api.nvim_win_get_cursor(0)
-      if cursor[1] ~= target_row or cursor[2] ~= 0 then
+      if cursor[1] ~= target_row or cursor[2] ~= target_col then
         close()
       end
     end,
@@ -250,6 +256,16 @@ local function show_annotation(annotation)
   })
 end
 
+--- Read free-text via native `input()` rather than the pluggable `vim.ui.input`,
+--- so the prompt is always insert-mode — the same reason `picker/items.lua` uses
+--- `input()` for the Group name. Returns the trimmed text, or "" when cancelled.
+---@param prompt string
+---@param default? string
+---@return string
+local function input_text(prompt, default)
+  return vim.trim(vim.fn.input({ prompt = prompt, default = default }))
+end
+
 --- Add an annotation over the command's range (a visual selection, else the
 --- current line) after asking for the note text.
 ---@param line1 integer
@@ -261,7 +277,7 @@ local function annotation_add(line1, line2)
     Util.warn("annotations need a named buffer — save the file first")
     return
   end
-  local note = vim.trim(vim.fn.input({ prompt = "Annotation note: " }))
+  local note = input_text("Annotation note: ")
   if note == "" then
     return
   end
@@ -273,10 +289,10 @@ end
 --- Edit the note text of the chosen annotation.
 local function annotation_edit()
   pick_annotation(function(annotation)
-    if not jump_to_annotation(annotation) then
+    if jump_to_annotation(annotation) == nil then
       return
     end
-    local note = vim.trim(vim.fn.input({ prompt = "Edit annotation: ", default = annotation.note }))
+    local note = input_text("Edit annotation: ", annotation.note)
     Annotation.set_active(annotation.buf, annotation.id, false)
     if note ~= "" then
       Annotation.edit(annotation.buf, annotation.id, note)
