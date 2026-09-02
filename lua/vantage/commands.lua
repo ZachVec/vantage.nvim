@@ -158,14 +158,10 @@ end
 --- Open an editable note float (normal mode). `keys.exit` commits the note and
 --- closes (an empty note deletes after confirmation); an optional `keys.delete`
 --- deletes directly. `on_close` runs when the float closes (BufWipeout).
----@param opts { text: string, on_commit: fun(note: string), on_delete?: fun(), on_close?: fun(), title?: string, footer?: string }
+---@param opts { text: string, on_commit: fun(note: string), on_delete?: fun(), on_close?: fun(), title?: string, footer?: string, insert?: boolean }
 local function open_note_float(opts)
   local buf = vim.api.nvim_create_buf(false, true)
-  local lines = vim.split(opts.text or "", "\n", { plain = true })
-  if #lines == 0 then
-    lines = { "" }
-  end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(opts.text or "", "\n", { plain = true }))
   vim.bo[buf].bufhidden = "wipe"
 
   local width = math.max(40, math.min(80, math.floor(vim.o.columns * 0.5)))
@@ -181,8 +177,9 @@ local function open_note_float(opts)
     title = opts.title,
     footer = opts.footer,
   })
-  vim.api.nvim_win_set_cursor(win, { #lines, 0 })
-  vim.cmd("normal! A")
+  if opts.insert then
+    vim.cmd("startinsert")
+  end
 
   local function read_note()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -295,6 +292,7 @@ local function annotate_add(line1, line2)
     text = "",
     title = "New annotation",
     footer = ("%s save"):format(Config.options.annotations.keys.exit),
+    insert = true,
     on_commit = function(note)
       Annotation.add(buf, line1, line2, note)
     end,
