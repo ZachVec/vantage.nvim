@@ -20,8 +20,8 @@ local function usage()
       "  :Vantage toggle              hide/show the terminal (creates if empty)",
       "  :Vantage detach              detach the client (kills the View; Agents survive)",
       "  :Vantage prompt              pick a prompt and type it into the focused Agent",
-      "  :Vantage annotate             open the annotation picker",
-      "  :Vantage annotate add         annotate a range (visual selection, or current line)",
+      "  :Vantage annotate [add]       annotate a range (visual selection, or current line)",
+      "  :Vantage annotate list        open the annotation picker",
       "  :Vantage annotate clear       clear every annotation",
       "  :Vantage status              show clients + sessions",
     }, "\n"),
@@ -237,7 +237,7 @@ local function open_note_float(opts)
 end
 
 --- Open the annotation picker; selecting an annotation opens its note float.
-local function annotate_open()
+local function annotate_list()
   Picker.get().pick_annotation({
     select = function(annotation)
       if not jump_to_annotation(annotation) then
@@ -369,12 +369,12 @@ function M.run(args)
     prompt_wizard()
   elseif subcommand == "annotate" then
     local action = remaining[1]
-    if action == "add" then
-      annotate_add(args.line1, args.line2)
+    if action == "list" then
+      annotate_list()
     elseif action == "clear" then
       annotate_clear()
-    elseif action == nil then
-      annotate_open()
+    elseif action == nil or action == "add" then
+      annotate_add(args.line1, args.line2)
     else
       Util.warn(("unknown annotate action '%s'"):format(action))
     end
@@ -403,7 +403,7 @@ function M.complete(arglead, cmdline)
   if cmdline:match("^%s*Vantage%s+annotate%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
-    end, { "add", "clear" })
+    end, { "add", "list", "clear" })
   end
   if cmdline:match("^%s*Vantage%s*$") or cmdline:match("^%s*Vantage%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
