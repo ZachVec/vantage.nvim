@@ -167,8 +167,13 @@ function M.pick_annotation(opts)
       end,
     },
     win = {
+      input = {
+        keys = {
+          ["<C-x>"] = { "annotation_delete", mode = { "n", "i" } },
+        },
+      },
       list = {
-        keymaps = {
+        keys = {
           ["<C-x>"] = "annotation_delete",
         },
       },
