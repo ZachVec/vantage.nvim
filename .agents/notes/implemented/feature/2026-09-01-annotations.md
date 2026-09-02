@@ -17,8 +17,8 @@ An `Annotation` is a free-text note anchored to a line range in a normal
 buffer, collected in memory only: a per-buffer registry maps an extmark id to
 `{ buf, start_row, end_row, note }`, and the extmark carries the range plus a
 `number_hl_group` tint. They are managed through the `:Vantage annotate`
-subcommands — `annotate` (open the picker), `annotate add` (a range + a note
-float), and `annotate clear` (clear all). Selecting in the picker jumps to the
+subcommands — `annotate` (a range + a note float, the default action),
+`annotate list` (open the picker), and `annotate clear` (clear all). Selecting in the picker jumps to the
 range and opens an editable note float: a plain scratch buffer in normal mode,
 so editing is ordinary Vim (multi-line, undo). The one added normal-mode
 keymap, `annotations.keys.exit` (default `<Esc>`), commits the note and closes
@@ -36,7 +36,7 @@ line numbers (`VantageAnnotation`, resting) and swaps to
 `VantageAnnotationActive` while its note float is open. There is no sign column
 and no background highlight, so nothing shifts layout or obscures code; when
 the number column is off there is nothing to tint, so nothing draws (the
-annotation stays reachable via `annotate`).
+annotation stays reachable via `annotate list`).
 
 Sending reuses the Prompt pipeline: `{annotations}` is a prompt placeholder
 whose resolver renders every annotation through the per-annotation template
@@ -61,7 +61,7 @@ signs coexist), shifting the whole window; a background `hl_group` obscures the
 code. The number-column tint (`number_hl_group`) is layout-stable, never
 touches code, and needs only one extmark for the whole range. The cost is a
 dependency on `number`/`relativenumber` being on — accepted: with it off,
-nothing draws and `annotate` remains the way in.
+nothing draws and `annotate list` remains the way in.
 
 ### Why not a dedicated `:Vantage annotation send`?
 
@@ -84,7 +84,7 @@ on-disk format; persistence remains a possible follow-up.
   "no `{selection}`/`{input}`" scope is unchanged, and the two notes cross-link.
 - Annotations are lost on buffer unload/reload or Neovim exit and never edit
   the file; users who want durable comments must use source comments instead.
-- The `Vantage` user command gains `range = true` so `annotate add` can take
+- The `Vantage` user command gains `range = true` so `annotate` can take
   the visual selection; every other subcommand ignores the range.
 - The note float is a plain scratch buffer with only the `keys.exit` (and
   optional `keys.delete`) keymaps added, so the user's own keymaps apply inside

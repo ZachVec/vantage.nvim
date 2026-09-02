@@ -70,7 +70,7 @@ function M.annotation_items(silent)
   local annotations = Annotation.collect()
   if #annotations == 0 then
     if not silent then
-      Util.warn("no annotations — add one with :Vantage annotate add")
+      Util.warn("no annotations — add one with :Vantage annotate")
     end
     return nil
   end

@@ -135,11 +135,10 @@ The Agent's working directory is the current window's local cwd (respects
 ANNOTATIONS ~
 
 An Annotation is a note anchored to a line range in a normal file. Add one
-with `:Vantage annotate` (or `annotate add`, over the visual selection, else
-the current line); `:Vantage annotate list` opens a picker of annotations —
-selecting one jumps to its range and opens an editable note float.
-`:Vantage annotate clear` removes every annotation. Annotations tint the
-range's line numbers only — no
+with `:Vantage annotate` (over the visual selection, else the current line);
+`:Vantage annotate list` opens a picker of annotations — selecting one jumps
+to its range and opens an editable note float. `:Vantage annotate clear`
+removes every annotation. Annotations tint the range's line numbers only — no
 sign column, no layout shift, no code obscuring; when the number column is off
 they are not drawn. They live in memory only: lost on buffer unload/reload or
 Neovim exit, and never written to the file.
@@ -261,10 +260,9 @@ inside the terminal buffer): >
     `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
     auto-submit). Warns when there is no focused Agent.
 
-`:Vantage annotate` / `:Vantage annotate add`
+`:Vantage annotate`
     Add an Annotation over the command's range — a visual selection, or the
-    current line when none — and open an empty note float. (`annotate` with no
-    action defaults to `add`.)
+    current line when none — and open an empty note float.
 
 `:Vantage annotate list`
     Open the Annotation picker (pluggable; fzf-lua/snacks preview each note and

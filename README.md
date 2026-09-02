@@ -45,7 +45,7 @@ docs.
 :Vantage toggle                            " hide/show the terminal (creates if empty)
 :Vantage detach                            " detach the client (kills the View; Agents survive)
 :Vantage prompt                            " pick a prompt and type it into the focused Agent
-:Vantage annotate [add]                    " annotate a range (visual selection, or current line)
+:Vantage annotate                          " annotate a range (visual selection, or current line)
 :Vantage annotate list                     " open the annotation picker (read/edit a note)
 :Vantage annotate clear                    " remove every annotation
 :Vantage status                            " debug: clients + sessions
@@ -144,10 +144,10 @@ prompts = {
 ### Annotations
 
 An Annotation is a note anchored to a line range in a normal file. Add one with
-`:Vantage annotate` (or `annotate add`, over the visual selection or the current
-line when there is none); `:Vantage annotate list` opens a picker — selecting one
-jumps to its range and opens an editable note float — and `:Vantage annotate clear`
-removes them all. Annotations tint the range's line numbers only — no layout shift, no
+`:Vantage annotate` (over the visual selection or the current line when there is
+none); `:Vantage annotate list` opens a picker — selecting one jumps to its range
+and opens an editable note float — and `:Vantage annotate clear` removes them all.
+Annotations tint the range's line numbers only — no layout shift, no
 code obscuring; when the number column is off they are not drawn. They live in
 memory only: lost on buffer unload/reload or Neovim exit.
 

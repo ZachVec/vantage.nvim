@@ -147,7 +147,7 @@ function M.setup(opts)
     require("vantage.commands").run(args)
   end, {
     nargs = "*",
-    range = true, -- `:Vantage annotate add` uses the range as the annotation span
+    range = true, -- `:Vantage annotate` uses the range as the annotation span
     complete = function(arglead, cmdline)
       return require("vantage.commands").complete(arglead, cmdline)
     end,

@@ -20,7 +20,7 @@ local function usage()
       "  :Vantage toggle              hide/show the terminal (creates if empty)",
       "  :Vantage detach              detach the client (kills the View; Agents survive)",
       "  :Vantage prompt              pick a prompt and type it into the focused Agent",
-      "  :Vantage annotate [add]       annotate a range (visual selection, or current line)",
+      "  :Vantage annotate             annotate a range (visual selection, or current line)",
       "  :Vantage annotate list        open the annotation picker",
       "  :Vantage annotate clear       clear every annotation",
       "  :Vantage status              show clients + sessions",
@@ -373,7 +373,7 @@ function M.run(args)
       annotate_list()
     elseif action == "clear" then
       annotate_clear()
-    elseif action == nil or action == "add" then
+    elseif action == nil then
       annotate_add(args.line1, args.line2)
     else
       Util.warn(("unknown annotate action '%s'"):format(action))
@@ -403,7 +403,7 @@ function M.complete(arglead, cmdline)
   if cmdline:match("^%s*Vantage%s+annotate%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
-    end, { "add", "list", "clear" })
+    end, { "list", "clear" })
   end
   if cmdline:match("^%s*Vantage%s*$") or cmdline:match("^%s*Vantage%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
