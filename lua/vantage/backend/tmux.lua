@@ -278,7 +278,7 @@ end
 ---@param target string Agent window id (@N)
 ---@param text string
 function M.send_keys(target, text)
-  exec("set-buffer", "-b", "vantage-send", "--", text .. "\n")
+  exec("set-buffer", "-b", "vantage-send", "--", text)
   exec("paste-buffer", "-p", "-t", target, "-b", "vantage-send")
   exec("delete-buffer", "-b", "vantage-send")
 end
