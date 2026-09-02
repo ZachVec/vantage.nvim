@@ -30,5 +30,6 @@ Tool binaries and keybindings are user-specific and non-portable; empty defaults
 
 - Free-text prompts (a new Group name) use `input()` directly, which is insert-mode by default.
 - The terminal is created lazily on first focus and re-targeted thereafter; closing it detaches the client and destroys only its View.
+- How that one window is presented and named (`cli.win.layout`, default `full` in a dedicated tab, with a `<tool> · <cwd>` buffer title) is decided in the [full-terminal-layout note](../feature/2026-09-03-full-terminal-layout.md).
 
 The View lifecycle that the terminal attaches to is [the Group/Anchor/Agent/View note](2026-08-31-group-anchor-agent-view.md).

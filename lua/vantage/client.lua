@@ -118,31 +118,18 @@ function M.apply_keys(buffer)
   end
 end
 
---- Open the terminal buffer in a float or split, per cli.win.layout.
+--- Open the terminal buffer full or in a split, per cli.win.layout.
 ---@param buffer integer
 ---@return integer window id
 function M.open_win(buffer)
   local cfg = Config.options.cli.win
-  if cfg.layout == "float" then
-    local width = math.floor(vim.o.columns * (cfg.float.width or 0.9))
-    local height = math.floor(vim.o.lines * (cfg.float.height or 0.9))
-    width = math.max(width, 40)
-    height = math.max(height, 10)
-    local col = math.floor((vim.o.columns - width) / 2)
-    local row = math.floor((vim.o.lines - height) / 2)
-    local border = cfg.float.border
-    if border == false then
-      border = "none"
-    end
-    return vim.api.nvim_open_win(buffer, true, {
-      relative = "editor",
-      width = width,
-      height = height,
-      row = row,
-      col = col,
-      style = "minimal",
-      border = border,
-    })
+  if cfg.layout == "full" then
+    -- A dedicated tab gives a normal (non-floating) window at the full editor
+    -- size. We avoid a floating window on purpose: Neovim redraws the terminal
+    -- cursor per-frame inside floats, which flickers on every agent TUI repaint.
+    vim.cmd("tab split")
+    vim.api.nvim_win_set_buf(0, buffer)
+    return vim.api.nvim_get_current_win()
   end
 
   local layout = cfg.layout
@@ -260,6 +247,21 @@ function M.attach_terminal(view)
   return true
 end
 
+--- Name the terminal buffer after the focused Agent's tool and its working
+--- directory, so tabs and winbars show a meaningful title instead of an empty
+--- scratch name.
+local function retitle()
+  local agent = M.last_agent
+  if not agent or not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
+    return
+  end
+  local title = agent.tool or agent.name or "vantage"
+  if agent.cwd and agent.cwd ~= "" then
+    title = title .. " · " .. agent.cwd
+  end
+  vim.api.nvim_buf_set_name(M.buffer, title)
+end
+
 --- Focus an Agent: re-target the existing terminal, or attach a new one.
 ---@param agent vantage.Agent
 ---@return boolean
@@ -270,6 +272,7 @@ function M.focus(agent)
 
   if M.is_attached() then
     backend.select_window(M.view, agent.target)
+    retitle()
     return M.show()
   end
 
@@ -277,7 +280,9 @@ function M.focus(agent)
   if not view then
     return false
   end
-  return M.attach_terminal(view)
+  local ok = M.attach_terminal(view)
+  retitle()
+  return ok
 end
 
 return M
