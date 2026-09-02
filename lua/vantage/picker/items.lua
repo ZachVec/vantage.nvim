@@ -108,14 +108,17 @@ function M.annotation_cwd()
   return agent and agent.cwd or Util.cwd()
 end
 
---- Annotations (as { annotation, text }) for the picker, or nil (with a warning)
---- when there are none.
+--- Annotations (as { annotation, text }) for the picker, or nil when there are
+--- none (warned unless `silent`).
+---@param silent? boolean
 ---@return { annotation: vantage.Annotation, text: string }[]?
-function M.annotation_items()
+function M.annotation_items(silent)
   local Annotation = require("vantage.annotation")
   local annotations = Annotation.collect()
   if #annotations == 0 then
-    Util.warn("no annotations — add one with :Vantage annotate add")
+    if not silent then
+      Util.warn("no annotations — add one with :Vantage annotate add")
+    end
     return nil
   end
   local items = {}

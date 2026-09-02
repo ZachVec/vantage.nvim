@@ -139,12 +139,15 @@ end
 
 ---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
 function M.pick_annotation(opts)
-  local items = Items.annotation_items()
-  if not items then
+  if not Items.annotation_items() then
     return
   end
   pick({
-    items = items,
+    finder = function(cb)
+      for _, item in ipairs(Items.annotation_items(true) or {}) do
+        cb(item)
+      end
+    end,
     format = "text",
     preview = annotation_preview,
     confirm = function(picker, item)
@@ -157,13 +160,10 @@ function M.pick_annotation(opts)
     end,
     actions = {
       annotation_delete = function(picker, item)
-        picker:close()
         if item then
-          vim.schedule(function()
-            opts.delete(item.annotation)
-            M.pick_annotation(opts) -- re-open with the updated list
-          end)
+          opts.delete(item.annotation)
         end
+        picker:refresh()
       end,
     },
     win = {

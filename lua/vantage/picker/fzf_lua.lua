@@ -139,48 +139,52 @@ function M.pick_kill(callback)
   })
 end
 
---- Preview an annotation through the configured `item` template (WYSIWYG).
----@param items table[]
----@return fun(selected: string[]): string
-local function annotation_preview(items)
-  local Annotation = require("vantage.annotation")
-  return function(selected)
-    local item = items[index_of(selected)]
-    if not item then
-      return ""
-    end
-    return Annotation.render_item(item.annotation, Items.annotation_cwd())
-  end
-end
-
 ---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
 function M.pick_annotation(opts)
-  local items = Items.annotation_items()
-  if not items then
+  local state = { items = Items.annotation_items() }
+  if not state.items then
     return
   end
-  fzf().fzf_exec(entries(items), {
+  local Annotation = require("vantage.annotation")
+
+  -- Re-read the items and provide them to fzf; re-invoked on `reload`.
+  local function content(cb)
+    state.items = Items.annotation_items(true) or {}
+    cb(entries(state.items))
+  end
+
+  local function item_of(selected)
+    return state.items[index_of(selected)]
+  end
+
+  fzf().fzf_exec(content, {
     prompt = Items.prompt,
     actions = {
       ["default"] = function(selected)
-        local item = items[index_of(selected)]
+        local item = item_of(selected)
         if item then
           vim.schedule(function()
             opts.select(item.annotation)
           end)
         end
       end,
-      ["ctrl-x"] = function(selected)
-        local item = items[index_of(selected)]
-        if item then
-          vim.schedule(function()
+      ["ctrl-x"] = {
+        fn = function(selected)
+          local item = item_of(selected)
+          if item then
             opts.delete(item.annotation)
-            M.pick_annotation(opts) -- re-open with the updated list
-          end)
-        end
-      end,
+          end
+        end,
+        reload = true,
+      },
     },
-    preview = annotation_preview(items),
+    preview = function(selected)
+      local item = item_of(selected)
+      if not item then
+        return ""
+      end
+      return Annotation.render_item(item.annotation, Items.annotation_cwd())
+    end,
   })
 end
 
