@@ -40,6 +40,20 @@ There is no test suite or standalone linter wired yet; add one (and its `make` t
 - Keep the public docs current in the same change: if a change makes [README.md](./README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **Non-trivial changes MUST include an Agent Note in the same change;** only mechanical/local edits are exempt ([when to write](.agents/notes/README.md#when-to-write-one)).
 
+## External-tool gotchas
+
+Read [docs/gotchas.md](docs/gotchas.md) before building anything that touches
+tmux, claude/codex, fzf-lua, snacks, or cursor/insert-mode behavior. Highlights:
+
+- `tmux send-keys -l` collapses newlines in claude — use bracketed paste
+  (`set-buffer` + `paste-buffer -p`) and do NOT append a trailing `\n`.
+- fzf-lua `fzf_exec` function contents writes one item per callback (call
+  `cb(item)` per item, then `cb(nil)`); in-place reload is `{ fn, reload = true }`.
+- snacks finder is `fun(opts, ctx): result`; keymaps live in `win.<pane>.keys`
+  (not `keymaps`); `picker:refresh()` re-runs the finder.
+- `<cmd>` mappings keep Visual mode active, so `'<`/`'>` marks aren't set yet;
+  `normal! \27` first, then read them.
+
 ## Editing these instructions
 
 Keep each rule self-contained while linking high-level docs; condense when clarity survives.
