@@ -13,7 +13,7 @@ local M = {}
 ---@field set_lines fun(self: vantage.SnacksPreviewPane, lines: string[])
 
 ---@class vantage.SnacksPreviewCtx
----@field item { agent?: vantage.Agent, text: string }
+---@field item { agent?: vantage.Agent, annotation?: vantage.Annotation, text: string }
 ---@field preview vantage.SnacksPreviewPane
 
 local function pick(opts)
@@ -75,6 +75,61 @@ function M.pick_kill(callback)
         end)
       end
     end,
+  })
+end
+
+--- Preview an annotation through the configured `item` template (WYSIWYG).
+---@param ctx vantage.SnacksPreviewCtx
+local function annotation_preview(ctx)
+  local item = ctx.item
+  ctx.preview:reset()
+  if not item then
+    return
+  end
+  local Annotation = require("vantage.annotation")
+  ctx.preview:set_title(item.text)
+  ctx.preview:set_lines(vim.split(Annotation.render_item(item.annotation, Items.annotation_cwd()), "\n"))
+end
+
+---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
+function M.pick_annotation(opts)
+  if not Items.annotation_items() then
+    return
+  end
+  pick({
+    finder = function()
+      return Items.annotation_items(true) or {}
+    end,
+    format = "text",
+    preview = annotation_preview,
+    confirm = function(picker, item)
+      picker:close()
+      if item then
+        vim.schedule(function()
+          opts.select(item.annotation)
+        end)
+      end
+    end,
+    actions = {
+      annotation_delete = function(picker, item)
+        if item then
+          opts.delete(item.annotation)
+        end
+        picker:refresh()
+      end,
+    },
+    win = {
+      input = {
+        keys = {
+          ["<C-x>"] = { "annotation_delete", mode = { "n", "i" } },
+        },
+      },
+      list = {
+        keys = {
+          ["<C-x>"] = "annotation_delete",
+        },
+      },
+    },
   })
 end
 

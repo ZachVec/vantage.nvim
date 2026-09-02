@@ -19,17 +19,28 @@
 ---@field split table
 ---@field keys table[]
 
+---@class vantage.AnnotationKeys Note-float keymaps (normal mode, buffer-local).
+---@field exit string commit the note and close the float
+---@field delete? string delete the annotation directly (optional; unset by default)
+
+---@class vantage.AnnotationConfig
+---@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
+---@field clear_on_send boolean clear after a sent prompt contains {annotations}
+---@field keys vantage.AnnotationKeys
+
 ---@class vantage.Config
 ---@field backend string
 ---@field socket string
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
+---@field annotations vantage.AnnotationConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks)
 --- for the preview-capable selections: the Agent list and the kill list.
 ---@field pick_agent fun(callback: fun(choice: { kind: "agent"|"new", agent?: vantage.Agent }))
 ---@field pick_kill fun(callback: fun(target: string))
+---@field pick_annotation fun(opts: { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) })
 
 local M = {}
 
@@ -42,15 +53,36 @@ local defaults = {
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
   --- Named prompt templates (name -> template string) offered by
-  --- `:Vantage prompt`. Two are built in — {file} and {line}, as identity
-  --- templates ("{file}" -> "{file}") — so the raw location references are
-  --- always available. User prompts merge additively: a name you set overrides
-  --- the built-in, and names you leave unset are kept. Templates may use the
-  --- placeholders {file}, {line}, {function} and {class}, rendered relative to
-  --- the focused Agent's cwd.
+  --- `:Vantage prompt`. Three are built in — {file}, {line}, and {annotations},
+  --- as identity templates ("{file}" -> "{file}") — so the raw location
+  --- references and the accumulated Annotations are always available. The
+  --- {annotations} prompt is hidden when there are no Annotations. User prompts
+  --- merge additively: a name you set overrides the built-in, and names you
+  --- leave unset are kept. Templates may use the placeholders {file}, {line},
+  --- {function}, {class}, and {annotations}, rendered relative to the focused
+  --- Agent's cwd.
   prompts = {
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
+    ["{annotations}"] = "{annotations}",
+  },
+  --- Annotations: notes anchored to line ranges in normal files, batched into
+  --- the focused Agent through the {annotations} prompt placeholder.
+  annotations = {
+    --- Per-annotation template rendered for each annotation inside {annotations}.
+    --- Fields: {note} (the text), {lines} (`@<relpath> :L<start>-<end>`),
+    --- {code} (the selected lines), and {file}/{start}/{end} as building blocks.
+    item = "{lines} {note}",
+    --- Clear every annotation after a prompt containing {annotations} is typed
+    --- into the Agent. Set false to keep them for re-sending.
+    clear_on_send = true,
+    --- Note-float keymaps (normal mode, buffer-local). `exit` commits the note
+    --- and closes the float; an empty note deletes the annotation (after a
+    --- confirmation). `delete` optionally deletes the annotation directly.
+    keys = {
+      exit = "<Esc>",
+      -- delete = "<leader>d",
+    },
   },
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
@@ -109,11 +141,13 @@ end
 function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   M.track_window_visits()
+  require("vantage.annotation").setup()
 
   pcall(vim.api.nvim_create_user_command, "Vantage", function(args)
     require("vantage.commands").run(args)
   end, {
     nargs = "*",
+    range = true, -- `:Vantage annotate` uses the range as the annotation span
     complete = function(arglead, cmdline)
       return require("vantage.commands").complete(arglead, cmdline)
     end,

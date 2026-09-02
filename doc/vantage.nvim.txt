@@ -57,9 +57,18 @@ first `:Vantage`.
       backend = "tmux",          -- pluggable backend driver (only "tmux" today)
       socket  = "vantage",       -- private tmux socket name
       picker  = "native",        -- native | fzf-lua | snacks
-      prompts = {              -- {file}/{line} built in; add/override yours
+      prompts = {              -- {file}/{line}/{annotations} built in; add/override yours
         ["{file}"] = "{file}",
         ["{line}"] = "{line}",
+        ["{annotations}"] = "{annotations}",
+      },
+      annotations = {          -- notes on line ranges, sent via {annotations}
+        item = "{lines} {note}",  -- per-annotation template
+        clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+        keys = {                  -- note-float keymaps (normal mode)
+          exit = "<Esc>",         -- commit the note and close (empty = delete)
+          -- delete = "<leader>d", -- optional: delete directly
+        },
       },
       cli = {
         tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -86,19 +95,22 @@ another tool.
 
 PROMPT TEMPLATES ~
 
-`prompts` maps names to text templates. Two are built in — `{file}` and
-`{line}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw location
-references are always available. `:Vantage prompt` picks one via `vim.ui.select`
-(not the pluggable Picker — there is nothing to preview) and types it into the
-focused Agent's input (no auto-submit). Your `prompts` merge additively: a name
-you set overrides the built-in, and names you leave unset are kept. A template
-may use four placeholders, all Claude-style location references relative to the
-Agent's cwd:
+`prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
+and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
+location references and the accumulated Annotations are always available. The
+`{annotations}` prompt is hidden while there are no Annotations. `:Vantage
+prompt` picks one via `vim.ui.select` (not the pluggable Picker — there is
+nothing to preview) and pastes it into the focused Agent's input (no
+auto-submit). Your `prompts` merge additively: a name you set overrides the
+built-in, and names you leave unset are kept. A template may use five
+placeholders, four of which are Claude-style location references relative to
+the Agent's cwd:
 
-  `{file}`       `@path/to/file.lua`
-  `{line}`       `@path/to/file.lua :L42` (cursor line)
-  `{function}`   `function foo @path/to/file.lua :L42:C3`
-  `{class}`      `class Foo @path/to/file.lua :L42:C3`
+  `{file}`         `@path/to/file.lua`
+  `{line}`         `@path/to/file.lua :L42` (cursor line)
+  `{function}`     `function foo @path/to/file.lua :L42:C3`
+  `{class}`        `class Foo @path/to/file.lua :L42:C3`
+  `{annotations}`  every Annotation, each rendered by `annotations.item`
 
 `{function}` and `{class}` need nvim-treesitter-textobjects; without it (or
 outside a function/class) the prompt is skipped with a warning — that is why
@@ -119,6 +131,43 @@ Examples: >
 
 The Agent's working directory is the current window's local cwd (respects
 `:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
+
+ANNOTATIONS ~
+
+An Annotation is a note anchored to a line range in a normal file. Add one
+with `:Vantage annotate` (over the visual selection, else the current line);
+`:Vantage annotate list` opens a picker of annotations — selecting one jumps
+to its range and opens an editable note float. `:Vantage annotate clear`
+removes every annotation. Annotations tint the range's line numbers only — no
+sign column, no layout shift, no code obscuring; when the number column is off
+they are not drawn. They live in memory only: lost on buffer unload/reload or
+Neovim exit, and never written to the file.
+
+The note float is a normal scratch buffer (normal mode), so editing is ordinary
+Vim — multi-line notes and undo included. The only added keymap is
+`annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
+float; an empty note deletes the annotation after a confirmation. An optional
+`annotations.keys.delete` deletes directly.
+
+The picker is the pluggable one (`native` / `fzf-lua` / `snacks`): fzf-lua and
+snacks preview each annotation through `annotations.item` (what you see is what
+gets sent) and offer an in-place `<c-x>` delete; native has no preview and no
+keymaps, so it is selection only.
+
+Send the accumulated annotations to the focused Agent through a Prompt that
+uses `{annotations}`, e.g. `prompts = { notes = "My notes:\n{annotations}" }`.
+`annotations.item` is the per-annotation template; its fields are:
+
+  `{note}`    the annotation text
+  `{lines}`   `@path/to/file.lua :L10-L20` (`:L10` for a single line)
+  `{code}`    the selected lines, leading/trailing blank lines dropped
+  `{file}`    the relative path (no `@`, no `:L`)
+  `{start}`   the first line number
+  `{end}`     the last line number
+
+The default `item` is `"{lines} {note}"`; to also send the code use
+`item = "{lines} {note}\n{code}"`. When `clear_on_send` is true (default), a
+successful send whose template used `{annotations}` clears all annotations.
 
 PICKERS & PROMPTS ~
 
@@ -208,8 +257,20 @@ inside the terminal buffer): >
 
 `:Vantage prompt`
     Pick a Prompt and type it into the focused Agent's input (renders
-    `{file}` / `{line}` / `{function}` / `{class}` against the current context;
-    no auto-submit). Warns when there is no focused Agent.
+    `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
+    auto-submit). Warns when there is no focused Agent.
+
+`:Vantage annotate`
+    Add an Annotation over the command's range — a visual selection, or the
+    current line when none — and open an empty note float.
+
+`:Vantage annotate list`
+    Open the Annotation picker (pluggable; fzf-lua/snacks preview each note and
+    offer an in-place `<c-x>` delete). Selecting one jumps to its range and
+    opens an editable note float.
+
+`:Vantage annotate clear`
+    Remove every Annotation (after a confirmation).
 
 `:Vantage status`
     Show attached clients and sessions (debug).

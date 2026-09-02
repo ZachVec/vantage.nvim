@@ -40,6 +40,10 @@ There is no test suite or standalone linter wired yet; add one (and its `make` t
 - Keep the public docs current in the same change: if a change makes [README.md](./README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **Non-trivial changes MUST include an Agent Note in the same change;** only mechanical/local edits are exempt ([when to write](.agents/notes/README.md#when-to-write-one)).
 
+## External-tool gotchas
+
+See [docs/gotchas.md](docs/gotchas.md).
+
 ## Editing these instructions
 
 Keep each rule self-contained while linking high-level docs; condense when clarity survives.

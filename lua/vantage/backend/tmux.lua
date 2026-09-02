@@ -265,8 +265,11 @@ function M.capture_pane(target, max_lines)
   return lines
 end
 
---- Type text into an Agent's pane as literal keystrokes plus a trailing newline
---- (LF), without submitting (no Enter/CR): the user reviews and presses Enter.
+--- Paste text into an Agent's pane via bracketed paste, so embedded newlines
+--- survive (multi-line Prompts and Annotations), without submitting (no
+--- Enter/CR): the user reviews and presses Enter. `send-keys -l` would drop the
+--- newlines — claude collapses them onto one line — so this uses `set-buffer` +
+--- `paste-buffer -p` (bracketed paste) instead.
 ---
 --- Portability note for future drivers: a zellij driver can express this via
 --- `zellij action write` / `write-chars`, but those act only on the focused
@@ -275,7 +278,9 @@ end
 ---@param target string Agent window id (@N)
 ---@param text string
 function M.send_keys(target, text)
-  exec("send-keys", "-t", target, "-l", "--", text .. "\n")
+  exec("set-buffer", "-b", "vantage-send", "--", text)
+  exec("paste-buffer", "-p", "-t", target, "-b", "vantage-send")
+  exec("delete-buffer", "-b", "vantage-send")
 end
 
 --- The command to attach a terminal client to a View, run as a `term` job by

@@ -91,4 +91,57 @@ function M.pick_kill(callback)
   })
 end
 
+---@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
+function M.pick_annotation(opts)
+  local state = { items = Items.annotation_items() }
+  if not state.items then
+    return
+  end
+  local Annotation = require("vantage.annotation")
+
+  -- Re-read the items and provide them to fzf; re-invoked on `reload`. `cb`
+  -- writes one entry at a time (and `cb(nil)` signals the end of input).
+  local function content(cb)
+    state.items = Items.annotation_items(true) or {}
+    for _, entry in ipairs(entries(state.items)) do
+      cb(entry)
+    end
+    cb(nil)
+  end
+
+  local function item_of(selected)
+    return state.items[index_of(selected)]
+  end
+
+  fzf().fzf_exec(content, {
+    prompt = Items.prompt,
+    actions = {
+      ["default"] = function(selected)
+        local item = item_of(selected)
+        if item then
+          vim.schedule(function()
+            opts.select(item.annotation)
+          end)
+        end
+      end,
+      ["ctrl-x"] = {
+        fn = function(selected)
+          local item = item_of(selected)
+          if item then
+            opts.delete(item.annotation)
+          end
+        end,
+        reload = true,
+      },
+    },
+    preview = function(selected)
+      local item = item_of(selected)
+      if not item then
+        return ""
+      end
+      return Annotation.render_item(item.annotation, Items.annotation_cwd())
+    end,
+  })
+end
+
 return M

@@ -64,5 +64,10 @@ _Avoid_: command, template
 
 ## Prompt
 
-A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) before being sent.
+A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) or the accumulated Annotations (`{annotations}`) before being sent.
 _Avoid_: snippet
+
+## Annotation
+
+A user-written note anchored to a line range in a normal file, collected across buffers and batched into a focused Agent's input through the `{annotations}` prompt placeholder. Stored only in memory (an extmark plus a per-buffer registry), so it is lost on buffer unload/reload or Neovim exit and never edits the file. Configured under `setup { annotations = { item = …, clear_on_send = … } }`.
+_Avoid_: comment, note, remark, mark
