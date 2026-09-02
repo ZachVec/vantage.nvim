@@ -143,10 +143,8 @@ function M.pick_annotation(opts)
     return
   end
   pick({
-    finder = function(cb)
-      for _, item in ipairs(Items.annotation_items(true) or {}) do
-        cb(item)
-      end
+    finder = function()
+      return Items.annotation_items(true) or {}
     end,
     format = "text",
     preview = annotation_preview,

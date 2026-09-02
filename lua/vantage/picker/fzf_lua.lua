@@ -147,10 +147,14 @@ function M.pick_annotation(opts)
   end
   local Annotation = require("vantage.annotation")
 
-  -- Re-read the items and provide them to fzf; re-invoked on `reload`.
+  -- Re-read the items and provide them to fzf; re-invoked on `reload`. `cb`
+  -- writes one entry at a time (and `cb(nil)` signals the end of input).
   local function content(cb)
     state.items = Items.annotation_items(true) or {}
-    cb(entries(state.items))
+    for _, entry in ipairs(entries(state.items)) do
+      cb(entry)
+    end
+    cb(nil)
   end
 
   local function item_of(selected)
