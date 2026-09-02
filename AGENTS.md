@@ -42,17 +42,7 @@ There is no test suite or standalone linter wired yet; add one (and its `make` t
 
 ## External-tool gotchas
 
-Read [docs/gotchas.md](docs/gotchas.md) before building anything that touches
-tmux, claude/codex, fzf-lua, snacks, or cursor/insert-mode behavior. Highlights:
-
-- `tmux send-keys -l` collapses newlines in claude — use bracketed paste
-  (`set-buffer` + `paste-buffer -p`) and do NOT append a trailing `\n`.
-- fzf-lua `fzf_exec` function contents writes one item per callback (call
-  `cb(item)` per item, then `cb(nil)`); in-place reload is `{ fn, reload = true }`.
-- snacks finder is `fun(opts, ctx): result`; keymaps live in `win.<pane>.keys`
-  (not `keymaps`); `picker:refresh()` re-runs the finder.
-- `<cmd>` mappings keep Visual mode active, so `'<`/`'>` marks aren't set yet;
-  `normal! \27` first, then read them.
+See [docs/gotchas.md](docs/gotchas.md).
 
 ## Editing these instructions
 
