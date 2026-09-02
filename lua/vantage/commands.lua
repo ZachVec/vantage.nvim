@@ -175,6 +175,7 @@ local function open_note_float(opts)
     style = "minimal",
     border = "rounded",
   })
+  vim.cmd("startinsert")
 
   local function read_note()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -267,6 +268,16 @@ local function annotate_add(line1, line2)
   if name == nil or name == "" then
     Util.warn("annotations need a named buffer — save the file first")
     return
+  end
+  -- A `<cmd>` mapping keeps Visual mode active, so the '< and '> marks are not
+  -- set yet; exit Visual mode first, then read them for the range.
+  if vim.api.nvim_get_mode().mode:match("[vV\22]") then
+    vim.cmd("normal! \27")
+    line1 = vim.fn.line("'<")
+    line2 = vim.fn.line("'>")
+    if line1 > line2 then
+      line1, line2 = line2, line1
+    end
   end
   open_note_float({
     text = "",
