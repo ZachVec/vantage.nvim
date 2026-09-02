@@ -158,7 +158,7 @@ end
 --- Open an editable note float (normal mode). `keys.exit` commits the note and
 --- closes (an empty note deletes after confirmation); an optional `keys.delete`
 --- deletes directly. `on_close` runs when the float closes (BufWipeout).
----@param opts { text: string, on_commit: fun(note: string), on_delete?: fun(), on_close?: fun() }
+---@param opts { text: string, on_commit: fun(note: string), on_delete?: fun(), on_close?: fun(), title?: string, footer?: string }
 local function open_note_float(opts)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(opts.text or "", "\n", { plain = true }))
@@ -174,6 +174,8 @@ local function open_note_float(opts)
     height = height,
     style = "minimal",
     border = "rounded",
+    title = opts.title,
+    footer = opts.footer,
   })
   vim.cmd("startinsert")
 
@@ -239,8 +241,13 @@ local function annotate_open()
         return
       end
       Annotation.set_active(annotation.buf, annotation.id, true)
+      local keys = Config.options.annotations.keys
+      local agent = Client.last_agent_alive()
+      local cwd = agent and agent.cwd or Util.cwd()
       open_note_float({
         text = annotation.note,
+        title = ("Annotation %s"):format(Annotation.location(annotation, cwd)),
+        footer = ("%s save · empty deletes"):format(keys.exit),
         on_commit = function(note)
           Annotation.edit(annotation.buf, annotation.id, note)
         end,
@@ -281,6 +288,8 @@ local function annotate_add(line1, line2)
   end
   open_note_float({
     text = "",
+    title = "New annotation",
+    footer = ("%s save"):format(Config.options.annotations.keys.exit),
     on_commit = function(note)
       Annotation.add(buf, line1, line2, note)
     end,

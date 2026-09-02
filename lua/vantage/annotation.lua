@@ -239,6 +239,14 @@ function M.render_item(annotation, cwd)
   return render_item(annotation, Config.options.annotations.item, cwd)
 end
 
+--- The `{lines}` location reference for one annotation (`@<relpath> :L<start>-<end>`).
+---@param annotation vantage.Annotation
+---@param cwd string
+---@return string
+function M.location(annotation, cwd)
+  return field(annotation, "lines", cwd) or ""
+end
+
 --- Render every annotation through the configured `item` template into one
 --- string, or nil when there are none (so the prompt skips with a warning).
 ---@param cwd string focused Agent cwd (relativization base)
