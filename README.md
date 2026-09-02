@@ -83,8 +83,7 @@ require("vantage").setup({
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
-      layout = "float",      -- float | left | top | bottom | right
-      float  = { width = 0.9, height = 0.9, border = "rounded" },  -- border = "none" to hide
+      layout = "full",       -- full | left | top | bottom | right
       split  = { width = 80, height = 20 },
       keys = {},             -- no keymaps by default; add your own (see below)
     },

@@ -14,8 +14,7 @@
 ---@field state? string
 
 ---@class vantage.Win Terminal window options.
----@field layout string float | left | top | bottom | right
----@field float table
+---@field layout string full | left | top | bottom | right
 ---@field split table
 ---@field keys table[]
 
@@ -97,10 +96,10 @@ local defaults = {
     tools = {},
     --- The persistent :terminal window that is the tmux client.
     win = {
-      --- float | left | top | bottom | right
-      layout = "float",
-      --- border: "none" (or false) hides it; also "single"|"double"|"rounded"|"solid"
-      float = { width = 0.9, height = 0.9, border = "rounded" },
+      --- full | left | top | bottom | right
+      --- `full` opens the terminal in a dedicated tab at the full editor size;
+      --- the split layouts open it alongside the current window.
+      layout = "full",
       split = { width = 80, height = 20 },
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
