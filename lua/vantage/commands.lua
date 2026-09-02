@@ -70,42 +70,87 @@ local function pick_or_new()
   end)
 end
 
---- Render a prompt against the focused Agent's context and type it into the
---- Agent's input (no auto-submit).
----@param name string
-local function send_prompt(name)
-  local agent = Client.last_agent_alive()
-  if not agent then
-    Util.warn("no focused agent — use :Vantage switch or toggle first")
-    return
-  end
-  local template = Config.options.prompts[name]
-  if template == nil then
-    Util.warn(("no such prompt '%s'"):format(name))
-    return
-  end
-  local text, failed = Prompt.render(template, Prompt.context(agent))
-  if text == nil then
-    Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
-    return
-  end
+--- Apply the tool format hook and type the text into the Agent's input (no
+--- auto-submit). Returns false when the format hook dropped the text.
+---@param agent vantage.Agent
+---@param name string prompt name, for warnings
+---@param text string
+---@return boolean
+local function send_text(agent, name, text)
   local tool = agent.tool and Config.options.cli.tools[agent.tool]
   if tool and tool.format then
     text = tool.format(text)
     if text == nil or text == "" then
       Util.warn(("prompt '%s' dropped by its format hook"):format(name))
-      return
+      return false
     end
   end
   Backend.get().send_keys(agent.target, text)
-  if template:find("{annotations}", 1, true) and Config.options.annotations.clear_on_send then
-    Annotation.clear()
-  end
+  return true
 end
 
---- Pick a prompt name via vim.ui.select (no preview, so the pluggable Picker is
---- not used) and send it to the focused Agent. The current window is restored
---- afterwards so the cursor stays where it was (e.g. the terminal).
+--- Run a built-in Action: open its picker and type the selected references.
+--- Scheduled so the prompt-name selector can finish closing first; `on_done`
+--- runs after the picker confirms (or immediately when unsupported).
+---@param name string "files" | "buffers"
+---@param agent vantage.Agent
+---@param on_done fun()
+local function send_action(name, agent, on_done)
+  local pick = name == "files" and Picker.get().pick_files or Picker.get().pick_buffers
+  if type(pick) ~= "function" then
+    on_done()
+    return -- picker doesn't support the Action (native, or unavailable)
+  end
+  vim.schedule(function()
+    pick(function(paths)
+      if #paths > 0 then
+        send_text(agent, name, Prompt.render_paths(agent, paths))
+      end
+      on_done()
+    end)
+  end)
+end
+
+--- Render a Template against the focused Agent's context and type it in, or run
+--- a built-in Action. `on_done` runs after the text is sent (or skipped).
+---@param name string
+---@param on_done fun()
+local function send_prompt(name, on_done)
+  local agent = Client.last_agent_alive()
+  if not agent then
+    Util.warn("no focused agent — use :Vantage switch or toggle first")
+    on_done()
+    return
+  end
+  if Prompt.actions[name] then
+    send_action(name, agent, on_done)
+    return
+  end
+  local template = Config.options.prompts[name]
+  if template == nil then
+    Util.warn(("no such prompt '%s'"):format(name))
+    on_done()
+    return
+  end
+  local text, failed = Prompt.render(template, Prompt.context(agent))
+  if text == nil then
+    Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
+    on_done()
+    return
+  end
+  if
+    send_text(agent, name, text)
+    and template:find("{annotations}", 1, true)
+    and Config.options.annotations.clear_on_send
+  then
+    Annotation.clear()
+  end
+  on_done()
+end
+
+--- Pick a Prompt (Template or Action) name via vim.ui.select and send it. The
+--- current window is restored after the send (for Actions, after its picker
+--- closes) so focus returns to where it was.
 local function prompt_wizard()
   local names = {}
   local has_annotations = #Annotation.collect() > 0
@@ -116,6 +161,13 @@ local function prompt_wizard()
       names[#names + 1] = name
     end
   end
+  -- Built-in Actions need the files/buffers pickers (fzf-lua/snacks), so they
+  -- are offered only when the resolved Picker implements them.
+  if type(Picker.get().pick_files) == "function" then
+    for name in pairs(Prompt.actions) do
+      names[#names + 1] = name
+    end
+  end
   table.sort(names)
   local win = vim.api.nvim_get_current_win()
   local function restore()
@@ -123,12 +175,16 @@ local function prompt_wizard()
       vim.api.nvim_set_current_win(win)
     end
   end
-  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
-    if name then
-      send_prompt(name)
-    end
+  local function on_done()
     restore()
     vim.schedule(restore)
+  end
+  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
+    if name then
+      send_prompt(name, on_done)
+    else
+      on_done()
+    end
   end)
 end
 

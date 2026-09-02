@@ -128,6 +128,17 @@ Examples: >
 
 <
 
+FILE & BUFFER ACTIONS ~
+
+Beyond templates, two built-in Actions — `files` and `buffers` — open a picker
+and type the selected references. They appear in `:Vantage prompt` only when
+`picker` is `"fzf-lua"` or `"snacks"` (hidden under `"native"`). Multi-select,
+then the selected files/buffers are typed as newline-joined `@path` references
+relative to the focused Agent's cwd (absolute when a path escapes it); no
+auto-submit. The `files` list comes from the picker's own `files` source
+(fd / rg --files / find, respecting `.gitignore`); `buffers` lists open buffers
+filtered to real files.
+
 The Agent's working directory is the current window's local cwd (respects
 `:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
 
@@ -180,10 +191,11 @@ through a pluggable picker, chosen by `picker`:
   `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Selections with nothing to preview — the tool and Group choice when
-creating an Agent, and `:Vantage prompt` — use `vim.ui.select` directly, not
-the picker. Free-text prompts (e.g. the new-Group name) use `input()` and are
-insert-mode by default.
+output) and also back the built-in `files` / `buffers` Actions. Selections with
+nothing to preview — the tool and Group choice when creating an Agent, and the
+`:Vantage prompt` name list — use `vim.ui.select` directly, not the picker.
+Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode by
+default.
 
 TERMINAL FILETYPE & KEYMAPS ~
 
@@ -255,9 +267,12 @@ inside the terminal buffer): >
     Agents keep running headless.
 
 `:Vantage prompt`
-    Pick a Prompt and type it into the focused Agent's input (renders
-    `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
-    auto-submit). Warns when there is no focused Agent.
+`:Vantage prompt`
+    Pick a Prompt and type it into the focused Agent's input. A Template renders
+    `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}` against the
+    current context; the built-in `files` / `buffers` Actions open a picker
+    (fzf-lua/snacks only) and type the selected references. No auto-submit.
+    Warns when there is no focused Agent.
 
 `:Vantage annotate`
     Add an Annotation over the command's range — a visual selection, or the

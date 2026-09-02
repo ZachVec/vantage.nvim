@@ -35,6 +35,29 @@ function M.agent_items()
   return items
 end
 
+--- The absolute file path of a buffer, or nil when it has no readable real
+--- file (unnamed, non-"file" buftype, or the file is not on disk). Shared by
+--- the fzf-lua and snacks buffer pickers to filter selections down to paths an
+--- Agent can read.
+---@param buf integer
+---@return string?
+function M.buffer_file_path(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return nil
+  end
+  if vim.bo[buf].buftype ~= "" then
+    return nil
+  end
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name == nil or name == "" then
+    return nil
+  end
+  if vim.fn.filereadable(name) ~= 1 then
+    return nil
+  end
+  return vim.fs.normalize(vim.fn.fnamemodify(name, ":p"))
+end
+
 --- Agents (as { target, agent }) + Groups (as { target }) to kill.
 --- nil (with a warning) when there is nothing to kill.
 ---@return { target: string, agent?: vantage.Agent, text: string }[]?

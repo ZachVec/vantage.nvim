@@ -1,10 +1,13 @@
---- Prompt domain: named text templates typed into a focused Agent's input.
+--- Prompt domain: named Templates and Actions typed into a focused Agent's input.
 ---
---- A Prompt is a string template under `setup { prompts = { name = "…" } }`,
---- expanded against the current context before being sent. Placeholders:
---- `{file}`, `{line}`, `{function}`, `{class}` render Claude-style location
---- references relative to the focused Agent's cwd; `{annotations}` renders all
---- accumulated Annotations.
+--- A Template is a string under `setup { prompts = { name = "…" } }`, expanded
+--- against the current context before being sent. Placeholders: `{file}`,
+--- `{line}`, `{function}`, `{class}` render Claude-style location references
+--- relative to the focused Agent's cwd; `{annotations}` renders all accumulated
+--- Annotations.
+---
+--- An Action is a built-in prompt (`files`, `buffers`) that opens a picker and
+--- types the selected location references; see `M.actions` / `M.render_paths`.
 local M = {}
 
 local Util = require("vantage.util")
@@ -54,7 +57,7 @@ end
 ---@param cwd string base directory
 ---@param path string absolute file path
 ---@return string
-local function loc_file(cwd, path)
+function M.relativize(cwd, path)
   return "@" .. Util.relpath(cwd, path)
 end
 
@@ -66,7 +69,7 @@ local function resolve_file(ctx)
   if name == nil or name == "" then
     return nil
   end
-  return loc_file(ctx.cwd, name)
+  return M.relativize(ctx.cwd, name)
 end
 
 --- "@<path> :L<row>".
@@ -77,7 +80,7 @@ local function resolve_line(ctx)
   if name == nil or name == "" then
     return nil
   end
-  return ("%s :L%d"):format(loc_file(ctx.cwd, name), ctx.row)
+  return ("%s :L%d"):format(M.relativize(ctx.cwd, name), ctx.row)
 end
 
 -- ---------------------------------------------------------------------------
@@ -161,7 +164,7 @@ local function resolve_symbol(ctx, kind)
     return nil
   end
   local prefix = t.name and ("%s %s "):format(kind, t.name) or (kind .. " ")
-  return ("%s%s :L%d:C%d"):format(prefix, loc_file(ctx.cwd, name), t.row, t.col)
+  return ("%s%s :L%d:C%d"):format(prefix, M.relativize(ctx.cwd, name), t.row, t.col)
 end
 
 local resolvers = {
@@ -221,6 +224,29 @@ function M.render(template, ctx)
     out[#out + 1] = rendered
   end
   return table.concat(out, "\n")
+end
+
+-- ---------------------------------------------------------------------------
+-- Actions
+-- ---------------------------------------------------------------------------
+
+--- Built-in Action prompts (name -> true). An Action opens a picker and types
+--- the selected location references, rather than rendering a template.
+--- `:Vantage prompt` offers these only when the configured Picker implements
+--- `pick_files`/`pick_buffers` (fzf-lua and snacks; not native).
+M.actions = { files = true, buffers = true }
+
+--- Render selected absolute paths as newline-joined location references
+--- relative to the focused Agent's cwd.
+---@param agent vantage.Agent
+---@param paths string[] absolute file paths
+---@return string
+function M.render_paths(agent, paths)
+  local refs = {}
+  for _, path in ipairs(paths) do
+    refs[#refs + 1] = M.relativize(agent.cwd, path)
+  end
+  return table.concat(refs, "\n")
 end
 
 return M

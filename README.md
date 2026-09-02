@@ -140,6 +140,19 @@ prompts = {
 }
 ```
 
+### File & buffer actions
+
+Beyond templates, two Actions are built in: `files` and `buffers`. They open a
+picker, let you multi-select, and type the selected files or buffers as
+newline-joined `@path` references — relative to the focused Agent's cwd,
+absolute when a path escapes it — into the Agent (no auto-submit).
+
+Actions are offered by `:Vantage prompt` only when `picker` is `"fzf-lua"` or
+`"snacks"`; they are hidden under `"native"`, whose `vim.ui.select` has no
+multi-select and no file/buffer sources. The `files` list comes from the
+picker's own `files` source (fd / rg --files / find, respecting `.gitignore`);
+`buffers` lists the open buffers, filtered to real files.
+
 ### Annotations
 
 An Annotation is a note anchored to a line range in a normal file. Add one with
@@ -182,10 +195,11 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Selections with nothing to preview — the tool and Group choice when
-creating an Agent, and `:Vantage prompt` — use `vim.ui.select` directly, not
-the picker. Free-text prompts (e.g. the new-Group name) use `input()` and are
-insert-mode by default.
+output), and they also back the built-in `files` / `buffers` Actions (multi-select
+file and buffer pickers; see above). Selections with nothing to preview — the
+tool and Group choice when creating an Agent, and the `:Vantage prompt` name
+list — use `vim.ui.select` directly, not the picker. Free-text prompts (e.g. the
+new-Group name) use `input()` and are insert-mode by default.
 
 ### Terminal filetype & keymaps
 

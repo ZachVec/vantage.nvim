@@ -15,9 +15,11 @@ for the same two flows, so the pickers behaved inconsistently.
 ## Decision
 
 The Picker is reserved for selections with a pane preview — the Agent list
-(`pick_agent`) and the kill list (`pick_kill`). Selections with nothing to
-preview — the Tool and Group choice during Agent creation, and
-`:Vantage prompt` — use `vim.ui.select` directly. A new
+(`pick_agent`), the kill list (`pick_kill`), and the files/buffers Actions
+(`pick_files` / `pick_buffers`, fzf-lua/snacks only — see the [files/buffers
+note](../feature/2026-09-02-prompt-files-buffers-actions.md)). Selections with
+nothing to preview — the Tool and Group choice during Agent creation, and the
+`:Vantage prompt` name list — use `vim.ui.select` directly. A new
 `lua/vantage/select.lua` owns the creation wizard's Tool and Group selection:
 sorted `cli.tools` names, existing Groups plus a `+ new group` sentinel, and a
 free-text `input()` prompt for a new Group name. The prompt glyph moves to
@@ -46,7 +48,8 @@ all, so a plain `vim.ui.select` helper is the whole vocabulary.
 
 ## Consequences
 
-- `PickerImpl` now exposes `pick_agent` and `pick_kill` only; a new picker
+- `PickerImpl` now exposes `pick_agent` and `pick_kill` for the preview-capable
+  flows (plus `pick_files` / `pick_buffers` on fzf-lua/snacks); a new picker
   implementation adds no Tool/Group code.
 - The `snacks` default-preview defect is deleted, not patched — the offending
   code path (Picker Tool/Group selection) no longer exists.

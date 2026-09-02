@@ -36,10 +36,13 @@
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks)
---- for the preview-capable selections: the Agent list and the kill list.
+--- for the preview-capable selections: the Agent list, the kill list, the
+--- Annotation list, and the files/buffers Action pickers (fzf-lua/snacks only).
 ---@field pick_agent fun(callback: fun(choice: { kind: "agent"|"new", agent?: vantage.Agent }))
 ---@field pick_kill fun(callback: fun(target: string))
 ---@field pick_annotation fun(opts: { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) })
+---@field pick_files? fun(callback: fun(paths: string[])) absent on native
+---@field pick_buffers? fun(callback: fun(paths: string[])) absent on native
 
 local M = {}
 
