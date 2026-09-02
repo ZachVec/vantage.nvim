@@ -171,7 +171,8 @@ successful send whose template used `{annotations}` clears all annotations.
 
 PICKERS & PROMPTS ~
 
-Selections go through a pluggable picker, chosen by `picker`:
+The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
+through a pluggable picker, chosen by `picker`:
 
   `picker = "native"`   built-in `vim.ui.select` (default). Respects any
                         global `vim.ui.select` override (dressing.nvim,
@@ -180,7 +181,9 @@ Selections go through a pluggable picker, chosen by `picker`:
   `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Free-text prompts (e.g. the new-Group name) use `input()` and are
+output). Selections with nothing to preview — the tool and Group choice when
+creating an Agent, and `:Vantage prompt` — use `vim.ui.select` directly, not
+the picker. Free-text prompts (e.g. the new-Group name) use `input()` and are
 insert-mode by default.
 
 TERMINAL FILETYPE & KEYMAPS ~
@@ -235,7 +238,8 @@ inside the terminal buffer): >
 
 `:Vantage switch [<@N>]`
     Switch: pick an Agent to focus, or pick the `+ new agent` entry to create
-    one (choose a tool, then a Group). With `<@N>` focus directly.
+    one (choose a tool, then a Group — both via `vim.ui.select`). With `<@N>`
+    focus directly.
 
 `:Vantage kill [<group|@N>]`
     Kill a Group or a single Agent. With no argument, pick interactively.

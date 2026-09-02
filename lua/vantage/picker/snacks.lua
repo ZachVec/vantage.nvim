@@ -57,52 +57,6 @@ function M.pick_agent(callback)
   })
 end
 
----@param callback fun(tool_name: string)
-function M.pick_tool(callback)
-  local items = Items.tool_items()
-  if not items then
-    return
-  end
-  pick({
-    items = items,
-    format = "text",
-    confirm = function(picker, item)
-      picker:close()
-      if item then
-        vim.schedule(function()
-          callback(item.name)
-        end)
-      end
-    end,
-  })
-end
-
----@param callback fun(group: string)
-function M.pick_group(callback)
-  local items = Items.group_items()
-  if not items then
-    Items.prompt_new_group(callback)
-    return
-  end
-  pick({
-    items = items,
-    format = "text",
-    confirm = function(picker, item)
-      picker:close()
-      if not item then
-        return
-      end
-      vim.schedule(function()
-        if item.name == "+ new group" then
-          Items.prompt_new_group(callback)
-        else
-          callback(item.name)
-        end
-      end)
-    end,
-  })
-end
-
 ---@param callback fun(target: string)
 function M.pick_kill(callback)
   local items = Items.kill_items()

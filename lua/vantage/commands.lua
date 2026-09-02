@@ -5,6 +5,7 @@ local Client = require("vantage.client")
 local Config = require("vantage.config")
 local Picker = require("vantage.picker")
 local Prompt = require("vantage.prompt")
+local Select = require("vantage.select")
 local Util = require("vantage.util")
 
 local M = {}
@@ -50,9 +51,9 @@ local function do_create(group, tool_name, cmd, cwd)
 end
 
 local function create_wizard()
-  Picker.get().pick_tool(function(tool_name)
+  Select.pick_tool(function(tool_name)
     local tool = Config.options.cli.tools[tool_name]
-    Picker.get().pick_group(function(group)
+    Select.pick_group(function(group)
       do_create(group, tool_name, table.concat(tool.cmd, " "), Util.cwd())
     end)
   end)
