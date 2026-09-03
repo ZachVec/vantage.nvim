@@ -5,7 +5,6 @@ local Client = require("vantage.client")
 local Config = require("vantage.config")
 local Picker = require("vantage.picker")
 local Prompt = require("vantage.prompt")
-local Select = require("vantage.select")
 local Util = require("vantage.util")
 
 local M = {}
@@ -50,11 +49,62 @@ local function do_create(group, tool_name, cmd, cwd)
   end
 end
 
+--- The "+ new group" row of the creation wizard's Group stage.
+local NEW_GROUP = "+ new group"
+
+--- Prompt for a new Group name (insert-mode cmdline). Scheduled so a picker
+--- window can finish closing before the cmdline opens.
+---@param callback fun(group: string)
+local function ask_new_group_name(callback)
+  vim.schedule(function()
+    local name = vim.trim(vim.fn.input({ prompt = "Group name: " }))
+    if name ~= "" then
+      callback(name)
+    end
+  end)
+end
+
+--- The Agent-creation wizard: pick a Tool, then a Group (or "+ new group"),
+--- then create and focus the Agent. Every step renders on the configured
+--- Picker's own engine via `pick_plain`, so the flow never rides a foreign
+--- global `vim.ui.select` override. With no Group yet, the Group step is
+--- skipped and the new-Group name is prompted directly.
 local function create_wizard()
-  Select.pick_tool(function(tool_name)
+  local tools = {}
+  for name in pairs(Config.options.cli.tools) do
+    tools[#tools + 1] = name
+  end
+  if #tools == 0 then
+    Util.warn("no tools configured (cli.tools)")
+    return
+  end
+  table.sort(tools)
+
+  local picker = Picker.get()
+  picker.pick_plain(tools, { prompt = "Tool: " }, function(tool_name)
+    if not tool_name then
+      return
+    end
     local tool = Config.options.cli.tools[tool_name]
-    Select.pick_group(function(group)
-      do_create(group, tool_name, table.concat(tool.cmd, " "), Util.cwd())
+    local cmd = table.concat(tool.cmd, " ")
+    local function create(group)
+      do_create(group, tool_name, cmd, Util.cwd())
+    end
+    local groups = Backend.get().groups()
+    if #groups == 0 then
+      ask_new_group_name(create)
+      return
+    end
+    groups[#groups + 1] = NEW_GROUP
+    picker.pick_plain(groups, { prompt = "Group: " }, function(group)
+      if not group then
+        return
+      end
+      if group == NEW_GROUP then
+        ask_new_group_name(create)
+      else
+        create(group)
+      end
     end)
   end)
 end
@@ -103,9 +153,9 @@ local function send_prompt(name)
   end
 end
 
---- Pick a prompt name via vim.ui.select (no preview, so the pluggable Picker is
---- not used) and send it to the focused Agent. The current window is restored
---- afterwards so the cursor stays where it was (e.g. the terminal).
+--- Pick a prompt name through the Picker's plain-select method and send it to
+--- the focused Agent. The current window is restored afterwards so the cursor
+--- stays where it was (e.g. the terminal).
 local function prompt_wizard()
   local names = {}
   local has_annotations = #Annotation.collect() > 0
@@ -123,7 +173,7 @@ local function prompt_wizard()
       vim.api.nvim_set_current_win(win)
     end
   end
-  vim.ui.select(names, { prompt = "Prompt: " }, function(name)
+  Picker.get().pick_plain(names, { prompt = "Prompt: " }, function(name)
     if name then
       send_prompt(name)
     end
@@ -197,11 +247,10 @@ local function open_note_float(opts)
   end
 
   local function confirm_delete()
-    vim.ui.select({ "Yes", "No" }, { prompt = "Delete annotation? " }, function(choice)
-      if choice == "Yes" and opts.on_delete then
-        opts.on_delete()
-      end
-    end)
+    -- Built-in dialog: light two-choice confirmations stay off the pickers.
+    if vim.fn.confirm("Delete annotation?", "&Yes\n&No", 2) == 1 and opts.on_delete then
+      opts.on_delete()
+    end
   end
 
   local function finish()
@@ -300,17 +349,15 @@ local function annotate_add(line1, line2)
   })
 end
 
---- Clear all annotations after a confirmation.
+--- Clear all annotations after a confirmation (built-in dialog, default No).
 local function annotate_clear()
   if #Annotation.collect() == 0 then
     Util.warn("no annotations to clear")
     return
   end
-  vim.ui.select({ "Yes", "No" }, { prompt = "Clear all annotations? " }, function(choice)
-    if choice == "Yes" then
-      Annotation.clear()
-    end
-  end)
+  if vim.fn.confirm("Clear all annotations?", "&Yes\n&No", 2) == 1 then
+    Annotation.clear()
+  end
 end
 
 --- Hide/show the terminal (lightweight); with no live terminal, re-open to the

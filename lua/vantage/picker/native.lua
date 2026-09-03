@@ -60,4 +60,18 @@ function M.pick_annotation(opts)
   end)
 end
 
+--- Pick from a plain list (no preview) on this engine: the live global
+--- `vim.ui.select` — including any override — since native is defined as
+--- "follow the environment's renderer". Every plain choice in a flow then
+--- shares one renderer family by construction.
+---@param items any[]
+---@param opts { prompt?: string, format_item?: fun(item: any): string }
+---@param on_choice fun(item: any?, index?: integer)
+function M.pick_plain(items, opts, on_choice)
+  vim.ui.select(items, {
+    prompt = opts.prompt,
+    format_item = opts.format_item,
+  }, on_choice)
+end
+
 return M

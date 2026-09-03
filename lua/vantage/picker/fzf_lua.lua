@@ -144,4 +144,17 @@ function M.pick_annotation(opts)
   })
 end
 
+--- Pick from a plain list (no preview) on this engine: fzf-lua's own
+--- ui_select implementation — the same function fzf-lua registers as a global
+--- `vim.ui.select` override — so the wizard stays on the fzf renderer family.
+---@param items any[]
+---@param opts { prompt?: string, format_item?: fun(item: any): string }
+---@param on_choice fun(item: any?, index?: integer)
+function M.pick_plain(items, opts, on_choice)
+  require("fzf-lua.providers.ui_select").ui_select(items, {
+    prompt = opts.prompt,
+    format_item = opts.format_item,
+  }, on_choice)
+end
+
 return M

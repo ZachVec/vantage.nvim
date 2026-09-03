@@ -1,8 +1,8 @@
 --- Shared helpers for the Vantage plugin.
 local M = {}
 
---- The selection prompt glyph (U+F105, e.g. Nerd Font), shared by the Picker
---- and the plain `vim.ui.select` flows.
+--- The picker prompt glyph (U+F105, e.g. Nerd Font), shared by the Picker
+--- implementations through `picker/items.lua`.
 M.picker_prompt = vim.fn.nr2char(0xF105)
 
 --- Run a command synchronously via vim.system.

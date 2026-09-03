@@ -54,7 +54,7 @@ _Avoid_: terminal, screen
 
 ## Picker
 
-The plugin's pluggable selection UI for choices with something to preview — the Agent list and the kill list — chosen via `setup { picker = … }`: `native` (vim.ui.select), `fzf-lua`, or `snacks`. Selections with nothing to preview (the Tool and Group choice during Agent creation, and `:Vantage prompt`) use `vim.ui.select` directly, not the Picker.
+The plugin's pluggable selection UI, owning every Vantage selection — the Agent list, the kill list, the Agent-creation wizard's Tool and Group steps, and `:Vantage prompt` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. Implementations render plain choices with their own engine (snacks' compact select layout, fzf-lua's ui_select shim) so a flow never mixes renderer families. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
 
 ## Tool

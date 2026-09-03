@@ -2,8 +2,8 @@
 --- renders (the Agent list and the kill list). Every item carries a `text`
 --- display string plus whatever domain fields its callback needs;
 --- implementations own only the rendering and the recovery of the chosen item.
---- Plain selections with nothing to preview (the Tool and Group choice) live in
---- `vantage.select`.
+--- Plain choices (the Agent-creation Tool/Group steps and :Vantage prompt)
+--- pass plain strings to `PickerImpl.pick_plain` and need no builder here.
 local Backend = require("vantage.backend")
 local Util = require("vantage.util")
 
