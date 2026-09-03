@@ -18,7 +18,7 @@ whitelist registry (a raw user string is never `require`d) and exposes
 two domain pickers (`pick_agent`, `pick_kill`) with identical callback
 contracts, selected via `setup { picker = … }` (default `native`). Callers go
 through `Picker.get()`. Tool and Group choice later moved out to plain
-`vim.ui.select` — see [the plain-selection note](2026-09-02-plain-selection-via-ui-select.md).
+`vim.ui.select` — see [the picker-owns-plain-selections note](2026-09-03-picker-owns-plain-selections.md).
 
 Shared item construction lives in `picker/items.lua`: it builds rich items
 (each carrying a `text` display string plus the domain fields a callback

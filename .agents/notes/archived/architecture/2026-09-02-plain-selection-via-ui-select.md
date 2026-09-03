@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-03
+
 ## Problem
 
 Agent creation (the `create_wizard`) chose the Tool and then the Group through
@@ -55,4 +57,4 @@ all, so a plain `vim.ui.select` helper is the whole vocabulary.
 - The prompt glyph moves to `Util.picker_prompt`, shared by the Picker and
   `select.lua`.
 
-The Picker seam it narrows is [the pluggable-picker note](2026-08-31-pluggable-picker-frontend.md); the precedent it extends is [the prompts note](../feature/2026-08-31-prompts.md).
+The Picker seam it narrows is [the pluggable-picker note](2026-08-31-pluggable-picker-frontend.md); the precedent it extends is [the prompts note](../feature/2026-08-31-prompts.md). The teardown window of closing selection UIs is investigated in the [isolation note](../bug-fix/2026-09-03-isolate-wizard-selection-opens.md).

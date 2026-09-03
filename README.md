@@ -53,8 +53,9 @@ docs.
 
 Creating an Agent happens through two channels: `:Vantage toggle` when there
 are no Agents yet, or the `+ new agent` entry in the `:Vantage switch` picker.
-The tool and Group choice use `vim.ui.select` (there is nothing to preview);
-when no Group exists yet, you go straight to the Group-name prompt.
+The creation wizard picks a Tool and then a Group through the pluggable
+picker's plain-select form (each picker renders plain choices on its own
+engine); when no Group exists yet, you go straight to the Group-name prompt.
 
 The first focus opens the `:terminal` and attaches it to the agent; later
 focuses re-target that same terminal. Closing the terminal detaches the client
@@ -112,9 +113,8 @@ the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
 location references and the accumulated Annotations are always available. The
 `{annotations}` prompt is hidden while there are no Annotations. `:Vantage
-prompt` picks one via `vim.ui.select` (not the pluggable picker — there is
-nothing to preview) and pastes it into the focused Agent's input; it never
-auto-submits. Your `prompts` merge additively: a name you set overrides the
+prompt` picks one through the pluggable picker's plain-select form and pastes
+it into the focused Agent's input; it never auto-submits. Your `prompts` merge additively: a name you set overrides the
 built-in, and names you leave unset are kept. Templates may use five
 placeholders, four of which are Claude-style location references relative to
 the focused Agent's cwd:
@@ -182,10 +182,11 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Selections with nothing to preview — the tool and Group choice when
-creating an Agent, and `:Vantage prompt` — use `vim.ui.select` directly, not
-the picker. Free-text prompts (e.g. the new-Group name) use `input()` and are
-insert-mode by default.
+output). The Agent-creation wizard and `:Vantage prompt` run through the same
+picker in its compact plain-select form, so a flow never depends on a global
+`vim.ui.select` override (`native` follows any override by definition).
+Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
+by default; Yes/No confirmations use Neovim's built-in confirm dialog.
 
 ### Terminal filetype & keymaps
 

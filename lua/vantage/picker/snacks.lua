@@ -133,4 +133,17 @@ function M.pick_annotation(opts)
   })
 end
 
+--- Pick from a plain list (no preview) on this engine: snacks' own select
+--- implementation (its compact select layout, preview hidden, non-terminal) —
+--- the same function snacks registers as a global `vim.ui.select` override.
+---@param items any[]
+---@param opts { prompt?: string, format_item?: fun(item: any): string }
+---@param on_choice fun(item: any?, index?: integer)
+function M.pick_plain(items, opts, on_choice)
+  require("snacks.picker").select(items, {
+    prompt = opts.prompt,
+    format_item = opts.format_item,
+  }, on_choice)
+end
+
 return M
