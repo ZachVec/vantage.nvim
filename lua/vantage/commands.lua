@@ -85,16 +85,20 @@ local function create_with_tool(tool_name)
     return
   end
   groups[#groups + 1] = NEW_GROUP
-  picker.pick_plain(groups, { prompt = "Group: " }, function(group)
-    if not group then
-      return
+  picker.pick_plain(
+    groups,
+    { prompt = "Group: ", invoked_from_terminal = Select.invoked_from_terminal() },
+    function(group)
+      if not group then
+        return
+      end
+      if group == NEW_GROUP then
+        ask_new_group_name(create)
+      else
+        create(group)
+      end
     end
-    if group == NEW_GROUP then
-      ask_new_group_name(create)
-    else
-      create(group)
-    end
-  end)
+  )
 end
 
 --- The Agent-creation wizard: pick a Tool, then a Group (or "+ new group"),
@@ -113,11 +117,12 @@ local function create_wizard()
   end
   table.sort(tools)
 
-  Picker.get().pick_plain(tools, { prompt = "Tool: " }, function(tool_name)
-    if tool_name then
-      create_with_tool(tool_name)
-    end
-  end)
+  Picker.get()
+    .pick_plain(tools, { prompt = "Tool: ", invoked_from_terminal = Select.invoked_from_terminal() }, function(tool_name)
+      if tool_name then
+        create_with_tool(tool_name)
+      end
+    end)
 end
 
 --- Pick an Agent to focus, create a new one from a trailing Tool row, or
@@ -188,13 +193,14 @@ local function prompt_wizard()
       vim.api.nvim_set_current_win(win)
     end
   end
-  Picker.get().pick_plain(names, { prompt = "Prompt: " }, function(name)
-    if name then
-      send_prompt(name)
-    end
-    restore()
-    vim.schedule(restore)
-  end)
+  Picker.get()
+    .pick_plain(names, { prompt = "Prompt: ", invoked_from_terminal = Select.invoked_from_terminal() }, function(name)
+      if name then
+        send_prompt(name)
+      end
+      restore()
+      vim.schedule(restore)
+    end)
 end
 
 -- ---------------------------------------------------------------------------

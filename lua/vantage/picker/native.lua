@@ -59,7 +59,7 @@ end
 --- "follow the environment's renderer". Every plain choice in a flow then
 --- shares one renderer family by construction.
 ---@param items any[]
----@param opts { prompt?: string, format_item?: fun(item: any): string }
+---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)
 function M.pick_plain(items, opts, on_choice)
   vim.ui.select(items, {

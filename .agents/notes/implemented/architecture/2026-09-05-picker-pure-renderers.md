@@ -52,6 +52,9 @@ Consequences of that boundary:
   fzf-lua calls `utils.fzf_exit()`, both after re-reading `items_provider`
   through a cached-items pattern (one re-read per delete, verified against each
   engine's source).
+- The snacks terminal-mode restore applies to every snacks pick — the
+  preview-capable picks via `on_close`, `pick_plain` via a wrapped `on_choice`
+  (its `select` shim owns `on_close`) — keyed on `invoked_from_terminal`.
 
 ## Alternatives considered
 

@@ -61,10 +61,11 @@ end
 
 --- The window predicate for "invoked from the vantage terminal window": the
 --- terminal is open and is the current window (the window the cursor was last
---- in). An invoke-time fact — the snacks picker consumes it to decide whether
---- to re-enter terminal mode on close.
+--- in). An invoke-time fact — the snacks picker consumes it (via the spec, or
+--- via `pick_plain`'s opts) to decide whether to re-enter terminal mode on
+--- close.
 ---@return boolean
-local function invoked_from_terminal()
+function M.invoked_from_terminal()
   return Client.is_open() and vim.api.nvim_get_current_win() == Client.window
 end
 
@@ -161,7 +162,7 @@ end
 --- The Agent-list selection spec.
 ---@return vantage.PickSpec
 function M.agent_spec()
-  local from_terminal = invoked_from_terminal()
+  local from_terminal = M.invoked_from_terminal()
   local focused = from_terminal and Client.last_agent_alive() or nil
   return {
     prompt = PROMPT,
@@ -180,6 +181,7 @@ function M.kill_spec()
     prompt = PROMPT,
     items_provider = kill_items,
     preview = pane_preview,
+    invoked_from_terminal = M.invoked_from_terminal(),
   }
 end
 
@@ -192,6 +194,7 @@ function M.annotation_spec()
     prompt = PROMPT,
     items_provider = annotation_items,
     preview = annotation_preview,
+    invoked_from_terminal = M.invoked_from_terminal(),
     on_delete = function(annotation)
       Annotation.delete(annotation.buf, annotation.id)
     end,

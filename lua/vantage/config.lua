@@ -51,6 +51,13 @@
 ---@field invoked_from_terminal? boolean
 ---@field on_delete? fun(value: any)
 
+---@class vantage.PlainSelectOpts Options for the plain-list select form
+--- (`pick_plain`), mirroring `vim.ui.select`'s opts plus the invoke-time fact
+--- the snacks implementation uses to restore terminal mode.
+---@field prompt? string
+---@field format_item? fun(item: any): string
+---@field invoked_from_terminal? boolean
+
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
 --- snacks) rendering every Vantage selection on its own engine. The frontend
 --- orchestrator (vantage.select) assembles a PickSpec per flow; the
@@ -59,7 +66,7 @@
 ---@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })): boolean
 ---@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(target: string)): boolean
 ---@field pick_annotation fun(spec: vantage.PickSpec, on_choice: fun(annotation: vantage.Annotation)): boolean
----@field pick_plain fun(items: any[], opts: { prompt?: string, format_item?: fun(item: any): string }, on_choice: fun(item: any?, index?: integer))
+---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}
 
