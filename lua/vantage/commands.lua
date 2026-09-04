@@ -217,17 +217,26 @@ local function open_note_float(opts)
 
   local width = math.max(40, math.min(80, math.floor(vim.o.columns * 0.5)))
   local height = math.max(8, math.min(20, math.floor(vim.o.lines * 0.5)))
-  local win = vim.api.nvim_open_win(buf, true, {
+  -- `style = "minimal"` forces every window option off (no line numbers, no
+  -- cursorline, …), which reads as a read-only dialog. By default
+  -- (`annotations.float.style` = "inherit") no style key is passed, so the
+  -- float takes the options of the window it opens from — like a normal split,
+  -- line numbers and friends follow the user's config and the float reads as
+  -- an editable buffer. `"minimal"` stays available for the clean dialog look.
+  local win_config = {
     relative = "editor",
     row = math.floor((vim.o.lines - height) / 2),
     col = math.floor((vim.o.columns - width) / 2),
     width = width,
     height = height,
-    style = "minimal",
     border = "rounded",
     title = opts.title,
     footer = opts.footer,
-  })
+  }
+  if Config.options.annotations.float.style == "minimal" then
+    win_config.style = "minimal"
+  end
+  local win = vim.api.nvim_open_win(buf, true, win_config)
   if opts.insert then
     vim.cmd("startinsert")
   end

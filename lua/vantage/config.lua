@@ -22,10 +22,14 @@
 ---@field exit string commit the note and close the float
 ---@field delete? string delete the annotation directly (optional; unset by default)
 
+---@class vantage.AnnotationFloatConfig Note-float window options.
+---@field style string "inherit" (default) | "minimal"
+
 ---@class vantage.AnnotationConfig
 ---@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
 ---@field clear_on_send boolean clear after a sent prompt contains {annotations}
 ---@field keys vantage.AnnotationKeys
+---@field float vantage.AnnotationFloatConfig
 
 ---@class vantage.Config
 ---@field backend string
@@ -81,6 +85,14 @@ local defaults = {
     --- Clear every annotation after a prompt containing {annotations} is typed
     --- into the Agent. Set false to keep them for re-sending.
     clear_on_send = true,
+    --- Note-float window options. `float.style = "inherit"` (default) passes
+    --- no float style, so the window takes the options of the window it opens
+    --- from (line numbers, cursorline, … follow the user's config) and reads
+    --- as an editable buffer; `"minimal"` forces Neovim's minimal float style,
+    --- a clean dialog look with those options off.
+    float = {
+      style = "inherit",
+    },
     --- Note-float keymaps (normal mode, buffer-local). `exit` commits the note
     --- and closes the float; an empty note deletes the annotation (after a
     --- confirmation). `delete` optionally deletes the annotation directly.
