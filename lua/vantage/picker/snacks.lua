@@ -7,6 +7,13 @@ local Items = require("vantage.picker.items")
 
 local M = {}
 
+--- Preview-pane window options for every preview-capable pick. Snacks renders
+--- its picker preview window with the number column on by default; that gutter
+--- reads as a code view, wrong for a captured terminal pane or a rendered
+--- annotation template, so Vantage's previews pin it off (relative numbers
+--- too, so a future snacks default change cannot reintroduce either).
+local NO_PREVIEW_LINENR = { number = false, relativenumber = false }
+
 ---@class vantage.SnacksPreviewPane The snacks preview-object surface Vantage uses.
 ---@field reset fun(self: vantage.SnacksPreviewPane)
 ---@field set_title fun(self: vantage.SnacksPreviewPane, title: string)
@@ -46,6 +53,7 @@ function M.pick_agent(callback)
     items = items,
     format = "text",
     preview = pane_preview,
+    win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -67,6 +75,7 @@ function M.pick_kill(callback)
     items = items,
     format = "text",
     preview = pane_preview,
+    win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -129,6 +138,7 @@ function M.pick_annotation(opts)
           ["<C-x>"] = "annotation_delete",
         },
       },
+      preview = { wo = NO_PREVIEW_LINENR },
     },
   })
 end
