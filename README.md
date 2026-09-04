@@ -76,6 +76,9 @@ require("vantage").setup({
   annotations = {           -- notes on line ranges, sent via {annotations}
     item = "{lines} {note}",  -- per-annotation template
     clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+    float = {                 -- note-float window options
+      style = "inherit",      -- "inherit" (default) | "minimal"
+    },
     keys = {                  -- note-float keymaps (normal mode)
       exit = "<Esc>",         -- commit the note and close (empty = delete)
       -- delete = "<leader>d", -- optional: delete directly
@@ -151,7 +154,12 @@ code obscuring; when the number column is off they are not drawn. They live in
 memory only: lost on buffer unload/reload or Neovim exit.
 
 The note float is a normal scratch buffer (normal mode), so editing is ordinary
-Vim — multi-line notes and undo included. The only added keymap is
+Vim — multi-line notes and undo included. By default
+(`annotations.float.style = "inherit"`) its window options follow the window it
+opens from, so your line numbers, cursorline and friends apply and the float
+reads as an editable buffer at a glance; set
+`annotations.float.style = "minimal"` for a clean dialog look with those
+options off. The only added keymap is
 `annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
 float; an empty note deletes the annotation after a confirmation. The picker is
 pluggable: fzf-lua/snacks preview each note through `annotations.item` and offer

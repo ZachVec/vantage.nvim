@@ -19,7 +19,9 @@ buffer, collected in memory only: a per-buffer registry maps an extmark id to
 `number_hl_group` tint. They are managed through the `:Vantage annotate`
 subcommands — `annotate` (a range + a note float, the default action),
 `annotate list` (open the picker), and `annotate clear` (clear all). Selecting in the picker jumps to the
-range and opens an editable note float: a plain scratch buffer in normal mode,
+range and opens an editable note float: a plain scratch buffer in normal mode
+whose window options follow the user's config by default (`annotations.float.style`,
+"inherit" | "minimal"; see the [window-options note](2026-09-04-note-float-follows-user-window-options.md)),
 so editing is ordinary Vim (multi-line, undo). The one added normal-mode
 keymap, `annotations.keys.exit` (default `<Esc>`), commits the note and closes
 the float; an empty note deletes the annotation after a `vim.ui.select`
