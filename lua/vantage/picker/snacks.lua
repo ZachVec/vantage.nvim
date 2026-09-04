@@ -49,28 +49,16 @@ end
 --- docs/gotchas.md), so a cancel (Esc) or a confirm that lands back on the
 --- terminal — including the no-op pinned `(focused)` row — would otherwise
 --- strand the client in Normal. Every snacks pick restores: the three
---- preview-capable picks via `on_close`, `pick_plain` via a wrapped `on_choice`
---- (snacks' select shim owns its own `on_close`).
----@param invoked_from_terminal boolean
-local function restore_terminal_mode(invoked_from_terminal)
-  if not invoked_from_terminal then
-    return
-  end
-  if vim.api.nvim_get_mode().mode == "nt" then
-    vim.cmd("startinsert")
-  end
-end
-
---- The `on_close` handler for the preview-capable picks: schedule the
---- terminal-mode restore for the tick after snacks' close has returned focus.
----@param spec vantage.PickSpec
----@return fun()
-local function restore_on_close(spec)
-  return function()
-    vim.schedule(function()
-      restore_terminal_mode(spec.invoked_from_terminal)
-    end)
-  end
+--- preview-capable picks pass `on_close = spec.invoked_from_terminal and
+--- restore_terminal_mode`, `pick_plain` calls it from a wrapped `on_choice`
+--- (snacks' select shim owns its own `on_close`). Scheduled for the tick after
+--- snacks' close has returned focus.
+local function restore_terminal_mode()
+  vim.schedule(function()
+    if vim.api.nvim_get_mode().mode == "nt" then
+      vim.cmd("startinsert")
+    end
+  end)
 end
 
 ---@param spec vantage.PickSpec
@@ -85,7 +73,7 @@ function M.pick_agent(spec, on_choice)
     items = items,
     format = "text",
     preview = preview(spec),
-    on_close = restore_on_close(spec),
+    on_close = spec.invoked_from_terminal and restore_terminal_mode or nil,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
@@ -111,7 +99,7 @@ function M.pick_kill(spec, on_choice)
     items = items,
     format = "text",
     preview = preview(spec),
-    on_close = restore_on_close(spec),
+    on_close = spec.invoked_from_terminal and restore_terminal_mode or nil,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
@@ -139,7 +127,7 @@ function M.pick_annotation(spec, on_choice)
     end,
     format = "text",
     preview = preview(spec),
-    on_close = restore_on_close(spec),
+    on_close = spec.invoked_from_terminal and restore_terminal_mode or nil,
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -190,9 +178,9 @@ function M.pick_plain(items, opts, on_choice)
     format_item = opts.format_item,
   }, function(item, idx)
     on_choice(item, idx)
-    vim.schedule(function()
-      restore_terminal_mode(opts.invoked_from_terminal)
-    end)
+    if opts.invoked_from_terminal then
+      restore_terminal_mode()
+    end
   end)
 end
 
