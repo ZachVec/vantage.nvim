@@ -4,6 +4,7 @@
 --- pane via Backend.capture_pane.
 local Backend = require("vantage.backend")
 local Items = require("vantage.picker.items")
+local Util = require("vantage.util")
 
 local M = {}
 
@@ -43,16 +44,42 @@ local function pane_preview(ctx)
   ctx.preview:set_lines(Backend.get().capture_pane(agent.target))
 end
 
----@param callback fun(choice: { kind: "agent"|"new", agent?: vantage.Agent })
+--- Re-enter terminal mode when a snacks picker closes back onto the vantage
+--- terminal in terminal-normal mode. Snacks pickers deliberately close into
+--- Normal (their input is a prompt buffer, not a terminal — see
+--- docs/gotchas.md), so a cancel (Esc) and every confirm from that terminal —
+--- including the no-op pinned `(focused)` row — would otherwise strand the
+--- client in Normal. Real switches already end in terminal mode via
+--- `Client.focus` → `show` and just skip this guard.
+local function restore_terminal_mode()
+  local Client = require("vantage.client")
+  if not Client.is_open() or vim.api.nvim_get_current_win() ~= Client.window then
+    return
+  end
+  if vim.api.nvim_get_mode().mode == "nt" then
+    vim.cmd("startinsert")
+  end
+end
+
+---@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 function M.pick_agent(callback)
   local items = Items.agent_items()
-  if not items then
+  if #items == 0 then
+    Util.warn("no agents and no tools configured (cli.tools)")
     return
   end
   pick({
     items = items,
     format = "text",
     preview = pane_preview,
+    on_close = function()
+      -- Snacks' close() returns focus to the previous window synchronously,
+      -- before its window teardown (a scheduled fast event that only destroys
+      -- the picker's own, non-current windows and never touches the mode), so
+      -- the next tick is already a settled terminal-normal context to restore
+      -- from — no timer needed.
+      vim.schedule(restore_terminal_mode)
+    end,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()

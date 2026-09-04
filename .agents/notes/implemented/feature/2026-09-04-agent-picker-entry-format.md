@@ -1,4 +1,4 @@
-# Agent Note: Agent picker entries as `[group] tool · cwd`
+# Agent Note: Agent picker entries as `tool · group · cwd`
 
 Status: implemented
 
@@ -15,24 +15,30 @@ last — `[web] claude · ~/vantage`.
 
 ## Decision
 
-`M.format_agent` in `lua/vantage/picker/items.lua` now renders every Agent row
-as
+`M.format_agent` in `lua/vantage/picker/items.lua` renders the shared Agent
+row string as
 
 ```lua
-("[%s] %s · %s"):format(agent.group, agent.tool or agent.cmd, Util.tilde(agent.cwd))
+("%s · %s · %s"):format(agent.tool or agent.cmd, agent.group, Util.tilde(agent.cwd))
 ```
 
-single-space separated, `[group]` leading, `·` before the cwd, `~`-folded cwd
-trailing. The middle segment is `agent.tool` — the `cli.tools` key the Agent
-was created with (`@agent-tool`, set only through the Tool wizard); `cmd`
-serves only as a nil-safe fallback that never fires for wizard-created Agents.
-`~` folding stays display-only, reusing `Util.tilde` (folds only a literal
-`$HOME` prefix; an already-`~` value passes through unchanged), so creation
-and the tmux driver keep storing the absolute cwd. `format_agent` is the one
-shared row builder behind the Agent list and the kill list's Agent rows, so a
-single change covers all three engines (native / fzf-lua / snacks); engine
-code is untouched. The `+ new agent` sentinel and the kill list's `group <n>`
-rows keep their own texts.
+tool name leading, group middle, `~`-folded cwd trailing, one ` · `
+separating the three — `claude · web · ~/vantage`. Earlier versions led with
+a bracketed `[group]`; the group now sits unbracketed between the tool name
+and the cwd. The leading segment is `agent.tool` — the `cli.tools` key the
+Agent was created with (`@agent-tool`, set only through the Tool wizard);
+`cmd` serves only as a nil-safe fallback that never fires for wizard-created
+Agents. `~` folding stays display-only, reusing `Util.tilde` (folds only a
+literal `$HOME` prefix; an already-`~` value passes through unchanged), so
+creation and the tmux driver keep storing the absolute cwd. `format_agent`
+is the one shared row builder behind the kill list's Agent rows and the base
+text of the Agent list's rows, so the string stays identical under every
+engine (native / fzf-lua / snacks). The Agent list's rows additionally lead
+with a two-space-gapped Agent glyph and pin the focused Agent with a
+` (focused)` suffix — see the
+[agent-picker-order note](2026-09-04-agent-picker-order.md), which built on
+this string and replaced the `+ new agent` sentinel with Tool rows. The kill
+list's `group <n>` rows keep their own text.
 
 ## Alternatives considered
 
@@ -59,7 +65,7 @@ risk.
 
 `cmd` is the launch string, not the identity the user chose: the same binary
 can back several Tools, and `cmd` carries nothing about the Group. The row's
-middle segment is the Tool name the user picked in the wizard, so it shows
+leading segment is the Tool name the user picked in the wizard, so it shows
 `agent.tool`; `cmd` survives only as the nil fallback so a stray window can
 never crash `format_agent` (string formatting of `nil` errors).
 
@@ -72,8 +78,11 @@ unambiguous either way.
 
 ## Consequences
 
-- Agent rows in the Agent list and the kill list now read
-  `[group] tool · ~cwd` under every engine; no picker implementation changed.
+- Kill-list Agent rows read `tool · group · ~cwd` under every engine. The
+  Agent list's rows prefix that same string with the Agent glyph and mark
+  the pinned focused Agent with ` (focused)` (the
+  [agent-picker-order note](2026-09-04-agent-picker-order.md) built on this
+  base text).
 - cwd stays absolute in tmux window options and in `vantage.Agent.cwd`; only
   the row text folds `$HOME` through `Util.tilde`, exactly as before.
 - No doc or README describes the row text, so nothing user-facing there

@@ -93,6 +93,19 @@ leaves the racy transient described in the fzf-lua section. Homogeneous chains
 (snacks-only, or fzf-lua floats opened from genuine terminal mode) never hit
 it.
 
+Vantage's snacks Picker compensates on its own: `pick_agent` passes an
+`on_close` handler that re-enters terminal mode (`startinsert`, scheduled
+for the next tick — `close()` has already returned focus synchronously and
+its teardown only destroys the picker's own windows, never touching the
+mode) whenever the picker closes back onto the vantage terminal in
+terminal-normal mode (`nt`) — one path covers both an Esc cancel and the
+no-op confirm of the pinned `(focused)` row. Real switches and Tool-row
+creations already end in terminal mode via `Client.focus`'s `show`
+(`startinsert`) and skip the re-entry. Plain selects (`pick_plain` — the
+wizard steps and `:Vantage prompt`) do not restore: snacks' own `ui_select`
+shim owns `on_close` there, so a cancel of those over the terminal still
+closes into Normal.
+
 ### Finder signature is `fun(opts, ctx): result`
 
 The finder is `fun(opts, ctx)` returning either an `Item[]` table or an async

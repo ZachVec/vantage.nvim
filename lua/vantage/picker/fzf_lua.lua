@@ -4,6 +4,7 @@
 --- fzf-lua's own ui_select shim uses. Preview renders the agent pane.
 local Backend = require("vantage.backend")
 local Items = require("vantage.picker.items")
+local Util = require("vantage.util")
 
 local M = {}
 
@@ -47,10 +48,11 @@ local function pane_preview(items)
   end
 end
 
----@param callback fun(choice: { kind: "agent"|"new", agent?: vantage.Agent })
+---@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 function M.pick_agent(callback)
   local items = Items.agent_items()
-  if not items then
+  if #items == 0 then
+    Util.warn("no agents and no tools configured (cli.tools)")
     return
   end
   fzf().fzf_exec(entries(items), {

@@ -244,9 +244,14 @@ inside the terminal buffer): >
     Show help (no default action).
 
 `:Vantage switch [<@N>]`
-    Switch: pick an Agent to focus, or pick the `+ new agent` entry to create
-    one (choose a tool, then a Group — the picker's plain-select form). With
-    `<@N>` focus directly.
+    Switch: pick an Agent to focus. Agent rows sort by group, working
+    directory, and tool name; when the list is opened from the terminal
+    window, the Agent that terminal shows is pinned to the top, marked
+    `(focused)`, and confirming that row does nothing. The Agent rows end
+    with one row per configured `cli.tools` key: picking a Tool row creates
+    an Agent of that Tool (Group or new-Group name first). With `<@N>` focus
+    directly. When no Agent runs and no Tool is configured, the picker warns
+    instead of opening.
 
 `:Vantage kill [<group|@N>]`
     Kill a Group or a single Agent. With no argument, pick interactively.

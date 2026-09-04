@@ -1,13 +1,15 @@
 --- Native picker: vim.ui.select. Respects any global vim.ui.select override the
 --- user may have installed (dressing.nvim, snacks' ui_select, …).
 local Items = require("vantage.picker.items")
+local Util = require("vantage.util")
 
 local M = {}
 
----@param callback fun(choice: { kind: "agent"|"new", agent?: vantage.Agent })
+---@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 function M.pick_agent(callback)
   local items = Items.agent_items()
-  if not items then
+  if #items == 0 then
+    Util.warn("no agents and no tools configured (cli.tools)")
     return
   end
   vim.ui.select(items, {

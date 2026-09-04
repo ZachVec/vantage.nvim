@@ -52,10 +52,11 @@ docs.
 ```
 
 Creating an Agent happens through two channels: `:Vantage toggle` when there
-are no Agents yet, or the `+ new agent` entry in the `:Vantage switch` picker.
-The creation wizard picks a Tool and then a Group through the pluggable
-picker's plain-select form (each picker renders plain choices on its own
-engine); when no Group exists yet, you go straight to the Group-name prompt.
+are no Agents yet (the Tool → Group wizard), or a trailing Tool row of the
+`:Vantage switch` picker — one row per configured `cli.tools` key, listed
+after the Agent rows. Picking a Tool row skips the wizard's Tool step and
+asks only for a Group (or a new Group's name) through the picker's
+plain-select form, then creates and focuses the Agent.
 
 The first focus opens the `:terminal` and attaches it to the agent; later
 focuses re-target that same terminal. Closing the terminal detaches the client
@@ -180,6 +181,12 @@ code use `item = "{lines} {note}\n{code}"`. With `clear_on_send = true`
 (default), a successful send that used `{annotations}` clears the annotations.
 
 ### Pickers & prompts
+
+Agent rows in the `:Vantage switch` list are sorted by group, working
+directory, and tool name; when the list is opened from the terminal window,
+the Agent that terminal shows is pinned to the top with a `(focused)` marker,
+and confirming that row does nothing. When no Agent is running and no tool is
+configured, the picker warns instead of opening.
 
 The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
 through a pluggable picker, chosen by `picker`:
