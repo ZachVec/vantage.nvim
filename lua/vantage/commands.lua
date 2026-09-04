@@ -64,6 +64,38 @@ local function ask_new_group_name(callback)
   end)
 end
 
+--- Pick a Group (or prompt a new-Group name) for a Tool, then create and
+--- focus the Agent. Shared by the creation wizard's Tool step and by the Tool
+--- rows at the tail of the Agent picker.
+---@param tool_name string
+local function create_with_tool(tool_name)
+  local tool = Config.options.cli.tools[tool_name]
+  if not tool then
+    return
+  end
+  local cmd = table.concat(tool.cmd, " ")
+  local picker = Picker.get()
+  local function create(group)
+    do_create(group, tool_name, cmd, Util.cwd())
+  end
+  local groups = Backend.get().groups()
+  if #groups == 0 then
+    ask_new_group_name(create)
+    return
+  end
+  groups[#groups + 1] = NEW_GROUP
+  picker.pick_plain(groups, { prompt = "Group: " }, function(group)
+    if not group then
+      return
+    end
+    if group == NEW_GROUP then
+      ask_new_group_name(create)
+    else
+      create(group)
+    end
+  end)
+end
+
 --- The Agent-creation wizard: pick a Tool, then a Group (or "+ new group"),
 --- then create and focus the Agent. Every step renders on the configured
 --- Picker's own engine via `pick_plain`, so the flow never rides a foreign
@@ -80,41 +112,20 @@ local function create_wizard()
   end
   table.sort(tools)
 
-  local picker = Picker.get()
-  picker.pick_plain(tools, { prompt = "Tool: " }, function(tool_name)
-    if not tool_name then
-      return
+  Picker.get().pick_plain(tools, { prompt = "Tool: " }, function(tool_name)
+    if tool_name then
+      create_with_tool(tool_name)
     end
-    local tool = Config.options.cli.tools[tool_name]
-    local cmd = table.concat(tool.cmd, " ")
-    local function create(group)
-      do_create(group, tool_name, cmd, Util.cwd())
-    end
-    local groups = Backend.get().groups()
-    if #groups == 0 then
-      ask_new_group_name(create)
-      return
-    end
-    groups[#groups + 1] = NEW_GROUP
-    picker.pick_plain(groups, { prompt = "Group: " }, function(group)
-      if not group then
-        return
-      end
-      if group == NEW_GROUP then
-        ask_new_group_name(create)
-      else
-        create(group)
-      end
-    end)
   end)
 end
 
---- Pick an Agent, or create a new one via the "new" entry in the picker.
+--- Pick an Agent to focus, create a new one from a trailing Tool row, or
+--- confirm the pinned `(focused)` row, which deliberately does nothing.
 local function pick_or_new()
   Picker.get().pick_agent(function(choice)
-    if choice.kind == "new" then
-      create_wizard()
-    else
+    if choice.kind == "tool" then
+      create_with_tool(choice.tool)
+    elseif not choice.focused then
       Client.focus(choice.agent)
     end
   end)
