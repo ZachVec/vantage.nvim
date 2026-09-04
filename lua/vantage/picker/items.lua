@@ -15,7 +15,7 @@ M.prompt = Util.picker_prompt
 ---@param agent vantage.Agent
 ---@return string
 function M.format_agent(agent)
-  return ("%s  %s  [%s]"):format(agent.cmd, Util.tilde(agent.cwd), agent.group)
+  return ("[%s] %s · %s"):format(agent.group, agent.tool or agent.cmd, Util.tilde(agent.cwd))
 end
 
 --- Agent items + the "+ new agent" sentinel. nil (with a warning) when there
