@@ -39,16 +39,26 @@
 ---@field annotations vantage.AnnotationConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
----@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua | snacks)
---- owning every Vantage selection: the preview-capable lists (the Agent list
---- and the kill list), the annotation picker, and plain list choices (the
---- Agent-creation Tool/Group steps and :Vantage prompt) through `pick_plain`.
---- Each implementation renders plain choices on its own engine — snacks'
---- compact select layout, fzf-lua's ui_select shim, or (native) the live
---- global `vim.ui.select` — so one flow never mixes renderer families.
----@field pick_agent fun(callback: fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean }))
----@field pick_kill fun(callback: fun(target: string))
----@field pick_annotation fun(opts: { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) })
+---@class vantage.PickSpec The selection contract passed to a picker
+--- implementation. Each field is an input to the picker — the items to render
+--- (`items_provider`), preview content (`preview`), the prompt glyph
+--- (`prompt`), an environment fact (`invoked_from_terminal`), and an in-flight
+--- action (`on_delete`). The chosen item is delivered through the positional
+--- `on_choice`; the picker returns a boolean `empty`.
+---@field prompt string
+---@field items_provider fun(): table[]
+---@field preview? fun(item: any): string[]?
+---@field invoked_from_terminal? boolean
+---@field on_delete? fun(value: any)
+
+---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
+--- snacks) rendering every Vantage selection on its own engine. The frontend
+--- orchestrator (vantage.select) assembles a PickSpec per flow; the
+--- implementations stay presentation-only and depend on nothing but their
+--- engine.
+---@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })): boolean
+---@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(target: string)): boolean
+---@field pick_annotation fun(spec: vantage.PickSpec, on_choice: fun(annotation: vantage.Annotation)): boolean
 ---@field pick_plain fun(items: any[], opts: { prompt?: string, format_item?: fun(item: any): string }, on_choice: fun(item: any?, index?: integer))
 
 local M = {}

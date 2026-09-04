@@ -5,6 +5,7 @@ local Client = require("vantage.client")
 local Config = require("vantage.config")
 local Picker = require("vantage.picker")
 local Prompt = require("vantage.prompt")
+local Select = require("vantage.select")
 local Util = require("vantage.util")
 
 local M = {}
@@ -122,13 +123,16 @@ end
 --- Pick an Agent to focus, create a new one from a trailing Tool row, or
 --- confirm the pinned `(focused)` row, which deliberately does nothing.
 local function pick_or_new()
-  Picker.get().pick_agent(function(choice)
+  local empty = Picker.get().pick_agent(Select.agent_spec(), function(choice)
     if choice.kind == "tool" then
       create_with_tool(choice.tool)
     elseif not choice.focused then
       Client.focus(choice.agent)
     end
   end)
+  if empty then
+    Util.warn("no agents and no tools configured (cli.tools)")
+  end
 end
 
 --- Render a prompt against the focused Agent's context and type it into the
@@ -307,34 +311,31 @@ end
 
 --- Open the annotation picker; selecting an annotation opens its note float.
 local function annotate_list()
-  Picker.get().pick_annotation({
-    select = function(annotation)
-      if not jump_to_annotation(annotation) then
-        return
-      end
-      Annotation.set_active(annotation.buf, annotation.id, true)
-      local keys = Config.options.annotations.keys
-      local agent = Client.last_agent_alive()
-      local cwd = agent and agent.cwd or Util.cwd()
-      open_note_float({
-        text = annotation.note,
-        title = ("Annotation %s"):format(Annotation.location(annotation, cwd)),
-        footer = ("%s save · empty deletes"):format(keys.exit),
-        on_commit = function(note)
-          Annotation.edit(annotation.buf, annotation.id, note)
-        end,
-        on_delete = function()
-          Annotation.delete(annotation.buf, annotation.id)
-        end,
-        on_close = function()
-          Annotation.set_active(annotation.buf, annotation.id, false)
-        end,
-      })
-    end,
-    delete = function(annotation)
-      Annotation.delete(annotation.buf, annotation.id)
-    end,
-  })
+  local empty = Picker.get().pick_annotation(Select.annotation_spec(), function(annotation)
+    if not jump_to_annotation(annotation) then
+      return
+    end
+    Annotation.set_active(annotation.buf, annotation.id, true)
+    local keys = Config.options.annotations.keys
+    local cwd = Select.focused_cwd()
+    open_note_float({
+      text = annotation.note,
+      title = ("Annotation %s"):format(Annotation.location(annotation, cwd)),
+      footer = ("%s save · empty deletes"):format(keys.exit),
+      on_commit = function(note)
+        Annotation.edit(annotation.buf, annotation.id, note)
+      end,
+      on_delete = function()
+        Annotation.delete(annotation.buf, annotation.id)
+      end,
+      on_close = function()
+        Annotation.set_active(annotation.buf, annotation.id, false)
+      end,
+    })
+  end)
+  if empty then
+    Util.warn("no annotations — add one with :Vantage annotate")
+  end
 end
 
 --- Add an annotation over the command's range (a visual selection, else the
@@ -422,9 +423,12 @@ function M.run(args)
     end
   elseif subcommand == "kill" then
     if #remaining == 0 then
-      Picker.get().pick_kill(function(target)
+      local empty = Picker.get().pick_kill(Select.kill_spec(), function(target)
         Backend.get().kill(target)
       end)
+      if empty then
+        Util.warn("nothing to kill")
+      end
       return
     end
     Backend.get().kill(remaining[1])

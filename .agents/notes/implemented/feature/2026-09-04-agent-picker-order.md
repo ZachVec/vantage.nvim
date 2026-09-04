@@ -15,9 +15,9 @@ explicit ordering and a pinned, inert current-Agent row.
 
 ## Decision
 
-`Items.agent_items()` in `lua/vantage/picker/items.lua` builds the rows and
-is the single ordering point every engine renders as given (engines only
-reorder by fuzzy relevance while a query is typed):
+`agent_items()` in `lua/vantage/select.lua` (assembled by `agent_spec()`) builds
+the rows and is the single ordering point every engine renders as given
+(engines only reorder by fuzzy relevance while a query is typed):
 
 - **Focused-Agent pin.** When the picker is invoked from the vantage
   terminal window — the terminal is open and is the current window, i.e. the
@@ -57,7 +57,7 @@ reorder by fuzzy relevance while a query is typed):
   exists for `:Vantage toggle` with no Agents. The shared choice type widens
   from `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
   focused? }` across `config.lua`, the three picker implementations, and
-  `items.lua`.
+  `select.lua`.
 
 The Agent row string itself is the
 [entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
@@ -125,3 +125,6 @@ monotonic with creation, unique, and already the storage key.
 - `pick_agent` callbacks now receive `kind = "tool"` rows and
   `focused = true` rows; anything else consuming agent items (none today)
   must route both new shapes.
+- The empty-list handling later moved out of the engines into the caller,
+  keyed on the picker's boolean `empty` return — see [the
+  picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).

@@ -20,11 +20,13 @@ contracts, selected via `setup { picker = … }` (default `native`). Callers go
 through `Picker.get()`. Tool and Group choice later moved out to plain
 `vim.ui.select` — see [the picker-owns-plain-selections note](2026-09-03-picker-owns-plain-selections.md).
 
-Shared item construction lives in `picker/items.lua`: it builds rich items
-(each carrying a `text` display string plus the domain fields a callback
-needs). Implementations own only rendering and choice recovery; `fzf-lua` and
-`snacks` render an Agent's pane preview through a Backend method
-`capture_pane(target, max_lines)`, so the Frontend never touches tmux directly.
+Shared item construction lives in `lua/vantage/select.lua` (the frontend
+orchestrator): it builds rich items (each carrying a `text` display string plus
+the domain fields a callback needs) and assembles the `PickSpec` the
+implementations render. Implementations own only rendering and choice recovery;
+preview content is computed by the orchestrator (through the Backend method
+`capture_pane(target, max_lines)` for panes) and injected as the spec's
+`preview` thunk, so the Frontend never touches tmux directly.
 
 - `native` drives `vim.ui.select` directly (respecting any global
   `vim.ui.select` override the user already has).
@@ -67,5 +69,8 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
   operation (zellij can snapshot a pane too).
 - `native` still respects a global `vim.ui.select` override, so default behavior
   is unchanged for existing users.
+- Item construction and preview content later moved out of `picker/` into
+  `lua/vantage/select.lua`, and the pickers became pure renderers over a
+  `PickSpec` — see [the picker-pure-renderers note](2026-09-05-picker-pure-renderers.md).
 
 The Backend seam it mirrors is [the backend-driver-seam note](2026-08-31-backend-driver-seam.md); the single-Client Frontend it lives in is [the single-terminal-frontend note](2026-08-31-single-terminal-frontend.md).

@@ -1,11 +1,6 @@
 --- snacks picker implementation. Drives snacks.picker directly; items carry a
 --- `text` field and `format = "text"` renders it. `confirm` receives the
---- original item and must close the picker itself. Preview renders the agent
---- pane via Backend.capture_pane.
-local Backend = require("vantage.backend")
-local Items = require("vantage.picker.items")
-local Util = require("vantage.util")
-
+--- original item and must close the picker itself.
 local M = {}
 
 --- Preview-pane window options for every preview-capable pick. Snacks renders
@@ -28,20 +23,24 @@ local function pick(opts)
   return require("snacks.picker").pick(opts)
 end
 
---- Preview the current item's agent pane.
----@param ctx vantage.SnacksPreviewCtx
-local function pane_preview(ctx)
-  local item = ctx.item
-  ctx.preview:reset()
-  if not item then
-    return
+--- Preview the current item's content (pane lines or rendered annotation)
+--- through the spec's preview thunk; nil means "nothing to preview".
+---@param spec vantage.PickSpec
+---@return fun(ctx: vantage.SnacksPreviewCtx)
+local function preview(spec)
+  return function(ctx)
+    local item = ctx.item
+    ctx.preview:reset()
+    if not item then
+      return
+    end
+    local lines = spec.preview and spec.preview(item)
+    if not lines then
+      return
+    end
+    ctx.preview:set_title(item.text)
+    ctx.preview:set_lines(lines)
   end
-  local agent = item.agent
-  if not agent then
-    return
-  end
-  ctx.preview:set_title(item.text)
-  ctx.preview:set_lines(Backend.get().capture_pane(agent.target))
 end
 
 --- Re-enter terminal mode when a snacks picker closes back onto the vantage
@@ -49,11 +48,11 @@ end
 --- Normal (their input is a prompt buffer, not a terminal — see
 --- docs/gotchas.md), so a cancel (Esc) and every confirm from that terminal —
 --- including the no-op pinned `(focused)` row — would otherwise strand the
---- client in Normal. Real switches already end in terminal mode via
---- `Client.focus` → `show` and just skip this guard.
-local function restore_terminal_mode()
-  local Client = require("vantage.client")
-  if not Client.is_open() or vim.api.nvim_get_current_win() ~= Client.window then
+--- client in Normal. Only the Agent picker passes `invoked_from_terminal`;
+--- the kill and annotation pickers always act on confirm and need nothing.
+---@param invoked_from_terminal boolean
+local function restore_terminal_mode(invoked_from_terminal)
+  if not invoked_from_terminal then
     return
   end
   if vim.api.nvim_get_mode().mode == "nt" then
@@ -61,97 +60,94 @@ local function restore_terminal_mode()
   end
 end
 
----@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
-function M.pick_agent(callback)
-  local items = Items.agent_items()
+---@param spec vantage.PickSpec
+---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@return boolean empty
+function M.pick_agent(spec, on_choice)
+  local items = spec.items_provider()
   if #items == 0 then
-    Util.warn("no agents and no tools configured (cli.tools)")
-    return
+    return true
   end
   pick({
     items = items,
     format = "text",
-    preview = pane_preview,
+    preview = preview(spec),
     on_close = function()
-      -- Snacks' close() returns focus to the previous window synchronously,
-      -- before its window teardown (a scheduled fast event that only destroys
-      -- the picker's own, non-current windows and never touches the mode), so
-      -- the next tick is already a settled terminal-normal context to restore
-      -- from — no timer needed.
-      vim.schedule(restore_terminal_mode)
+      vim.schedule(function()
+        restore_terminal_mode(spec.invoked_from_terminal)
+      end)
     end,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
       if item then
         vim.schedule(function()
-          callback(item)
+          on_choice(item)
         end)
       end
     end,
   })
+  return false
 end
 
----@param callback fun(target: string)
-function M.pick_kill(callback)
-  local items = Items.kill_items()
-  if not items then
-    return
+---@param spec vantage.PickSpec
+---@param on_choice fun(target: string)
+---@return boolean empty
+function M.pick_kill(spec, on_choice)
+  local items = spec.items_provider()
+  if #items == 0 then
+    return true
   end
   pick({
     items = items,
     format = "text",
-    preview = pane_preview,
+    preview = preview(spec),
     win = { preview = { wo = NO_PREVIEW_LINENR } },
     confirm = function(picker, item)
       picker:close()
       if item then
         vim.schedule(function()
-          callback(item.target)
+          on_choice(item.target)
         end)
       end
     end,
   })
+  return false
 end
 
---- Preview an annotation through the configured `item` template (WYSIWYG).
----@param ctx vantage.SnacksPreviewCtx
-local function annotation_preview(ctx)
-  local item = ctx.item
-  ctx.preview:reset()
-  if not item then
-    return
-  end
-  local Annotation = require("vantage.annotation")
-  ctx.preview:set_title(item.text)
-  ctx.preview:set_lines(vim.split(Annotation.render_item(item.annotation, Items.annotation_cwd()), "\n"))
-end
-
----@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
-function M.pick_annotation(opts)
-  if not Items.annotation_items() then
-    return
+---@param spec vantage.PickSpec
+---@param on_choice fun(annotation: vantage.Annotation)
+---@return boolean empty
+function M.pick_annotation(spec, on_choice)
+  local items = spec.items_provider()
+  if #items == 0 then
+    return true
   end
   pick({
     finder = function()
-      return Items.annotation_items(true) or {}
+      return items
     end,
     format = "text",
-    preview = annotation_preview,
+    preview = preview(spec),
     confirm = function(picker, item)
       picker:close()
       if item then
         vim.schedule(function()
-          opts.select(item.annotation)
+          on_choice(item.annotation)
         end)
       end
     end,
     actions = {
       annotation_delete = function(picker, item)
         if item then
-          opts.delete(item.annotation)
+          spec.on_delete(item.annotation)
         end
-        picker:refresh()
+        items = spec.items_provider()
+        if #items == 0 then
+          picker:close()
+        else
+          picker:refresh()
+        end
       end,
     },
     win = {
@@ -168,6 +164,7 @@ function M.pick_annotation(opts)
       preview = { wo = NO_PREVIEW_LINENR },
     },
   })
+  return false
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select

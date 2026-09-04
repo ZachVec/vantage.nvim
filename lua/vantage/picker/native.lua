@@ -1,65 +1,57 @@
 --- Native picker: vim.ui.select. Respects any global vim.ui.select override the
 --- user may have installed (dressing.nvim, snacks' ui_select, …).
-local Items = require("vantage.picker.items")
-local Util = require("vantage.util")
-
 local M = {}
 
----@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
-function M.pick_agent(callback)
-  local items = Items.agent_items()
+--- Render a spec's items with vim.ui.select. Returns true when the list is
+--- empty (nothing shown); otherwise opens the picker and returns false.
+--- `extract` maps a chosen item to the domain value `on_choice` receives.
+---@param spec vantage.PickSpec
+---@param extract fun(item: any): any
+---@param on_choice fun(value: any)
+---@return boolean empty
+local function select(spec, extract, on_choice)
+  local items = spec.items_provider()
   if #items == 0 then
-    Util.warn("no agents and no tools configured (cli.tools)")
-    return
+    return true
   end
   vim.ui.select(items, {
-    prompt = Items.prompt,
-    format_item = function(item)
-      return item.text
-    end,
-  }, function(choice)
-    if choice then
-      callback(choice)
-    end
-  end)
-end
-
----@param callback fun(target: string)
-function M.pick_kill(callback)
-  local items = Items.kill_items()
-  if not items then
-    return
-  end
-  vim.ui.select(items, {
-    prompt = Items.prompt,
+    prompt = spec.prompt,
     format_item = function(item)
       return item.text
     end,
   }, function(item)
     if item then
-      callback(item.target)
+      on_choice(extract(item))
     end
   end)
+  return false
 end
 
---- Native has no preview and no in-picker keymaps: `vim.ui.select` offers only
---- selection, so the `delete` callback is unused here.
----@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
-function M.pick_annotation(opts)
-  local items = Items.annotation_items()
-  if not items then
-    return
-  end
-  vim.ui.select(items, {
-    prompt = Items.prompt,
-    format_item = function(item)
-      return item.text
-    end,
-  }, function(item)
-    if item then
-      opts.select(item.annotation)
-    end
-  end)
+---@param spec vantage.PickSpec
+---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@return boolean empty
+function M.pick_agent(spec, on_choice)
+  return select(spec, function(item)
+    return item
+  end, on_choice)
+end
+
+---@param spec vantage.PickSpec
+---@param on_choice fun(target: string)
+---@return boolean empty
+function M.pick_kill(spec, on_choice)
+  return select(spec, function(item)
+    return item.target
+  end, on_choice)
+end
+
+---@param spec vantage.PickSpec
+---@param on_choice fun(annotation: vantage.Annotation)
+---@return boolean empty
+function M.pick_annotation(spec, on_choice)
+  return select(spec, function(item)
+    return item.annotation
+  end, on_choice)
 end
 
 --- Pick from a plain list (no preview) on this engine: the live global
