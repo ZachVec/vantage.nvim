@@ -18,18 +18,22 @@
 ---@field split table
 ---@field keys table[]
 
----@class vantage.AnnotationKeys Note-float keymaps (normal mode, buffer-local).
----@field exit string commit the note and close the float
----@field delete? string delete the annotation directly (optional; unset by default)
-
 ---@class vantage.AnnotationFloatConfig Note-float window options.
 ---@field style string "inherit" (default) | "minimal"
 
 ---@class vantage.AnnotationConfig
 ---@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
 ---@field clear_on_send boolean clear after a sent prompt contains {annotations}
----@field keys vantage.AnnotationKeys
 ---@field float vantage.AnnotationFloatConfig
+
+---@class vantage.NoteOpts Options for the editable-note UI (vantage.ui.note).
+---@field text string
+---@field title? string
+---@field footer? string
+---@field on_commit fun(note: string) commit the text (Esc); every policy is the caller's
+---@field on_close? fun() run when the note window is wiped
+---@field style? string raw `nvim_open_win` style ("minimal"); nil inherits the source window
+---@field insert? boolean start in insert mode
 
 ---@class vantage.Config
 ---@field backend string
@@ -109,13 +113,6 @@ local defaults = {
     --- a clean dialog look with those options off.
     float = {
       style = "inherit",
-    },
-    --- Note-float keymaps (normal mode, buffer-local). `exit` commits the note
-    --- and closes the float; an empty note deletes the annotation (after a
-    --- confirmation). `delete` optionally deletes the annotation directly.
-    keys = {
-      exit = "<Esc>",
-      -- delete = "<leader>d",
     },
   },
   cli = {

@@ -68,10 +68,6 @@ first `:Vantage`.
         float = {                 -- note-float window options
           style = "inherit",      -- "inherit" (default) | "minimal"
         },
-        keys = {                  -- note-float keymaps (normal mode)
-          exit = "<Esc>",         -- commit the note and close (empty = delete)
-          -- delete = "<leader>d", -- optional: delete directly
-        },
       },
       cli = {
         tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -150,10 +146,8 @@ Vim — multi-line notes and undo included. By default
 opens from, so the user's line numbers, cursorline and friends apply and the
 float reads as an editable buffer at a glance; set
 `annotations.float.style = "minimal"` for a clean dialog look with those
-options off. The only added keymap is
-`annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
-float; an empty note deletes the annotation after a confirmation. An optional
-`annotations.keys.delete` deletes directly.
+options off. Pressing `<Esc>` commits the note and closes the float; an empty
+note deletes the annotation after a confirmation.
 
 The picker is the pluggable one (`native` / `fzf-lua` / `snacks`): fzf-lua and
 snacks preview each annotation through `annotations.item` (what you see is what

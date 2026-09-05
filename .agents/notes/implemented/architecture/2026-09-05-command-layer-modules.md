@@ -25,8 +25,9 @@ The command layer is a directory mirroring the repo's existing
   toggle's open path reuses it.
 - `commands/prompt.lua` owns `:Vantage prompt` (`run` + `send_prompt`).
 - `commands/annotation.lua` owns `:Vantage annotate` and its sub-actions
-  (`run(action, line1, line2)` + `jump_to_annotation`, `open_note_float`,
-  `annotate_list`, `annotate_add`, `annotate_clear`).
+  (`run(action, line1, line2)` + `jump_to_annotation`, `note_style`,
+  `annotate_list`, `annotate_add`, `annotate_clear`); the note editor itself
+  lives in `ui/note.lua`.
 
 Prompt and Annotation are **peers**, matching the domain modules `prompt.lua`
 and `annotation.lua`: the `{annotations}` placeholder is a prompt that reads
