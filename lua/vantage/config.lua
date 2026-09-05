@@ -14,7 +14,8 @@
 ---@field state? string
 
 ---@class vantage.Win Terminal window options.
----@field layout string full | left | top | bottom | right
+---@field layout string full | left | top | bottom | right | float
+---@field float table relative-to-editor float window options (width/height/border)
 ---@field split table
 ---@field keys table[]
 
@@ -140,10 +141,20 @@ local defaults = {
     tools = {},
     --- The persistent :terminal window that is the tmux client.
     win = {
-      --- full | left | top | bottom | right
-      --- `full` opens the terminal in a dedicated tab at the full editor size;
-      --- the split layouts open it alongside the current window.
-      layout = "full",
+      --- full | left | top | bottom | right | float
+      --- `float` opens a centered floating window at the full editor size —
+      --- floats render no statusline or winbar, so the view is a pure terminal
+      --- (a normal window's statusline row cannot be removed per window while
+      --- 'laststatus' >= 2). The per-frame terminal-cursor redraw inside
+      --- floats can flicker on some Agent-TUI repaints; `full` (a dedicated
+      --- tab) is the alternative for users who see it, and the split layouts
+      --- open the terminal alongside the current window.
+      layout = "float",
+      --- `float` layout window options. width/height are fractions of the
+      --- editor area (0 < v <= 1); border is a `nvim_open_win` border value
+      --- ("none" | "single" | "double" | "rounded" | "solid"), or false for
+      --- no border.
+      float = { width = 1.0, height = 1.0, border = "none" },
       split = { width = 80, height = 20 },
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a

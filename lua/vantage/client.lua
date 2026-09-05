@@ -119,15 +119,44 @@ function M.apply_keys(buffer)
   end
 end
 
---- Open the terminal buffer full or in a split, per cli.win.layout.
+--- Open the terminal buffer in a float, tab, or split, per cli.win.layout.
 ---@param buffer integer
 ---@return integer window id
 function M.open_win(buffer)
   local cfg = Config.options.cli.win
+  if cfg.layout == "float" then
+    -- A centered, full-editor-size floating window. Floats render no
+    -- statusline or winbar, so the view is a pure terminal — a normal
+    -- window's statusline row cannot be removed per window while 'laststatus'
+    -- >= 2. The float's per-frame terminal-cursor redraw can flicker on some
+    -- Agent-TUI repaints; `full` (a dedicated tab) is the opt-out for users
+    -- who see it.
+    local width = math.floor(vim.o.columns * (cfg.float.width or 0.9))
+    local height = math.floor(vim.o.lines * (cfg.float.height or 0.9))
+    width = math.max(width, 40)
+    height = math.max(height, 10)
+    local col = math.floor((vim.o.columns - width) / 2)
+    local row = math.floor((vim.o.lines - height) / 2)
+    local border = cfg.float.border
+    if border == false then
+      border = "none"
+    end
+    return vim.api.nvim_open_win(buffer, true, {
+      relative = "editor",
+      width = width,
+      height = height,
+      row = row,
+      col = col,
+      style = "minimal",
+      border = border,
+    })
+  end
+
   if cfg.layout == "full" then
     -- A dedicated tab gives a normal (non-floating) window at the full editor
-    -- size. We avoid a floating window on purpose: Neovim redraws the terminal
-    -- cursor per-frame inside floats, which flickers on every agent TUI repaint.
+    -- size. The alternative to the default `float` for users who see the
+    -- per-frame terminal-cursor redraw flicker that floats can trigger on
+    -- agent TUI repaints.
     vim.cmd("tab split")
     vim.api.nvim_win_set_buf(0, buffer)
     return vim.api.nvim_get_current_win()
@@ -163,7 +192,12 @@ function M.hide()
   if not M.is_open() then
     return
   end
-  if #vim.api.nvim_list_wins() == 1 then
+  if vim.api.nvim_win_get_config(M.window).relative ~= "" then
+    -- floating window: close it directly. The `enew` fallback below is only
+    -- for the last *tiled* window — a float can never be the session's only
+    -- window, since Neovim refuses to close the last tiled window beneath it.
+    pcall(vim.api.nvim_win_close, M.window, true)
+  elseif #vim.api.nvim_list_wins() == 1 then
     -- last window: swap in an empty buffer instead of closing it
     vim.api.nvim_win_call(M.window, function()
       vim.cmd("enew")

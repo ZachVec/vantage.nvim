@@ -71,13 +71,24 @@ require("vantage").setup({
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
-      layout = "full",       -- full | left | top | bottom | right
+      layout = "float",      -- float | full | left | top | bottom | right
+      float  = { width = 1.0, height = 1.0, border = "none" }, -- default layout
       split  = { width = 80, height = 20 },
       keys = {},             -- no keymaps by default; add your own (see below)
     },
   },
 })
 ```
+
+The default `layout = "float"` opens the terminal centered in the editor at
+the full editor size, with no border. Floating windows render no statusline or
+winbar — a normal window's statusline row cannot be removed per window while
+`'laststatus'` is 2 or 3 (statusline plugins then show an empty row inside
+the Client) — so the agent view is a pure terminal. Neovim redraws the
+terminal cursor per-frame inside floats, which can flicker on some Agent-TUI
+repaints: `layout = "full"` (a dedicated tab) is the fallback for users who
+see it. The float's `width`/`height` are fractions of the editor area
+(0 < v <= 1).
 
 `cli.tools` is empty by default — provide every tool yourself, e.g.:
 
