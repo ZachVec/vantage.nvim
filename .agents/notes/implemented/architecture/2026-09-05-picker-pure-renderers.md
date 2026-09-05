@@ -98,5 +98,5 @@ shape.
   pickers" objection no longer holds.
 - `docs/architecture.md` and the Picker glossary term now say the Picker
   *renders* every selection rather than *owning* its construction; the
-  plain-select flows (`pick_plain`, wizard assembly in `commands.lua`) are
-  unchanged.
+  plain-select flows (`pick_plain`, the Agent-creation Group step in
+  `commands/agent.lua`) are unchanged.

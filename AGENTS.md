@@ -8,7 +8,7 @@ Vantage is a Neovim plugin — a coding-agent manager over tmux. Read [docs/glos
 lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
   backend/         Backend interface + tmux driver (the seam for future drivers)
   client.lua       the single :terminal that is the tmux client
-  commands.lua     :Vantage subcommand dispatch
+  commands/        :Vantage subcommand dispatch (init.lua) + one module per command concern
   config.lua       defaults + shared LuaLS types
   picker/          pluggable selection UI (native / fzf-lua / snacks)
   health.lua       :checkhealth vantage

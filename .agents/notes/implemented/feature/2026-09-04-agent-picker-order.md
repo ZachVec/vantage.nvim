@@ -24,7 +24,7 @@ the rows and is the single ordering point every engine renders as given
   window the cursor was last in — the Agent that terminal shows
   (`Client.last_agent_alive()`) is pinned first, exempt from the ordering.
   Its row text gains a ` (focused)` suffix. Confirming it does nothing:
-  `commands.lua`'s `pick_or_new` filters on the item's `focused` field and
+  `commands/agent.lua`'s `pick_or_new` filters on the item's `focused` field and
   returns. The snacks engine restores terminal mode on the client terminal
   after any picker close back onto it — Esc cancels and the no-op confirm
   alike — because snacks pickers close into Normal (see
@@ -41,10 +41,10 @@ the rows and is the single ordering point every engine renders as given
   The list ends with one row per configured `cli.tools` key, `table.sort`ed.
   Agent rows lead with `nf-fa-toggle_on` (`\uf205`, Nerd Fonts) — a running
   Agent is "on"; Tool rows lead with `nf-fa-toggle_off` (`\uf204`). Confirming
-  a Tool row calls `commands.lua`'s extracted
-  `create_with_tool`, shared with the creation wizard: it skips the now
-  redundant Tool step and asks only for a Group (or a new Group's name), then
-  creates and focuses the Agent in the current buffer's cwd. Tools are never
+  a Tool row calls `commands/agent.lua`'s extracted
+  `create_with_tool`, which asks only for a Group (or a new Group's name), then
+  creates the Agent in the current buffer's cwd and runs the caller's tail
+  action. Tools are never
   deduplicated against running Agents — parallel Agents of one Tool stay
   possible.
 - **Empty is the engines' problem.** `agent_items()` always returns the list

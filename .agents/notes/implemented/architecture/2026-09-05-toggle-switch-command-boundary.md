@@ -28,7 +28,7 @@ The single Client has two independent concerns, owned by two commands:
 The tail action after a pick is the only difference, so it is injected as a
 callback rather than forked:
 
-- `commands.lua` has one `pick_or_new(after)` and one
+- `commands/agent.lua` has one `pick_or_new(after)` and one
   `create_with_tool(tool_name, after)`, each threading `after` through to
   `do_create`. `Client.focus` (materialize + show) is toggle's `after`;
   `Client.retarget` (re-point, no show) is switch's.
@@ -74,3 +74,6 @@ The only difference is the tail action. One function parameterized by an
   presence/target split. The `(focused)` pin and its no-op confirm are
   unchanged — see the [Agent picker order
   note](../feature/2026-09-04-agent-picker-order.md).
+- The command layer was later split into `commands/` modules with a thin
+  `init.lua` dispatch — see the [command-layer modules
+  note](2026-09-05-command-layer-modules.md).
