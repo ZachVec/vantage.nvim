@@ -184,11 +184,72 @@ function M.create(opts)
   }
 end
 
---- Re-target an existing View to the given Agent window.
----@param view string tmux View session name
+--- The client attached to a session, if any (client name). A View belongs to
+--- exactly one client, so this is unambiguous; the client is identified by its
+--- attached session, not by pid or by tmux's ambient "current client".
+---@param view string session name
+---@return string client name, or "" when none
+local function client_of(view)
+  return exec_out("list-clients", "-f", "#{==:#{session_name}," .. view .. "}", "-F", "#{client_name}")
+end
+
+--- Re-target the Client's View to an Agent window.
+---
+--- A tmux client can only display the windows of its own session group, so a
+--- `select-window` on another Group's window errors ("can't find window") and
+--- the Client stays put. A same-Group switch therefore stays a plain window
+--- select, while a cross-Group switch relocates the Client: a fresh View of
+--- the target Group is created, the Client is moved into it (`switch-client`
+--- on the client attached to the current View), it is pointed at the target
+--- window, and the old View is destroyed — a View is its client's and Views
+--- never accumulate. The target Group is passed in explicitly; the Backend
+--- never infers it.
+---@param view string the Client's current View session name
+---@param group string the target Agent's Group
 ---@param target string Agent window id (@N)
-function M.select_window(view, target)
-  exec("select-window", "-t", view .. ":" .. target)
+---@return string? the View session the Client ends on, or nil (after warning)
+function M.retarget(view, group, target)
+  local current_group = exec_out("display", "-p", "-t", view, "#{?#{session_group},#{session_group},#{session_name}}")
+  if current_group == group then
+    local code = exec("select-window", "-t", view .. ":" .. target)
+    if code ~= 0 then
+      Util.warn(("can't switch to window %s (not in view '%s')"):format(target, view))
+      return nil
+    end
+    return view
+  end
+
+  local views = M.group_views(group)
+  if #views == 0 then
+    Util.warn(("no such group '%s'"):format(group))
+    return nil
+  end
+  local new_view = exec_out("new-session", "-d", "-P", "-F", "#{session_name}", "-t", views[1])
+  if new_view == "" then
+    Util.warn(("failed to create a view for group '%s'"):format(group))
+    return nil
+  end
+  exec("set-option", "-t", new_view, "@vantage-view", "1")
+
+  local client = client_of(view)
+  if client == "" then
+    exec("kill-session", "-t", new_view)
+    Util.warn(("no client attached to view '%s'"):format(view))
+    return nil
+  end
+
+  -- Point the fresh View at the target window before moving the Client, so a
+  -- stale target aborts cleanly (no View churn, Client stays in place).
+  local selected = exec("select-window", "-t", new_view .. ":" .. target) == 0
+  local moved = exec("switch-client", "-c", client, "-t", new_view) == 0
+  if not selected or not moved then
+    exec("kill-session", "-t", new_view)
+    Util.warn(("failed to switch to group '%s'"):format(group))
+    return nil
+  end
+
+  exec("kill-session", "-t", view) -- the old View is clientless now
+  return new_view
 end
 
 --- Create a new transient View in a Group and select the target Agent.

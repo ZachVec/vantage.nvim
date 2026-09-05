@@ -19,7 +19,7 @@ _Avoid_: worker
 
 ## View
 
-A transient session within a Group, giving a single Client an independent display of an Agent. Each attach creates a View; the Views of a Group share the same Agents but each shows its own active Agent. A View ends when its own client detaches (its terminal is closed) — the Anchor and other Views survive. When all of a Group's Agents die, the Anchor and every View die with it. Views never accumulate.
+A transient session within a Group, giving a single Client an independent display of an Agent. Each attach creates a View; the Views of a Group share the same Agents but each shows its own active Agent. A View ends when its own client detaches (its terminal is closed) or the client re-targets into another Group — the driver destroys the abandoned View and creates a fresh one in the target Group — the Anchor and other Views survive. When all of a Group's Agents die, the Anchor and every View die with it. Views never accumulate.
 _Avoid_: session, workspace
 
 ## Cwd

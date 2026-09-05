@@ -246,7 +246,9 @@ inside the terminal buffer): >
     rows end with one row per configured `cli.tools` key: picking a Tool row
     creates an Agent of that Tool (Group or new-Group name first) and
     re-points to it. With `@N` re-point directly. Switching never shows or
-    hides the terminal.
+    hides the terminal. Re-pointing to an Agent in another Group relocates
+    the terminal to that Group (a fresh View in it; the previous Group's View
+    is destroyed); within a Group it is a plain window re-point.
 
 `:Vantage kill group|@N`
     Kill a Group or a single Agent. With no argument, pick interactively.
@@ -297,7 +299,8 @@ Agent ~
 View ~
     A transient grouped session attached by a client. Closing the terminal
     detaches the client, the client-detached hook destroys the View, and the
-    Agents keep running.
+    Agents keep running. Switching the client into another Group destroys its
+    old View there (a fresh View is created in the destination Group).
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

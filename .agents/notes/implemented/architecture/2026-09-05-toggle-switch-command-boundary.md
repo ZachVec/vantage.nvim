@@ -33,9 +33,13 @@ callback rather than forked:
   `do_create`. `Client.focus` (materialize + show) is toggle's `after`;
   `Client.retarget` (re-point, no show) is switch's.
 - `Client.retarget(agent)` is the new re-point-only primitive: with a live
-  terminal it sets `last_agent`, `select-window`s, and re-titles; with none it
-  returns false. `Client.focus` keeps its materialize-then-show behavior and is
-  now used only by toggle's open path.
+  terminal it re-points through the Backend (`retarget` — a window select
+  within the Client's Group, a View relocation into the target Group when the
+  Agent lives elsewhere; see the [cross-Group switch
+  note](../bug-fix/2026-09-05-cross-group-switch-relocates-view.md)), sets
+  `last_agent`, and re-titles; with none it returns false. `Client.focus`
+  keeps its materialize-then-show behavior and is now used only by toggle's
+  open path.
 - The Agent-creation wizard (`create_wizard`) is deleted: creation lives only
   in the Tool rows of the Agent picker, whose post-create tail action is the
   same injected `after`.
