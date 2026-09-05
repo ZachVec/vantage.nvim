@@ -66,14 +66,14 @@ Opening floats from a plain (non-terminal) window never races.
 Do not try to repair the mode inside the window (`stopinsert` is ineffective
 while the transfer is unsettled); the transient clears by itself once the
 teardown finishes. Vantage avoids the pattern structurally: every selection it
-makes — the Agent-creation wizard included — renders through the configured
-Picker's own engine (`pick_plain`), so a flow is homogeneous by construction
-and no wizard step ever opens a second window inside another renderer's
-teardown. The residual boundary is a terminal-family renderer (the `fzf-lua`
-Picker, or `native` with a terminal-style `vim.ui.select` override) plus a
-trigger from a terminal in Normal mode: the first closing float leaves the
-transient and the next step can land frozen — press `i`, or invoke from
-terminal input state or a plain window.
+makes — the Agent-creation Group step and `:Vantage prompt` included — renders
+through the configured Picker's own engine (`pick_plain`), so a flow is
+homogeneous by construction and no pick step ever opens a second window inside
+another renderer's teardown. The residual boundary is a terminal-family
+renderer (the `fzf-lua` Picker, or `native` with a terminal-style
+`vim.ui.select` override) plus a trigger from a terminal in Normal mode: the
+first closing float leaves the transient and the next step can land frozen —
+press `i`, or invoke from terminal input state or a plain window.
 
 ## Picker · snacks
 
@@ -100,10 +100,12 @@ picker's own windows, never touching the mode) whenever the picker closes back
 onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
 both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
 preview-capable picks (`pick_agent`, `pick_kill`, `pick_annotation`) pass an
-`on_close` handler; `pick_plain` (the wizard steps and `:Vantage prompt`)
-wraps its `on_choice`, because snacks' own `ui_select` shim owns `on_close`
-there. Real switches and Tool-row creations already end in terminal mode via
-`Client.focus`'s `show` (`startinsert`) and skip the re-entry.
+`on_close` handler; `pick_plain` (the Agent-creation Group step and
+`:Vantage prompt`) wraps its `on_choice`, because snacks' own `ui_select` shim
+owns `on_close` there. A Tool-row creation through `:Vantage toggle` ends in
+terminal mode via `Client.focus`'s `show` (`startinsert`) and skips the
+re-entry; a `:Vantage switch` re-points without showing (`Client.retarget`), so
+it depends on the `on_close` re-entry above.
 
 ### Finder signature is `fun(opts, ctx): result`
 

@@ -161,7 +161,7 @@ end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own
 --- ui_select implementation — the same function fzf-lua registers as a global
---- `vim.ui.select` override — so the wizard stays on the fzf renderer family.
+--- `vim.ui.select` override — so plain selects stay on the fzf renderer family.
 ---@param items any[]
 ---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)

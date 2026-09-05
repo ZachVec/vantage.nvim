@@ -53,9 +53,8 @@ the rows and is the single ordering point every engine renders as given
   is empty (no Agents running and no Tools configured). Zero Agents with
   Tools configured opens the picker listing only Tool rows.
 - **Scope.** The kill list keeps its order and its plain rows (no glyphs,
-  no `(focused)` marker); the Agent-creation wizard's own Tool step still
-  exists for `:Vantage toggle` with no Agents. The shared choice type widens
-  from `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
+  no `(focused)` marker). The shared choice type widens from
+  `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
   focused? }` across `config.lua`, the three picker implementations, and
   `select.lua`.
 
@@ -128,3 +127,7 @@ monotonic with creation, unique, and already the storage key.
 - The empty-list handling later moved out of the engines into the caller,
   keyed on the picker's boolean `empty` return — see [the
   picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).
+- The toggle/switch command boundary later split presence from target: toggle
+  opens/hides the terminal (picking when there is none), switch only re-points
+  an existing one and warns with none — see the [toggle/switch boundary
+  note](../architecture/2026-09-05-toggle-switch-command-boundary.md).

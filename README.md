@@ -39,10 +39,10 @@ docs.
 
 ```vim
 :Vantage                                   " show help (no default action)
-:Vantage switch                            " switch: focus an Agent, or create a new one
-:Vantage switch @1                         " focus a specific Agent
+:Vantage switch                            " re-point the terminal to an Agent (needs a live terminal)
+:Vantage switch @1                         " re-point to a specific Agent
 :Vantage kill @1                           " kill an Agent (or a Group by name)
-:Vantage toggle                            " hide/show the terminal (creates if empty)
+:Vantage toggle                            " hide/show the terminal (picks an Agent if none)
 :Vantage detach                            " detach the client (kills the View; Agents survive)
 :Vantage prompt                            " pick a prompt and type it into the focused Agent
 :Vantage annotate                          " annotate a range (visual selection, or current line)
@@ -51,12 +51,19 @@ docs.
 :Vantage status                            " debug: clients + sessions
 ```
 
-Creating an Agent happens through two channels: `:Vantage toggle` when there
-are no Agents yet (the Tool → Group wizard), or a trailing Tool row of the
-`:Vantage switch` picker — one row per configured `cli.tools` key, listed
-after the Agent rows. Picking a Tool row skips the wizard's Tool step and
-asks only for a Group (or a new Group's name) through the picker's
-plain-select form, then creates and focuses the Agent.
+The two commands split the terminal's two concerns: `:Vantage toggle` owns the
+terminal's *presence* — hide it, show it, or, when there is no terminal at all,
+pick an Agent and open it. `:Vantage switch` owns the terminal's *target* — it
+re-points the existing terminal to another Agent (shown or hidden) and never
+shows or hides it; with no live terminal it warns instead.
+
+Creating an Agent happens through the trailing Tool rows of the Agent picker —
+one row per configured `cli.tools` key, listed after the Agent rows. The picker
+opens from `:Vantage toggle` when there is no terminal, or from `:Vantage
+switch` when there is one. Picking a Tool row asks only for a Group (or a new
+Group's name) through the picker's plain-select form, then creates the Agent
+and either opens the terminal on it (toggle) or re-points the terminal to it
+(switch).
 
 The first focus opens the `:terminal` and attaches it to the agent; later
 focuses re-target that same terminal. Closing the terminal detaches the client
@@ -182,11 +189,12 @@ code use `item = "{lines} {note}\n{code}"`. With `clear_on_send = true`
 
 ### Pickers & prompts
 
-Agent rows in the `:Vantage switch` list are sorted by group, working
-directory, and tool name; when the list is opened from the terminal window,
-the Agent that terminal shows is pinned to the top with a `(focused)` marker,
-and confirming that row does nothing. When no Agent is running and no tool is
-configured, the picker warns instead of opening.
+Agent rows in the Agent picker (`:Vantage switch`, or `:Vantage toggle` with no
+terminal) are sorted by group, working directory, and tool name; when the list
+is opened from the terminal window, the Agent that terminal shows is pinned to
+the top with a `(focused)` marker, and confirming that row does nothing. When
+no Agent is running and no tool is configured, the picker warns instead of
+opening.
 
 The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
 through a pluggable picker, chosen by `picker`:
@@ -197,9 +205,9 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). The Agent-creation wizard and `:Vantage prompt` run through the same
-picker in its compact plain-select form, so a flow never depends on a global
-`vim.ui.select` override (`native` follows any override by definition).
+output). The Agent-creation Group step and `:Vantage prompt` run through the
+same picker in its compact plain-select form, so a flow never depends on a
+global `vim.ui.select` override (`native` follows any override by definition).
 Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
 by default; Yes/No confirmations use Neovim's built-in confirm dialog.
 

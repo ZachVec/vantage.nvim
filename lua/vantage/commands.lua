@@ -15,9 +15,9 @@ local function usage()
     table.concat({
       "Vantage — coding-agent manager",
       "",
-      "  :Vantage switch [<@N>]       focus an Agent (interactive if no arg)",
+      "  :Vantage switch [<@N>]       re-point the terminal to an Agent (needs a live terminal)",
       "  :Vantage kill [<group|@N>]   kill a Group or Agent (interactive if no arg)",
-      "  :Vantage toggle              hide/show the terminal (creates if empty)",
+      "  :Vantage toggle              hide/show the terminal (picks an Agent if none)",
       "  :Vantage detach              detach the client (kills the View; Agents survive)",
       "  :Vantage prompt              pick a prompt and type it into the focused Agent",
       "  :Vantage annotate             annotate a range (visual selection, or current line)",
@@ -43,14 +43,15 @@ end
 ---@param tool_name string
 ---@param cmd string
 ---@param cwd string
-local function do_create(group, tool_name, cmd, cwd)
+---@param after fun(agent: vantage.Agent)
+local function do_create(group, tool_name, cmd, cwd, after)
   local agent = Backend.get().create({ group = group, cmd = cmd, cwd = cwd, tool = tool_name })
   if agent then
-    Client.focus(agent)
+    after(agent)
   end
 end
 
---- The "+ new group" row of the creation wizard's Group stage.
+--- The "+ new group" row of the Group pick (Tool-row creation).
 local NEW_GROUP = "+ new group"
 
 --- Prompt for a new Group name (insert-mode cmdline). Scheduled so a picker
@@ -65,11 +66,13 @@ local function ask_new_group_name(callback)
   end)
 end
 
---- Pick a Group (or prompt a new-Group name) for a Tool, then create and
---- focus the Agent. Shared by the creation wizard's Tool step and by the Tool
---- rows at the tail of the Agent picker.
+--- Pick a Group (or prompt a new-Group name) for a Tool, then create the
+--- Agent and run `after` on it (the tail action differs by command: focus for
+--- toggle's open, retarget for switch). Shared by the Tool rows at the tail of
+--- the Agent picker.
 ---@param tool_name string
-local function create_with_tool(tool_name)
+---@param after fun(agent: vantage.Agent)
+local function create_with_tool(tool_name, after)
   local tool = Config.options.cli.tools[tool_name]
   if not tool then
     return
@@ -77,7 +80,7 @@ local function create_with_tool(tool_name)
   local cmd = table.concat(tool.cmd, " ")
   local picker = Picker.get()
   local function create(group)
-    do_create(group, tool_name, cmd, Util.cwd())
+    do_create(group, tool_name, cmd, Util.cwd(), after)
   end
   local groups = Backend.get().groups()
   if #groups == 0 then
@@ -101,38 +104,18 @@ local function create_with_tool(tool_name)
   )
 end
 
---- The Agent-creation wizard: pick a Tool, then a Group (or "+ new group"),
---- then create and focus the Agent. Every step renders on the configured
---- Picker's own engine via `pick_plain`, so the flow never rides a foreign
---- global `vim.ui.select` override. With no Group yet, the Group step is
---- skipped and the new-Group name is prompted directly.
-local function create_wizard()
-  local tools = {}
-  for name in pairs(Config.options.cli.tools) do
-    tools[#tools + 1] = name
-  end
-  if #tools == 0 then
-    Util.warn("no tools configured (cli.tools)")
-    return
-  end
-  table.sort(tools)
-
-  Picker.get()
-    .pick_plain(tools, { prompt = "Tool: ", invoked_from_terminal = Select.invoked_from_terminal() }, function(tool_name)
-      if tool_name then
-        create_with_tool(tool_name)
-      end
-    end)
-end
-
---- Pick an Agent to focus, create a new one from a trailing Tool row, or
---- confirm the pinned `(focused)` row, which deliberately does nothing.
-local function pick_or_new()
+--- Pick an Agent to act on (focus or re-target), create one from a trailing
+--- Tool row, or confirm the pinned `(focused)` row, which deliberately does
+--- nothing. The tail action differs by command: `Client.focus` (toggle's open
+--- path) materializes and shows a terminal; `Client.retarget` (switch) only
+--- re-points an existing one.
+---@param after fun(agent: vantage.Agent)
+local function pick_or_new(after)
   local empty = Picker.get().pick_agent(Select.agent_spec(), function(choice)
     if choice.kind == "tool" then
-      create_with_tool(choice.tool)
+      create_with_tool(choice.tool, after)
     elseif not choice.focused then
-      Client.focus(choice.agent)
+      after(choice.agent)
     end
   end)
   if empty then
@@ -146,7 +129,7 @@ end
 local function send_prompt(name)
   local agent = Client.last_agent_alive()
   if not agent then
-    Util.warn("no focused agent — use :Vantage switch or toggle first")
+    Util.warn("no focused agent — use :Vantage toggle or :Vantage switch first")
     return
   end
   local template = Config.options.prompts[name]
@@ -387,22 +370,13 @@ local function annotate_clear()
   end
 end
 
---- Hide/show the terminal (lightweight); with no live terminal, re-open to the
---- last Agent, create one if there are none, or pick otherwise.
+--- Hide/show the terminal (lightweight). With no live terminal, pick an Agent
+--- (or create one via a Tool row) and open the terminal on it.
 function M.toggle()
   if Client.toggle() then
     return
   end
-  local last_agent = Client.last_agent_alive()
-  if last_agent then
-    Client.focus(last_agent)
-    return
-  end
-  if #Backend.get().list() == 0 then
-    create_wizard()
-    return
-  end
-  pick_or_new()
+  pick_or_new(Client.focus)
 end
 
 function M.run(args)
@@ -417,13 +391,17 @@ function M.run(args)
     -- no default subcommand: show help
     usage()
   elseif subcommand == "switch" then
+    if not Client.is_attached() then
+      Util.warn("no client — use :Vantage toggle to open one")
+      return
+    end
     if #remaining == 0 then
-      pick_or_new()
+      pick_or_new(Client.retarget)
       return
     end
     local agent = find_agent(remaining[1])
     if agent then
-      Client.focus(agent)
+      Client.retarget(agent)
     else
       Util.warn(("no such agent '%s'"):format(remaining[1]))
     end
