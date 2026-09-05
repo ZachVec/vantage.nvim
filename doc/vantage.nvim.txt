@@ -187,9 +187,9 @@ through a pluggable picker, chosen by `picker`:
   `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). The Agent-creation wizard and `:Vantage prompt` run through the same
-picker in its compact plain-select form, so a flow never depends on a global
-`vim.ui.select` override (`native` follows any override by definition).
+output). The Agent-creation Group step and `:Vantage prompt` run through the
+same picker in its compact plain-select form, so a flow never depends on a
+global `vim.ui.select` override (`native` follows any override by definition).
 Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
 by default; Yes/No confirmations use Neovim's built-in confirm dialog.
 
@@ -243,25 +243,26 @@ inside the terminal buffer): >
 `:Vantage`
     Show help (no default action).
 
-`:Vantage switch [<@N>]`
-    Switch: pick an Agent to focus. Agent rows sort by group, working
-    directory, and tool name; when the list is opened from the terminal
-    window, the Agent that terminal shows is pinned to the top, marked
-    `(focused)`, and confirming that row does nothing. The Agent rows end
-    with one row per configured `cli.tools` key: picking a Tool row creates
-    an Agent of that Tool (Group or new-Group name first). With `<@N>` focus
-    directly. When no Agent runs and no Tool is configured, the picker warns
-    instead of opening.
+`:Vantage switch @N`
+    Re-point the terminal to an Agent. Requires a live terminal: with none it
+    warns and does nothing (use `:Vantage toggle` to open one). Agent rows
+    sort by group, working directory, and tool name; when the list is opened
+    from the terminal window, the Agent that terminal shows is pinned to the
+    top, marked `(focused)`, and confirming that row does nothing. The Agent
+    rows end with one row per configured `cli.tools` key: picking a Tool row
+    creates an Agent of that Tool (Group or new-Group name first) and
+    re-points to it. With `@N` re-point directly. Switching never shows or
+    hides the terminal.
 
-`:Vantage kill [<group|@N>]`
+`:Vantage kill group|@N`
     Kill a Group or a single Agent. With no argument, pick interactively.
 
 `:Vantage toggle`
     Hide the terminal window if it is open, or show it again — a lightweight
     toggle that keeps the buffer, tmux client and View alive. If there is no
-    live terminal, re-open to the last-focused Agent; if there are no Agents at
-    all, start the create wizard. Map it, e.g. `vim.keymap.set("n",
-    "<leader>vt", ":Vantage toggle<CR>")`.
+    live terminal, open the Agent picker (Agents plus one Tool row per
+    configured `cli.tools` key) and open the terminal on the chosen Agent.
+    Map it, e.g. `vim.keymap.set("n", "<leader>vt", ":Vantage toggle<CR>")`.
 
 `:Vantage detach`
     Detach the terminal's client (the client-detached hook destroys the View).

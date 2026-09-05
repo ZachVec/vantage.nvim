@@ -44,7 +44,7 @@ list's `group <n>` rows keep their own text.
 
 ### Why not fold `~` at creation/storage time?
 
-Folding in `commands.lua`/`Util.cwd()` and letting the backend store
+Folding in `commands/agent.lua`/`Util.cwd()` and letting the backend store
 `~/…` breaks launch correctness: tmux does not expand a literal `~` in `-c`
 (verified empirically — `new-session -c '~/vantage'` resolves the literal
 path relative to the client cwd, silently falling back to `$HOME` on

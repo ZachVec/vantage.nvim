@@ -285,4 +285,19 @@ function M.focus(agent)
   return ok
 end
 
+--- Re-target the existing terminal to a different Agent, without showing or
+--- hiding it. Switching only re-points: with no live terminal it fails and
+--- leaves materialization to `focus` (toggle's open path).
+---@param agent vantage.Agent
+---@return boolean
+function M.retarget(agent)
+  if not M.is_attached() then
+    return false
+  end
+  M.last_agent = agent
+  Backend.get().select_window(M.view, agent.target)
+  retitle()
+  return true
+end
+
 return M

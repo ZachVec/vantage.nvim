@@ -1,11 +1,7 @@
 --- fzf-lua picker implementation. Drives fzf-lua's native `fzf_exec`; because
 --- fzf-lua returns display strings rather than the original objects, each entry
 --- carries a numeric prefix that round-trips the item index — the same scheme
---- fzf-lua's own ui_select shim uses. Preview renders the agent pane.
-local Backend = require("vantage.backend")
-local Items = require("vantage.picker.items")
-local Util = require("vantage.util")
-
+--- fzf-lua's own ui_select shim uses.
 local M = {}
 
 local function fzf()
@@ -35,78 +31,86 @@ local function index_of(selected)
   return tonumber(entry:match("^%s*(%d+)%."))
 end
 
---- Preview the selected item's agent pane as plain text.
+--- Preview the selected item through the spec's preview thunk as plain text;
+--- empty string when the item has nothing to preview.
+---@param spec vantage.PickSpec
 ---@param items table[]
 ---@return fun(selected: string[]): string
-local function pane_preview(items)
+local function preview(spec, items)
   return function(selected)
     local item = items[index_of(selected)]
-    if not item or not item.agent then
+    if not item then
       return ""
     end
-    return table.concat(Backend.get().capture_pane(item.agent.target), "\n")
+    local lines = spec.preview and spec.preview(item)
+    if not lines then
+      return ""
+    end
+    return table.concat(lines, "\n")
   end
 end
 
----@param callback fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
-function M.pick_agent(callback)
-  local items = Items.agent_items()
+--- Open an fzf_exec picker over `spec` with a static item list (no reload).
+--- `extract` maps a chosen item to the value `on_choice` receives.
+---@param spec vantage.PickSpec
+---@param extract fun(item: any): any
+---@param on_choice fun(value: any)
+---@return boolean empty
+local function pick_static(spec, extract, on_choice)
+  local items = spec.items_provider()
   if #items == 0 then
-    Util.warn("no agents and no tools configured (cli.tools)")
-    return
+    return true
   end
   fzf().fzf_exec(entries(items), {
-    prompt = Items.prompt,
+    prompt = spec.prompt,
     actions = {
       ["default"] = function(selected)
         local item = items[index_of(selected)]
         if item then
           vim.schedule(function()
-            callback(item)
+            on_choice(extract(item))
           end)
         end
       end,
     },
-    preview = pane_preview(items),
+    preview = preview(spec, items),
   })
+  return false
 end
 
----@param callback fun(target: string)
-function M.pick_kill(callback)
-  local items = Items.kill_items()
-  if not items then
-    return
-  end
-  fzf().fzf_exec(entries(items), {
-    prompt = Items.prompt,
-    actions = {
-      ["default"] = function(selected)
-        local item = items[index_of(selected)]
-        if item then
-          vim.schedule(function()
-            callback(item.target)
-          end)
-        end
-      end,
-    },
-    preview = pane_preview(items),
-  })
+---@param spec vantage.PickSpec
+---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@return boolean empty
+function M.pick_agent(spec, on_choice)
+  return pick_static(spec, function(item)
+    return item
+  end, on_choice)
 end
 
----@param opts { select: fun(annotation: vantage.Annotation), delete: fun(annotation: vantage.Annotation) }
-function M.pick_annotation(opts)
-  local state = { items = Items.annotation_items() }
-  if not state.items then
-    return
-  end
-  local Annotation = require("vantage.annotation")
+---@param spec vantage.PickSpec
+---@param on_choice fun(target: string)
+---@return boolean empty
+function M.pick_kill(spec, on_choice)
+  return pick_static(spec, function(item)
+    return item.target
+  end, on_choice)
+end
 
-  -- Re-read the items and provide them to fzf; re-invoked on `reload`. `cb`
-  -- writes one entry at a time (and `cb(nil)` signals the end of input).
+---@param spec vantage.PickSpec
+---@param on_choice fun(annotation: vantage.Annotation)
+---@return boolean empty
+function M.pick_annotation(spec, on_choice)
+  local state = { items = spec.items_provider() }
+  if #state.items == 0 then
+    return true
+  end
+
+  -- Emit the cached items. `reload` re-invokes this; the ctrl-x action
+  -- refreshes `state.items` beforehand, so the list is re-read exactly once
+  -- per delete rather than on every invocation.
   local function content(cb)
-    state.items = Items.annotation_items(true) or {}
-    for _, entry in ipairs(entries(state.items)) do
-      cb(entry)
+    for i, item in ipairs(state.items) do
+      cb(("%d. %s"):format(i, item.text))
     end
     cb(nil)
   end
@@ -116,13 +120,13 @@ function M.pick_annotation(opts)
   end
 
   fzf().fzf_exec(content, {
-    prompt = Items.prompt,
+    prompt = spec.prompt,
     actions = {
       ["default"] = function(selected)
         local item = item_of(selected)
         if item then
           vim.schedule(function()
-            opts.select(item.annotation)
+            on_choice(item.annotation)
           end)
         end
       end,
@@ -130,7 +134,11 @@ function M.pick_annotation(opts)
         fn = function(selected)
           local item = item_of(selected)
           if item then
-            opts.delete(item.annotation)
+            spec.on_delete(item.annotation)
+          end
+          state.items = spec.items_provider()
+          if #state.items == 0 then
+            require("fzf-lua").utils.fzf_exit()
           end
         end,
         reload = true,
@@ -141,16 +149,21 @@ function M.pick_annotation(opts)
       if not item then
         return ""
       end
-      return Annotation.render_item(item.annotation, Items.annotation_cwd())
+      local lines = spec.preview(item)
+      if not lines then
+        return ""
+      end
+      return table.concat(lines, "\n")
     end,
   })
+  return false
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own
 --- ui_select implementation — the same function fzf-lua registers as a global
---- `vim.ui.select` override — so the wizard stays on the fzf renderer family.
+--- `vim.ui.select` override — so plain selects stay on the fzf renderer family.
 ---@param items any[]
----@param opts { prompt?: string, format_item?: fun(item: any): string }
+---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)
 function M.pick_plain(items, opts, on_choice)
   require("fzf-lua.providers.ui_select").ui_select(items, {

@@ -78,6 +78,6 @@ has no value for a pure-text, opt-in feature, so a `false` sentinel or a
   point. The rest of that note (placeholders, `send_keys`, per-tool `format`)
   is unchanged and still authoritative.
 - `prompts` is never empty, so `:Vantage prompt` always has entries and the
-  empty-state warning/report are gone from `commands.lua` and `health.lua`.
+  empty-state warning/report are gone from `commands/prompt.lua` and `health.lua`.
 - Defaults use only `{file}` and `{line}`, so a zero-config install reports a
   clean `:checkhealth` and never needs nvim-treesitter-textobjects.
