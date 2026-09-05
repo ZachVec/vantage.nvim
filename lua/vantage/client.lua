@@ -1,9 +1,10 @@
 --- The persistent :terminal that is Vantage's tmux client.
 ---
 --- One terminal per nvim instance. On first focus the plugin creates a View and
---- attaches the terminal to it; later focuses re-target the same terminal with
---- `select-window` (the plugin knows the View session name, so no pty round-trip
---- and no client-registration race).
+--- attaches the terminal to it; later focuses re-target the same terminal
+--- through the Backend (`retarget`: a window select within the View's Group, a
+--- View relocation across Groups — the plugin knows the View session name, so
+--- no pty round-trip and no client-registration race).
 ---
 --- Toggle is lightweight: `hide` closes only the window and keeps the buffer +
 --- tmux client + View alive; `show` re-opens the window on the same buffer.
@@ -271,7 +272,11 @@ function M.focus(agent)
   backend.ensure_server()
 
   if M.is_attached() then
-    backend.select_window(M.view, agent.target)
+    local view = backend.retarget(M.view, agent.group, agent.target)
+    if not view then
+      return false
+    end
+    M.view = view
     retitle()
     return M.show()
   end
@@ -287,7 +292,9 @@ end
 
 --- Re-target the existing terminal to a different Agent, without showing or
 --- hiding it. Switching only re-points: with no live terminal it fails and
---- leaves materialization to `focus` (toggle's open path).
+--- leaves materialization to `focus` (toggle's open path). Re-targeting into
+--- another Group relocates the View to that Group (the Backend returns the
+--- View the client ends on, possibly a fresh one; the old View is destroyed).
 ---@param agent vantage.Agent
 ---@return boolean
 function M.retarget(agent)
@@ -295,7 +302,11 @@ function M.retarget(agent)
     return false
   end
   M.last_agent = agent
-  Backend.get().select_window(M.view, agent.target)
+  local view = Backend.get().retarget(M.view, agent.group, agent.target)
+  if not view then
+    return false
+  end
+  M.view = view
   retitle()
   return true
 end

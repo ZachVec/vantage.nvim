@@ -35,5 +35,6 @@ tmux shows one active window per client, so per-client "which agent am I looking
 
 - `kill <group>` kills all of a group's sessions (Anchor + Views) and thus its agents; killing the last agent empties the group, which dies with it.
 - The client-detached hook must run in a separate `run-shell` process (`tmux -S <socket> kill-session …`) because a direct kill from the hook's command context does not take effect — a subtlety now owned by the driver.
+- A View also ends when its Client re-targets into another Group: the driver moves the client into a fresh View of the destination Group and destroys the old one, so Views still never accumulate — see the [cross-Group switch note](../bug-fix/2026-09-05-cross-group-switch-relocates-view.md).
 
 The terms are defined once in [the domain glossary](../process/2026-08-31-domain-glossary.md).
