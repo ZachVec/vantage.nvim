@@ -80,15 +80,11 @@ require("vantage").setup({
 })
 ```
 
-The default `layout = "float"` opens the terminal centered in the editor at
-the full editor size, with no border. Floating windows render no statusline or
-winbar — a normal window's statusline row cannot be removed per window while
-`'laststatus'` is 2 or 3 (statusline plugins then show an empty row inside
-the Client) — so the agent view is a pure terminal. Neovim redraws the
-terminal cursor per-frame inside floats, which can flicker on some Agent-TUI
-repaints: `layout = "full"` (a dedicated tab) is the fallback for users who
-see it. The float's `width`/`height` are fractions of the editor area
-(0 < v <= 1).
+The default `layout = "float"` opens the terminal as a borderless floating
+window at the full editor size — a pure terminal view, with no statusline,
+winbar, or border. If the terminal's cursor flickers for you, use
+`layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
+fractions of the editor area (0 < v <= 1).
 
 `cli.tools` is empty by default — provide every tool yourself, e.g.:
 
