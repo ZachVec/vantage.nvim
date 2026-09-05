@@ -57,7 +57,10 @@ Consequences of that boundary:
   engine's source).
 - The snacks terminal-mode restore applies to every snacks pick — the
   preview-capable picks via `on_close`, `pick_plain` via a wrapped `on_choice`
-  (its `select` shim owns `on_close`) — keyed on `invoked_from_terminal`.
+  queued *before* the choice handler runs (its `select` shim owns `on_close`;
+  the ordering protects the new-Group cmdline re-entry — see [the fix
+  note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)) — keyed on
+  `invoked_from_terminal`.
 
 ## Alternatives considered
 

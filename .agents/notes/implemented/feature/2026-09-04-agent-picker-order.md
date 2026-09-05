@@ -29,9 +29,12 @@ the rows and is the single ordering point every engine renders as given
   after any picker close back onto it — Esc cancels and the no-op confirm
   alike — because snacks pickers close into Normal (see
   [gotchas](../../../docs/gotchas.md)); fzf-lua and native leave the
-  terminal in terminal mode and need nothing. No engine-specific
-  disabled-row machinery is used (see Alternatives). Invoked from any other
-  window, there is no focused Agent and no pin.
+  terminal in terminal mode and need nothing. The plain step's wrapper queues
+  the re-entry before its choice handler so the new-Group cmdline cannot
+  swallow it — see
+  [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
+  No engine-specific disabled-row machinery is used (see Alternatives).
+  Invoked from any other window, there is no focused Agent and no pin.
 - **Agent ordering.** Remaining Agent rows sort ascending by group, absolute
   cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
   nil fallback — the same key the row text shows); exact ties break by

@@ -51,8 +51,13 @@ end
 --- strand the client in Normal. Every snacks pick restores: the three
 --- preview-capable picks pass `on_close = spec.invoked_from_terminal and
 --- restore_terminal_mode`, `pick_plain` calls it from a wrapped `on_choice`
---- (snacks' select shim owns its own `on_close`). Scheduled for the tick after
---- snacks' close has returned focus.
+--- (snacks' select shim owns its own `on_close`) *before* the choice handler
+--- runs. The new-Group name prompt (a cmdline `input()`) opens from inside
+--- the choice handler and the scheduler keeps running across it, so a check
+--- queued after the handler would see the cmdline's `c` mode, skip, and
+--- strand the terminal in Normal once the prompt closes; queued first, the
+--- `startinsert` stays pending across the cmdline and lands when it closes.
+--- Scheduled for the tick after snacks' close has returned focus.
 local function restore_terminal_mode()
   vim.schedule(function()
     if vim.api.nvim_get_mode().mode == "nt" then
@@ -221,10 +226,10 @@ function M.pick_plain(items, opts, on_choice)
     prompt = opts.prompt,
     format_item = opts.format_item,
   }, function(item, idx)
-    on_choice(item, idx)
     if opts.invoked_from_terminal then
       restore_terminal_mode()
     end
+    on_choice(item, idx)
   end)
 end
 
