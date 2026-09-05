@@ -223,4 +223,8 @@ function M.render(template, ctx)
   return table.concat(out, "\n")
 end
 
+--- The known placeholder names — the Prompt vocabulary. health.lua validates
+--- user templates against this single source of truth.
+M.PLACEHOLDERS = PLACEHOLDERS
+
 return M
