@@ -1,17 +1,7 @@
 # vantage.nvim
 
 A coding-agent manager for Neovim. It runs coding agents (Claude Code, Codex,
-dsh, …) in a tmux server and shows them in a single persistent `:terminal`.
-tmux is the state store, multiplexer, renderer, and input layer — there is no
-custom TUI.
-
-Vantage is a single Neovim plugin:
-
-- **Backend** — the plugin's Lua domain layer, driving a private tmux socket
-  directly. It is a pluggable interface (`tmux` today, room for `zellij` later)
-  and holds all state and domain logic.
-- **Frontend** — a pluggable picker (`native` / `fzf-lua` / `snacks`) plus the
-  `:terminal` window that is the tmux client.
+dsh, …) in tmux and shows them in a single persistent `:terminal`.
 
 ## Requirements
 
@@ -43,7 +33,7 @@ docs.
 :Vantage switch @1                         " re-point to a specific Agent
 :Vantage kill @1                           " kill an Agent (or a Group by name)
 :Vantage toggle                            " hide/show the terminal (picks an Agent if none)
-:Vantage detach                            " detach the client (kills the View; Agents survive)
+:Vantage detach                            " detach the client (Agents keep running)
 :Vantage prompt                            " pick a prompt and type it into the focused Agent
 :Vantage annotate                          " annotate a range (visual selection, or current line)
 :Vantage annotate list                     " open the annotation picker (read/edit a note)
@@ -51,23 +41,13 @@ docs.
 :Vantage status                            " debug: clients + sessions
 ```
 
-The two commands split the terminal's two concerns: `:Vantage toggle` owns the
-terminal's *presence* — hide it, show it, or, when there is no terminal at all,
-pick an Agent and open it. `:Vantage switch` owns the terminal's *target* — it
-re-points the existing terminal to another Agent (shown or hidden) and never
-shows or hides it; with no live terminal it warns instead.
+To create an Agent, open the picker with `:Vantage switch` (or `:Vantage
+toggle` when no terminal is open), pick a Tool row — one per configured
+`cli.tools` key, listed after the Agent rows — then choose a Group or type a
+new name.
 
-Creating an Agent happens through the trailing Tool rows of the Agent picker —
-one row per configured `cli.tools` key, listed after the Agent rows. The picker
-opens from `:Vantage toggle` when there is no terminal, or from `:Vantage
-switch` when there is one. Picking a Tool row asks only for a Group (or a new
-Group's name) through the picker's plain-select form, then creates the Agent
-and either opens the terminal on it (toggle) or re-points the terminal to it
-(switch).
-
-The first focus opens the `:terminal` and attaches it to the agent; later
-focuses re-target that same terminal. Closing the terminal detaches the client
-and destroys its View — Agents keep running headless until killed.
+Vantage shows Agents in a single `:terminal`. Closing that terminal leaves your
+Agents running — they keep going in the background until killed.
 
 ## Configuration
 
@@ -205,11 +185,10 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). The Agent-creation Group step and `:Vantage prompt` run through the
-same picker in its compact plain-select form, so a flow never depends on a
-global `vim.ui.select` override (`native` follows any override by definition).
-Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
-by default; Yes/No confirmations use Neovim's built-in confirm dialog.
+output). Creating an Agent (choosing a Group) and `:Vantage prompt` use the
+same picker in a compact plain-select form. Free-text prompts (e.g. the
+new-Group name) use `input()` and are insert-mode by default; Yes/No
+confirmations use Neovim's built-in confirm dialog.
 
 ### Terminal filetype & keymaps
 

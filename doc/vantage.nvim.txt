@@ -243,7 +243,7 @@ inside the terminal buffer): >
 `:Vantage`
     Show help (no default action).
 
-`:Vantage switch [<@N>]`
+`:Vantage switch @N`
     Re-point the terminal to an Agent. Requires a live terminal: with none it
     warns and does nothing (use `:Vantage toggle` to open one). Agent rows
     sort by group, working directory, and tool name; when the list is opened
@@ -251,10 +251,10 @@ inside the terminal buffer): >
     top, marked `(focused)`, and confirming that row does nothing. The Agent
     rows end with one row per configured `cli.tools` key: picking a Tool row
     creates an Agent of that Tool (Group or new-Group name first) and
-    re-points to it. With `<@N>` re-point directly. Switching never shows or
+    re-points to it. With `@N` re-point directly. Switching never shows or
     hides the terminal.
 
-`:Vantage kill [<group|@N>]`
+`:Vantage kill group|@N`
     Kill a Group or a single Agent. With no argument, pick interactively.
 
 `:Vantage toggle`
