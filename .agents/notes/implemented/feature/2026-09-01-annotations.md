@@ -23,9 +23,9 @@ range and opens an editable note float: a plain scratch buffer in normal mode
 whose window options follow the user's config by default (`annotations.float.style`,
 "inherit" | "minimal"; see the [window-options note](2026-09-04-note-float-follows-user-window-options.md)),
 so editing is ordinary Vim (multi-line, undo). The one added normal-mode
-keymap, `annotations.keys.exit` (default `<Esc>`), commits the note and closes
-the float; an empty note deletes the annotation after a `vim.ui.select`
-confirmation. `annotations.keys.delete` (unset by default) deletes directly.
+keymap, `<Esc>`, commits the note and closes the float; an empty note deletes
+the annotation after a built-in confirm dialog (see the [note-editor
+note](../architecture/2026-09-05-note-editor-pure-ui.md)).
 
 The picker goes through the pluggable Picker via a new `pick_annotation`
 method: fzf-lua and snacks preview each annotation through the same
@@ -88,7 +88,6 @@ on-disk format; persistence remains a possible follow-up.
   the file; users who want durable comments must use source comments instead.
 - The `Vantage` user command gains `range = true` so `annotate` can take
   the visual selection; every other subcommand ignores the range.
-- The note float is a plain scratch buffer with only the `keys.exit` (and
-  optional `keys.delete`) keymaps added, so the user's own keymaps apply inside
-  it — Vim-consistent, at the cost of their global mappings (e.g. `<leader>`)
-  also firing there.
+- The note float is a plain scratch buffer with only the `<Esc>` keymap added,
+  so the user's own keymaps apply inside it — Vim-consistent, at the cost of
+  their global mappings (e.g. `<leader>`) also firing there.

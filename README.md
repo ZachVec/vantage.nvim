@@ -67,10 +67,6 @@ require("vantage").setup({
     float = {                 -- note-float window options
       style = "inherit",      -- "inherit" (default) | "minimal"
     },
-    keys = {                  -- note-float keymaps (normal mode)
-      exit = "<Esc>",         -- commit the note and close (empty = delete)
-      -- delete = "<leader>d", -- optional: delete directly
-    },
   },
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
@@ -147,11 +143,10 @@ Vim — multi-line notes and undo included. By default
 opens from, so your line numbers, cursorline and friends apply and the float
 reads as an editable buffer at a glance; set
 `annotations.float.style = "minimal"` for a clean dialog look with those
-options off. The only added keymap is
-`annotations.keys.exit` (default `<Esc>`): it commits the note and closes the
-float; an empty note deletes the annotation after a confirmation. The picker is
-pluggable: fzf-lua/snacks preview each note through `annotations.item` and offer
-an in-place `<c-x>` delete; native is selection-only.
+options off. Pressing `<Esc>` commits the note and closes the float; an empty
+note deletes the annotation after a confirmation. The picker is pluggable:
+fzf-lua/snacks preview each note through `annotations.item` and offer an
+in-place `<c-x>` delete; native is selection-only.
 
 Send them to the focused Agent through a prompt that uses `{annotations}`:
 

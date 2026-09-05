@@ -17,7 +17,7 @@ end
 --- Validate configured prompt placeholders (name -> template).
 local function check_prompts()
   local prompts = require("vantage.config").options.prompts or {}
-  local known = { file = true, line = true, ["function"] = true, ["class"] = true, annotations = true }
+  local known = require("vantage.prompt").PLACEHOLDERS
   local unknown = {}
   local uses_symbol = false
   for _, template in pairs(prompts) do

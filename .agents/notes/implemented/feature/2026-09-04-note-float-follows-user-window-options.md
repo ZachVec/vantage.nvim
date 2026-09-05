@@ -35,9 +35,9 @@ normal split, unless the user opts out:
   to users.
 
 Geometry (centered `rounded` border, `width`/`height` formulas) and the
-title/footer text stay hardcoded in `open_note_float`; only the window-option
-behavior changed. Scope stays at `annotations.float` so later float keys
-(geometry) have a home.
+title/footer text stay in the note editor (`vantage.ui.note`); only the
+window-option behavior changed. Scope stays at `annotations.float` so later
+window-option keys have a home.
 
 ## Alternatives considered
 
@@ -85,7 +85,8 @@ if geometry follows.
 - New public config key `annotations.float.style` ("inherit" default |
   "minimal"); defaults, LuaLS classes, README, and `doc/vantage.nvim.txt` are
   updated in this change.
-- Only `commands/annotation.lua` (`open_note_float`) and `config.lua` change in code; the
+- Only `ui/note.lua` (`Note.open`), `commands/annotation.lua`, and `config.lua`
+  change in code; the
   picker previews and the range tint in the source window are unaffected.
 - The float is a fresh scratch buffer, so buffer-local look (filetype
   formatting, `tabstop`, …) still does not follow the annotated file — only
