@@ -60,7 +60,11 @@ Consequences of that boundary:
   queued *before* the choice handler runs (its `select` shim owns `on_close`;
   the ordering protects the new-Group cmdline re-entry — see [the fix
   note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)) — keyed on
-  `invoked_from_terminal`.
+  `invoked_from_terminal`. The same scheduled handler re-asserts the invoked-
+  from window's focus on close (see [the float client focus
+  note](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md)), still
+  without requiring any Vantage module: the window id is captured from
+  `nvim_get_current_win()` at pick start.
 
 ## Alternatives considered
 

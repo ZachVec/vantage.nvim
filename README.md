@@ -71,13 +71,20 @@ require("vantage").setup({
   cli = {
     tools = {},              -- provide your own (name -> cmd array); nothing built in
     win = {                  -- the terminal window that is the tmux client
-      layout = "full",       -- full | left | top | bottom | right
+      layout = "float",      -- float | full | left | top | bottom | right
+      float  = { width = 1.0, height = 1.0, border = "none" }, -- default layout
       split  = { width = 80, height = 20 },
       keys = {},             -- no keymaps by default; add your own (see below)
     },
   },
 })
 ```
+
+The default `layout = "float"` opens the terminal as a borderless floating
+window at the full editor size — a pure terminal view, with no statusline,
+winbar, or border. If the terminal's cursor flickers for you, use
+`layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
+fractions of the editor area (0 < v <= 1).
 
 `cli.tools` is empty by default — provide every tool yourself, e.g.:
 

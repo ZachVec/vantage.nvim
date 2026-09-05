@@ -15,7 +15,9 @@ terminal-mode re-entry after its pickers close. The same creation through
 `startinsert`).
 
 The re-entry is a single tick check (`restore_terminal_mode`: scheduled for
-the tick after the picker closes, `startinsert` when the mode is `nt`).
+the tick after the picker closes, `startinsert` when the mode is `nt`; the
+same handler also re-asserts the invoked-from window's focus — see the
+[float client focus note](2026-09-05-float-terminal-switch-loses-focus.md)).
 `pick_plain` (the Group step) wraps its `on_choice` for the re-entry; the
 wrapper ran the choice handler **before** queueing the check. The new-Group
 handler (`ask_new_group_name` in `commands/agent.lua`) schedules the Group

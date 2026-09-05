@@ -99,6 +99,12 @@ already returned focus synchronously and its teardown only destroys the
 picker's own windows, never touching the mode) whenever the picker closes back
 onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
 both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
+same scheduled close handler also re-asserts the terminal window itself:
+Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
+window when that float is already gone, so closing the picker floats from a
+floating Client lands the focus on the editor behind it — the handler
+re-focuses the window the pick was invoked from (captured at pick start) and
+the terminal mode re-entry follows. The
 preview-capable picks (`pick_agent`, `pick_kill`, `pick_annotation`) pass an
 `on_close` handler; `pick_plain` (the Agent-creation Group step and
 `:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,

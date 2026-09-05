@@ -16,9 +16,15 @@ and winbars gave no hint of which Agent was focused or where it runs.
 
 ## Decision
 
-`cli.win.layout` accepts `full | left | top | bottom | right`. The `float`
-value and the `cli.win.float` options table are removed, and the default is
-`full`. `full` opens the Client terminal in a dedicated tab — `tab split`
+`cli.win.layout` accepts `full | left | top | bottom | right` (plus `float`,
+again). The `float` value and the `cli.win.float` options table were removed as
+the default — `float` later returned as an opt-in (see the [float terminal
+layout opt-in note](2026-09-05-float-terminal-layout-opt-in.md)) and then
+became the default (see the [float terminal layout default
+note](2026-09-05-float-terminal-layout-default.md)); this note's flicker
+rationale still governs why `full` exists as the opt-out, but `full` is no
+longer the default. `full` opens the Client
+terminal in a dedicated tab — `tab split`
 duplicates the current window into the new tab, then `nvim_win_set_buf` swaps
 the terminal buffer in — giving one normal (non-floating) window at the full
 editor size. Because no floating window is ever created for the terminal, the
@@ -38,12 +44,16 @@ script, and a dynamic title over it was explicitly deferred.
 
 ## Alternatives considered
 
-### Why not keep the float layout?
+### Why not keep the float as the default layout?
 
 The floating window is the flicker trigger itself: Neovim redraws the
 `:terminal` cursor per-frame inside floats, so every Agent-TUI repaint
 relocated the cursor to the screen middle while typing. No float option
-avoids that, so `float` was removed outright rather than fixed in place.
+avoids that, so `float` was removed as the default rather than fixed in place
+(an opt-in `float` layout returned later — [float terminal layout opt
+in](2026-09-05-float-terminal-layout-opt-in.md) — and became the default,
+[per the default note](2026-09-05-float-terminal-layout-default.md), with
+this flicker as the documented trade-off for the `full` opt-out).
 
 ### Why not a maximized split?
 
@@ -68,11 +78,15 @@ switches the terminal to another Agent, which is when the title matters.
 
 ## Consequences
 
-- Config change: `layout = "float"` and `cli.win.float` no longer exist. A
-  stale `layout = "float"` silently falls through to the split path (a bottom
-  split) rather than erroring; `vantage.Win` in `lua/vantage/config.lua`, the
-  `README.md` sample, and `doc/vantage.nvim.txt` list
-  `full | left | top | bottom | right` with `full` as the default.
+- Config change: `layout = "float"` and `cli.win.float` were removed; the
+  `float` layout was later re-added as an opt-in, see the [float terminal
+  layout opt-in note](2026-09-05-float-terminal-layout-opt-in.md), and is the
+  default now, see the [float terminal layout default
+  note](2026-09-05-float-terminal-layout-default.md). An unknown layout value
+  still silently falls through to the split path (a bottom split) rather than
+  erroring; `vantage.Win` in `lua/vantage/config.lua`, the `README.md`
+  sample, and `doc/vantage.nvim.txt` list
+  `float | full | left | top | bottom | right` with `float` as the default.
 - With `full` the terminal owns a tab: `hide`/`toggle` closes the terminal
   window, which also closes its tab when that window is the tab's only one
   (when the terminal window is the session's very last window, `hide` swaps in

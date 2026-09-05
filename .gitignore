@@ -4,3 +4,4 @@
 
 # Local tooling downloaded for checks (not part of the project)
 .tools/
+.worktrees/
