@@ -101,11 +101,17 @@ onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
 both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
 preview-capable picks (`pick_agent`, `pick_kill`, `pick_annotation`) pass an
 `on_close` handler; `pick_plain` (the Agent-creation Group step and
-`:Vantage prompt`) wraps its `on_choice`, because snacks' own `ui_select` shim
-owns `on_close` there. A Tool-row creation through `:Vantage toggle` ends in
-terminal mode via `Client.focus`'s `show` (`startinsert`) and skips the
-re-entry; a `:Vantage switch` re-points without showing (`Client.retarget`), so
-it depends on the `on_close` re-entry above.
+`:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,
+because snacks' own `ui_select` shim owns `on_close` there — and because the
+new-Group name prompt (a cmdline `input()` scheduled from inside the choice
+handler) keeps the scheduler alive while its `c` mode is active: a re-entry
+check queued after the handler would see `c`, skip, and strand the terminal in
+Normal once the prompt closes. Queued first, the `startinsert` stays pending
+across the cmdline and lands when it closes (verified on nvim 0.12.3). A
+Tool-row creation through `:Vantage toggle` ends in terminal mode via
+`Client.focus`'s `show` (`startinsert`) and skips the re-entry; a
+`:Vantage switch` re-points without showing (`Client.retarget`), so it depends
+on the `on_close`/wrapped re-entry above.
 
 ### Finder signature is `fun(opts, ctx): result`
 
