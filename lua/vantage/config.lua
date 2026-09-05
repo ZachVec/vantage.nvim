@@ -46,14 +46,26 @@
 ---@class vantage.PickSpec The selection contract passed to a picker
 --- implementation. Each field is an input to the picker — the items to render
 --- (`items_provider`), preview content (`preview`), the prompt glyph
---- (`prompt`), an environment fact (`invoked_from_terminal`), and an in-flight
---- action (`on_delete`). The chosen item is delivered through the positional
---- `on_choice`; the picker returns a boolean `empty`.
+--- (`prompt`), an environment fact (`invoked_from_terminal`), an in-flight
+--- removal action (`on_delete`, used by the picker's `<c-x>`), and an optional
+--- live scope transform (`scope`, the picker's `<c-g>` toggle). The chosen
+--- item is delivered through the positional `on_choice`; the picker returns a
+--- boolean `empty`.
 ---@field prompt string
 ---@field items_provider fun(): table[]
 ---@field preview? fun(item: any): string[]?
 ---@field invoked_from_terminal? boolean
----@field on_delete? fun(value: any)
+---@field on_delete? fun(value: any) the `<c-x>` in-flight removal action, one
+---   per flow: the call site specializes what "remove this row" means (an
+---   Annotation is deleted, an Agent is killed), while the picker contract is
+---   generic — call it with the current row's domain value, then re-read
+---   `items_provider`, refresh in place, and close when nothing remains. Rows
+---   with nothing to remove (Tool rows) ignore `<c-x>`.
+---@field scope? fun(items: table[]): table[] the flow's live scope transform:
+---   applied to freshly read items while the picker's scope toggle is on (the
+---   default when `scope` exists), re-invoked after every re-read (an
+---   in-place delete or the toggle itself). Absent → no toggle key and no
+---   filtering.
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
 --- (`pick_plain`), mirroring `vim.ui.select`'s opts plus the invoke-time fact

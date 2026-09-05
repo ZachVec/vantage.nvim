@@ -180,10 +180,16 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). Creating an Agent (choosing a Group) and `:Vantage prompt` use the
-same picker in a compact plain-select form. Free-text prompts (e.g. the
-new-Group name) use `input()` and are insert-mode by default; Yes/No
-confirmations use Neovim's built-in confirm dialog.
+output), and Agent rows offer an in-place `<c-x>` kill: the row's Agent is
+killed, the list refreshes and stays open (so several Agents can be killed in
+one session), closing when nothing remains. The pinned `(focused)` row and the
+Tool rows ignore `<c-x>`; native is selection-only. The Agent list opens
+scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
+(Tool rows always stay, and with nothing focused the whole list shows).
+Creating an Agent (choosing a Group) and `:Vantage prompt` use the same picker
+in a compact plain-select form. Free-text prompts (e.g. the new-Group name)
+use `input()` and are insert-mode by default; Yes/No confirmations use
+Neovim's built-in confirm dialog.
 
 ### Terminal filetype & keymaps
 
