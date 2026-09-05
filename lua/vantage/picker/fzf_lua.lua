@@ -9,15 +9,15 @@ local function fzf()
 end
 
 --- "1. text" entries; the prefix encodes the 1-based index so a returned
---- display string maps back to its item.
+--- display string maps back to its item. Emitted one per callback, matching
+--- fzf-lua's function-contents contract (see docs/gotchas.md).
 ---@param items table[]
----@return string[]
-local function entries(items)
-  local out = {}
+---@param cb fun(line?: string)
+local function emit(items, cb)
   for i, item in ipairs(items) do
-    out[i] = ("%d. %s"):format(i, item.text)
+    cb(("%d. %s"):format(i, item.text))
   end
-  return out
+  cb(nil)
 end
 
 --- Recover the 1-based item index from a returned entry string.
@@ -31,49 +31,93 @@ local function index_of(selected)
   return tonumber(entry:match("^%s*(%d+)%."))
 end
 
---- Preview the selected item through the spec's preview thunk as plain text;
---- empty string when the item has nothing to preview.
----@param spec vantage.PickSpec
----@param items table[]
----@return fun(selected: string[]): string
-local function preview(spec, items)
-  return function(selected)
-    local item = items[index_of(selected)]
-    if not item then
-      return ""
-    end
-    local lines = spec.preview and spec.preview(item)
-    if not lines then
-      return ""
-    end
-    return table.concat(lines, "\n")
-  end
-end
-
---- Open an fzf_exec picker over `spec` with a static item list (no reload).
---- `extract` maps a chosen item to the value `on_choice` receives.
+--- Open an fzf_exec picker over `spec` with a live item list: a c-x action
+--- (`alt`, the flow's `on_delete` specialization, optional) removes the
+--- current row's domain value in place, then re-reads `items_provider` and
+--- reloads the list, exiting when nothing remains. When `spec.scope` exists,
+--- its transform applies on every read while the c-g toggle is on (default)
+--- and the picker binds ctrl-g to flip it in place. `extract` maps a chosen
+--- item to the value `on_choice` receives.
 ---@param spec vantage.PickSpec
 ---@param extract fun(item: any): any
 ---@param on_choice fun(value: any)
+---@param alt? fun(item: any) the c-x removal action; rows with nothing to
+---   remove (Tool rows) are ignored by the call site
 ---@return boolean empty
-local function pick_static(spec, extract, on_choice)
-  local items = spec.items_provider()
-  if #items == 0 then
+local function pick_static(spec, extract, on_choice, alt)
+  local scope_on = spec.scope ~= nil
+  local function read()
+    local all = spec.items_provider()
+    if scope_on and spec.scope then
+      return spec.scope(all)
+    end
+    return all
+  end
+  local state = { items = read() }
+  if #state.items == 0 then
     return true
   end
-  fzf().fzf_exec(entries(items), {
-    prompt = spec.prompt,
-    actions = {
-      ["default"] = function(selected)
-        local item = items[index_of(selected)]
+
+  local function content(cb)
+    emit(state.items, cb)
+  end
+
+  local function item_of(selected)
+    return state.items[index_of(selected)]
+  end
+
+  local actions = {
+    ["default"] = function(selected)
+      local item = item_of(selected)
+      if item then
+        vim.schedule(function()
+          on_choice(extract(item))
+        end)
+      end
+    end,
+  }
+  if alt then
+    actions["ctrl-x"] = {
+      fn = function(selected)
+        local item = item_of(selected)
         if item then
-          vim.schedule(function()
-            on_choice(extract(item))
-          end)
+          alt(item)
+        end
+        state.items = read()
+        if #state.items == 0 then
+          require("fzf-lua").utils.fzf_exit()
         end
       end,
-    },
-    preview = preview(spec, items),
+      reload = true,
+    }
+  end
+  if spec.scope then
+    actions["ctrl-g"] = {
+      fn = function()
+        scope_on = not scope_on
+        state.items = read()
+        if #state.items == 0 then
+          require("fzf-lua").utils.fzf_exit()
+        end
+      end,
+      reload = true,
+    }
+  end
+
+  fzf().fzf_exec(content, {
+    prompt = spec.prompt,
+    actions = actions,
+    preview = function(selected)
+      local item = item_of(selected)
+      if not item then
+        return ""
+      end
+      local lines = spec.preview and spec.preview(item)
+      if not lines then
+        return ""
+      end
+      return table.concat(lines, "\n")
+    end,
   })
   return false
 end
@@ -82,9 +126,18 @@ end
 ---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  return pick_static(spec, function(item)
-    return item
-  end, on_choice)
+  return pick_static(
+    spec,
+    function(item)
+      return item
+    end,
+    on_choice,
+    function(item)
+      if item.kind == "agent" and not item.focused and spec.on_delete then
+        spec.on_delete(item.agent)
+      end
+    end
+  )
 end
 
 ---@param spec vantage.PickSpec
@@ -100,63 +153,16 @@ end
 ---@param on_choice fun(annotation: vantage.Annotation)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
-  local state = { items = spec.items_provider() }
-  if #state.items == 0 then
-    return true
-  end
-
-  -- Emit the cached items. `reload` re-invokes this; the ctrl-x action
-  -- refreshes `state.items` beforehand, so the list is re-read exactly once
-  -- per delete rather than on every invocation.
-  local function content(cb)
-    for i, item in ipairs(state.items) do
-      cb(("%d. %s"):format(i, item.text))
-    end
-    cb(nil)
-  end
-
-  local function item_of(selected)
-    return state.items[index_of(selected)]
-  end
-
-  fzf().fzf_exec(content, {
-    prompt = spec.prompt,
-    actions = {
-      ["default"] = function(selected)
-        local item = item_of(selected)
-        if item then
-          vim.schedule(function()
-            on_choice(item.annotation)
-          end)
-        end
-      end,
-      ["ctrl-x"] = {
-        fn = function(selected)
-          local item = item_of(selected)
-          if item then
-            spec.on_delete(item.annotation)
-          end
-          state.items = spec.items_provider()
-          if #state.items == 0 then
-            require("fzf-lua").utils.fzf_exit()
-          end
-        end,
-        reload = true,
-      },
-    },
-    preview = function(selected)
-      local item = item_of(selected)
-      if not item then
-        return ""
-      end
-      local lines = spec.preview(item)
-      if not lines then
-        return ""
-      end
-      return table.concat(lines, "\n")
+  return pick_static(
+    spec,
+    function(item)
+      return item.annotation
     end,
-  })
-  return false
+    on_choice,
+    function(item)
+      spec.on_delete(item.annotation)
+    end
+  )
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own

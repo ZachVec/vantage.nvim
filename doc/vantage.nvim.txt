@@ -181,9 +181,15 @@ through a pluggable picker, chosen by `picker`:
   `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output). The Agent-creation Group step and `:Vantage prompt` run through the
-same picker in its compact plain-select form, so a flow never depends on a
-global `vim.ui.select` override (`native` follows any override by definition).
+output), and Agent rows offer an in-place `<c-x>` kill: the row's Agent is
+killed, the list refreshes and stays open (several Agents can be killed in one
+session), closing when nothing remains; the pinned `(focused)` row and the
+Tool rows ignore `<c-x>`, and `native` is selection-only. The Agent list opens
+scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
+(Tool rows always stay; with nothing focused the whole list shows). The
+Agent-creation Group step and `:Vantage prompt` run through the same picker in
+its compact plain-select form, so a flow never depends on a global
+`vim.ui.select` override (`native` follows any override by definition).
 Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
 by default; Yes/No confirmations use Neovim's built-in confirm dialog.
 
@@ -245,10 +251,12 @@ inside the terminal buffer): >
     top, marked `(focused)`, and confirming that row does nothing. The Agent
     rows end with one row per configured `cli.tools` key: picking a Tool row
     creates an Agent of that Tool (Group or new-Group name first) and
-    re-points to it. With `@N` re-point directly. Switching never shows or
-    hides the terminal. Re-pointing to an Agent in another Group relocates
-    the terminal to that Group (a fresh View in it; the previous Group's View
-    is destroyed); within a Group it is a plain window re-point.
+    re-points to it. In fzf-lua/snacks, `<c-x>` kills the row's Agent in place
+    (the pinned `(focused)` row excluded) and `<c-g>` toggles the Group scope
+    — see PICKERS & PROMPTS. With `@N` re-point directly. Switching never
+    shows or hides the terminal. Re-pointing to an Agent in another Group
+    relocates the terminal to that Group (a fresh View in it; the previous
+    Group's View is destroyed); within a Group it is a plain window re-point.
 
 `:Vantage kill group|@N`
     Kill a Group or a single Agent. With no argument, pick interactively.

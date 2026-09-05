@@ -65,16 +65,60 @@ end
 ---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  local items = spec.items_provider()
-  if #items == 0 then
+  local scope_on = spec.scope ~= nil
+  local function items()
+    local all = spec.items_provider()
+    if scope_on and spec.scope then
+      return spec.scope(all)
+    end
+    return all
+  end
+  local list = items()
+  if #list == 0 then
     return true
   end
+  local function refresh(picker)
+    list = items()
+    if #list == 0 then
+      picker:close()
+    else
+      picker:refresh()
+    end
+  end
   pick({
-    items = items,
+    finder = function()
+      return list
+    end,
     format = "text",
     preview = preview(spec),
     on_close = spec.invoked_from_terminal and restore_terminal_mode or nil,
-    win = { preview = { wo = NO_PREVIEW_LINENR } },
+    actions = {
+      agent_kill = function(picker, item)
+        if item and item.kind == "agent" and not item.focused and spec.on_delete then
+          spec.on_delete(item.agent)
+        end
+        refresh(picker)
+      end,
+      agent_scope_toggle = function(picker)
+        scope_on = not scope_on
+        refresh(picker)
+      end,
+    },
+    win = {
+      input = {
+        keys = {
+          ["<C-x>"] = { "agent_kill", mode = { "n", "i" } },
+          ["<C-g>"] = { "agent_scope_toggle", mode = { "n", "i" } },
+        },
+      },
+      list = {
+        keys = {
+          ["<C-x>"] = "agent_kill",
+          ["<C-g>"] = "agent_scope_toggle",
+        },
+      },
+      preview = { wo = NO_PREVIEW_LINENR },
+    },
     confirm = function(picker, item)
       picker:close()
       if item then

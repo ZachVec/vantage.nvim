@@ -159,18 +159,50 @@ local function annotation_preview(item)
   return vim.split(Annotation.render_item(item.annotation, M.focused_cwd()), "\n")
 end
 
---- The Agent-list selection spec.
+--- The live scope transform for the Agent list: while a focused Agent is
+--- alive, keep only its Group's Agent rows (Tool rows always stay — they are
+--- creation actions, not Group members); with no focused Agent — or after it
+--- dies mid-picker — keep everything. Re-evaluated on every invocation, so a
+--- refresh, a `<c-x>` kill, and the `<c-g>` toggle all re-scope.
+---@param items table[]
+---@return table[]
+local function agent_scope(items)
+  local focused = Client.last_agent_alive()
+  if not focused then
+    return items
+  end
+  local out = {}
+  for _, item in ipairs(items) do
+    if item.kind ~= "agent" or item.agent.group == focused.group then
+      out[#out + 1] = item
+    end
+  end
+  return out
+end
+
+--- The Agent-list selection spec. `<c-x>` on a non-focused Agent row
+--- (fzf-lua/snacks) kills it through the generic `on_delete` contract; the
+--- picker re-reads `items_provider`, so the killed Agent's row vanishes. The
+--- pinned `(focused)` row ignores `<c-x>` (its confirm is a deliberate no-op;
+--- killing it would drop the client's focus — see the Agent Note). `focused`
+--- is re-resolved per read, so the pin follows the live Agent. The Agent
+--- list opens scoped to the focused Agent's Group by default (fzf-lua/snacks
+--- toggle it with `<c-g>`; native keeps showing everything).
 ---@return vantage.PickSpec
 function M.agent_spec()
   local from_terminal = M.invoked_from_terminal()
-  local focused = from_terminal and Client.last_agent_alive() or nil
   return {
     prompt = PROMPT,
     items_provider = function()
+      local focused = from_terminal and Client.last_agent_alive() or nil
       return agent_items(focused)
     end,
     preview = pane_preview,
     invoked_from_terminal = from_terminal,
+    on_delete = function(agent)
+      Backend.get().kill(agent.target)
+    end,
+    scope = agent_scope,
   }
 end
 
