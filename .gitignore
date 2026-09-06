@@ -3,5 +3,6 @@
 *.tmp
 
 # Local tooling downloaded for checks (not part of the project)
+.tests/
 .tools/
 .worktrees/

@@ -17,6 +17,7 @@ doc/               vim help docs (:h vantage.nvim)
 docs/              architecture + glossary (developer docs)
 .agents/notes/     Agent Notes (proposals and decision records)
 scripts/           repo gates (verify-agent-notes.lua)
+tests/             mini.test specs + test bootstrap
 Makefile           check entrypoint
 stylua.toml        Lua formatting
 ```
@@ -26,10 +27,13 @@ stylua.toml        Lua formatting
 ```sh
 make check            # Agent Note gate + stylua --check when installed
 make notes            # Agent Note gate only (needs only nvim)
+make test             # mini.test + luassert suite (first run installs deps under .tests/)
 stylua --check .      # Lua format check
 ```
 
-There is no test suite or standalone linter wired yet; add one (and its `make` target) before claiming coverage.
+Tests live in `tests/**/*_spec.lua` and run with `make test`; the tmux backend
+specs require tmux and use a private per-run socket. There is no standalone
+linter wired yet; add one before claiming lint coverage.
 
 ## Conventions
 
