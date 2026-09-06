@@ -55,9 +55,6 @@ end
 ---@param after fun(agent: vantage.Agent)
 local function create_with_tool(tool_name, after)
   local tool = Config.options.cli.tools[tool_name]
-  if not tool then
-    return
-  end
   local cmd = table.concat(tool.cmd, " ")
   local picker = Picker.get()
   local function create(group)

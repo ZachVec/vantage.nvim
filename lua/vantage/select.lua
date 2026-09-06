@@ -31,11 +31,11 @@ local PROMPT = Util.picker_prompt
 ---@param agent vantage.Agent
 ---@return string
 local function format_agent(agent)
-  return ("%s · %s · %s"):format(agent.tool or agent.cmd, agent.group, Util.tilde(agent.cwd))
+  return ("%s · %s · %s"):format(agent.tool, agent.group, Util.tilde(agent.cwd))
 end
 
 --- The Agent rows' ascending order: group, absolute cwd, tool name (the
---- `cli.tools` key; `cmd` as the nil fallback), then window id (@N) by
+--- `cli.tools` key), then window id (@N) by
 --- creation order for exact ties.
 ---@param left vantage.Agent
 ---@param right vantage.Agent
@@ -47,8 +47,8 @@ local function agent_order(left, right)
   if left.cwd ~= right.cwd then
     return left.cwd < right.cwd
   end
-  local left_tool = left.tool or left.cmd
-  local right_tool = right.tool or right.cmd
+  local left_tool = left.tool
+  local right_tool = right.tool
   if left_tool ~= right_tool then
     return left_tool < right_tool
   end
@@ -199,8 +199,10 @@ function M.agent_spec()
     end,
     preview = pane_preview,
     invoked_from_terminal = from_terminal,
-    on_delete = function(agent)
-      Backend.get().kill(agent.target)
+    on_delete = function(item)
+      if item.kind == "agent" and not item.focused then
+        Backend.get().kill(item.agent.target)
+      end
     end,
     scope = agent_scope,
   }
@@ -227,8 +229,8 @@ function M.annotation_spec()
     items_provider = annotation_items,
     preview = annotation_preview,
     invoked_from_terminal = M.invoked_from_terminal(),
-    on_delete = function(annotation)
-      Annotation.delete(annotation.buf, annotation.id)
+    on_delete = function(item)
+      Annotation.delete(item.annotation.buf, item.annotation.id)
     end,
   }
 end

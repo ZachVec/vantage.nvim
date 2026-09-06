@@ -83,7 +83,7 @@ function M.pick_agent(spec, on_choice)
   local terminal_win = spec.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
   local function items()
     local all = spec.items_provider()
-    if scope_on and spec.scope then
+    if scope_on then
       return spec.scope(all)
     end
     return all
@@ -111,8 +111,8 @@ function M.pick_agent(spec, on_choice)
     end or nil,
     actions = {
       agent_kill = function(picker, item)
-        if item and item.kind == "agent" and not item.focused and spec.on_delete then
-          spec.on_delete(item.agent)
+        if item and spec.on_delete then
+          spec.on_delete(item)
         end
         refresh(picker)
       end,
@@ -205,8 +205,8 @@ function M.pick_annotation(spec, on_choice)
     end,
     actions = {
       annotation_delete = function(picker, item)
-        if item then
-          spec.on_delete(item.annotation)
+        if item and spec.on_delete then
+          spec.on_delete(item)
         end
         items = spec.items_provider()
         if #items == 0 then

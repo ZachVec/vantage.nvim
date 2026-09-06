@@ -175,12 +175,12 @@ function M.open_win(buffer)
   vim.api.nvim_win_set_buf(0, buffer)
   if layout == "left" or layout == "right" then
     local width = cfg.split.width or 0
-    if width and width > 0 then
+    if width > 0 then
       vim.api.nvim_win_set_width(0, width)
     end
   else
     local height = cfg.split.height or 0
-    if height and height > 0 then
+    if height > 0 then
       vim.api.nvim_win_set_height(0, height)
     end
   end

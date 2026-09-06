@@ -9,7 +9,7 @@
 ---@field target string tmux window id (@N)
 ---@field cmd string
 ---@field cwd string
----@field tool? string the cli.tools key that created it (for the format hook)
+---@field tool string the cli.tools key that created it (for the format hook)
 ---@field state? string
 
 ---@class vantage.Win Terminal window options.
@@ -55,12 +55,12 @@
 ---@field items_provider fun(): table[]
 ---@field preview? fun(item: any): string[]?
 ---@field invoked_from_terminal? boolean
----@field on_delete? fun(value: any) the `<c-x>` in-flight removal action, one
----   per flow: the call site specializes what "remove this row" means (an
----   Annotation is deleted, an Agent is killed), while the picker contract is
----   generic — call it with the current row's domain value, then re-read
----   `items_provider`, refresh in place, and close when nothing remains. Rows
----   with nothing to remove (Tool rows) ignore `<c-x>`.
+---@field on_delete? fun(item: any) the `<c-x>` in-flight removal action: the
+---   call site receives the raw item and decides what "remove this row" means
+---   (an Annotation is deleted, an Agent is killed) — or no-ops for rows with
+---   nothing to remove (Tool rows, the pinned `(focused)` row). The picker stays
+---   generic: it re-reads `items_provider`, refreshes in place, and closes when
+---   nothing remains.
 ---@field scope? fun(items: table[]): table[] the flow's live scope transform:
 ---   applied to freshly read items while the picker's scope toggle is on (the
 ---   default when `scope` exists), re-invoked after every re-read (an

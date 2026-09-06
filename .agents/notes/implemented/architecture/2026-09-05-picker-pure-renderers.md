@@ -48,9 +48,12 @@ Consequences of that boundary:
   synchronous `empty` return) and the caller warns with the flow-specific
   message. The builders normalized to "always return a list, never warn, never
   nil".
-- `on_choice` and `on_delete` receive the **domain value** (target /
-  annotation / choice), extracted by the picker, so each method's result is
-  what its name promises rather than the raw rendered item.
+- `on_choice` receives the **domain value** (target / annotation / choice),
+  extracted by the picker, so the result channel is what its name promises
+  rather than the raw rendered item. `on_delete` receives the **raw item**:
+  the flow's spec decides what "remove this row" means (and no-ops for rows
+  with nothing to remove), so the picker carries no per-flow item-shape
+  knowledge for `<c-x>`.
 - Deleting the last item auto-closes the picker: snacks calls `picker:close()`,
   fzf-lua calls `utils.fzf_exit()`, both after re-reading `items_provider`
   through a cached-items pattern (one re-read per delete, verified against each

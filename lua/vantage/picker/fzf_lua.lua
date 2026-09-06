@@ -41,14 +41,14 @@ end
 ---@param spec vantage.PickSpec
 ---@param extract fun(item: any): any
 ---@param on_choice fun(value: any)
----@param alt? fun(item: any) the c-x removal action; rows with nothing to
----   remove (Tool rows) are ignored by the call site
+---@param alt? fun(item: any) the c-x removal action (`spec.on_delete`); it
+---   receives the raw item and ignores rows with nothing to remove
 ---@return boolean empty
 local function pick_static(spec, extract, on_choice, alt)
   local scope_on = spec.scope ~= nil
   local function read()
     local all = spec.items_provider()
-    if scope_on and spec.scope then
+    if scope_on then
       return spec.scope(all)
     end
     return all
@@ -126,18 +126,9 @@ end
 ---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  return pick_static(
-    spec,
-    function(item)
-      return item
-    end,
-    on_choice,
-    function(item)
-      if item.kind == "agent" and not item.focused and spec.on_delete then
-        spec.on_delete(item.agent)
-      end
-    end
-  )
+  return pick_static(spec, function(item)
+    return item
+  end, on_choice, spec.on_delete)
 end
 
 ---@param spec vantage.PickSpec
@@ -153,16 +144,9 @@ end
 ---@param on_choice fun(annotation: vantage.Annotation)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
-  return pick_static(
-    spec,
-    function(item)
-      return item.annotation
-    end,
-    on_choice,
-    function(item)
-      spec.on_delete(item.annotation)
-    end
-  )
+  return pick_static(spec, function(item)
+    return item.annotation
+  end, on_choice, spec.on_delete)
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own
