@@ -12,7 +12,7 @@ LUA_LS   := $(call find_tool,lua-language-server)
 # nvim holds the default log lock; pin the log to /tmp to keep the repo clean.
 NVIM_RUN = NVIM_LOG_FILE=$(NVIM_LOG) $(NVIM) --headless -u NONE -l
 
-.PHONY: check notes style lint
+.PHONY: check notes style lint test
 
 ## check: Agent Notes + Lua format + Lua diagnostics
 check: notes style lint
@@ -29,3 +29,6 @@ style:
 lint:
 	@if [ -n "$(LUA_LS)" ]; then $(LUA_LS) --check=lua --checklevel=Warning --configpath="$(CURDIR)/.luarc.json"; else echo "note: lua-language-server not installed; skipping Lua diagnostics"; fi
 
+## test: run the mini.test suite (tests/**/*_spec.lua)
+test:
+	@$(NVIM_RUN) tests/minit.lua --minitest

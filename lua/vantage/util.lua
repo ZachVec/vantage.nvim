@@ -39,8 +39,8 @@ end
 ---@param path string
 ---@return string
 function M.tilde(path)
-  local home = vim.fn.getenv("HOME") or ""
-  if home == "" then
+  local home = vim.fn.getenv("HOME")
+  if home == nil or home == vim.NIL or home == "" then
     return path
   end
   if path == home then
