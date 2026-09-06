@@ -145,7 +145,7 @@ function M.list()
         target = target,
         cmd = cmd,
         cwd = cwd,
-        tool = (tool ~= "" and tool) or nil,
+        tool = tool,
         state = (state ~= "" and state) or nil,
       }
     end

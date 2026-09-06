@@ -27,7 +27,8 @@ Shipped removals:
 - `annotation.lua` `M.set_active` drops its `M.get()` re-check (keeps the
   `nvim_buf_is_valid` seam check).
 - `backend/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
-  `M.attach` drops the `target and target ~= ""` guard.
+  `M.attach` drops the `target and target ~= ""` guard; `M.list` drops the
+  `tool ~= ""` empty-check — `tool` is always a non-empty `cli.tools` key.
 - `client.lua` `open_win` drops the `width and` / `height and` re-checks (the
   `or 0` default already made them non-nil).
 - `commands/agent.lua` `create_with_tool` drops `if not tool`; the name is a
@@ -62,12 +63,17 @@ Only `field()` qualified. The other nil returns are "not found / error / cancel
 / N/A", where a default would be semantically false and would not shorten any
 consumer (`if not lines` still guards an optional `spec.preview`).
 
-### Why not strip the `x and y or nil` tails?
+### Why not strip every `x and y or nil` tail?
 
-They are load-bearing: `(tool ~= "" and tool) or nil` turns the `false` produced
-by a falsy boolean `and` into `nil`, matching the `string?`/`integer?`
-annotations. Stripping `or nil` would leak `false` where the contract says
-`nil`.
+Only the boolean-guard ones stay. `tool`'s `(tool ~= "" and tool) or nil` was
+removed because `tool ~= ""` is provably always true — `@agent-tool` is written
+once, at creation, from a sanitized non-empty `cli.tools` key, so the empty
+branch is unreachable. `state`'s `(state ~= "" and state) or nil` stays:
+`@agent-state` has an external writer (`scripts/vantage-status`) and an unset
+state is a real, distinct value that `scripts/vantage-counts` treats as idle.
+The remaining `and … or nil` sites (`select.lua` `focused`, `snacks.lua`
+`terminal_win`) stay too: their condition is a boolean that can be false, and
+`or nil` normalizes `false` to `nil` for the `T?` annotations.
 
 ## Consequences
 
