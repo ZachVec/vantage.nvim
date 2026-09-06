@@ -199,8 +199,10 @@ function M.agent_spec()
     end,
     preview = pane_preview,
     invoked_from_terminal = from_terminal,
-    on_delete = function(agent)
-      Backend.get().kill(agent.target)
+    on_delete = function(item)
+      if item.kind == "agent" and not item.focused then
+        Backend.get().kill(item.agent.target)
+      end
     end,
     scope = agent_scope,
   }
@@ -227,8 +229,8 @@ function M.annotation_spec()
     items_provider = annotation_items,
     preview = annotation_preview,
     invoked_from_terminal = M.invoked_from_terminal(),
-    on_delete = function(annotation)
-      Annotation.delete(annotation.buf, annotation.id)
+    on_delete = function(item)
+      Annotation.delete(item.annotation.buf, item.annotation.id)
     end,
   }
 end
