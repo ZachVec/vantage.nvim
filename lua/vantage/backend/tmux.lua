@@ -175,10 +175,6 @@ end
 ---@param opts { group: string, cmd: string, cwd: string, tool: string }
 ---@return vantage.Agent?
 function M.create(opts)
-  if opts.tool == nil or opts.tool == "" then
-    Util.notify("cannot create an agent without a tool (cli.tools key)")
-    return nil
-  end
   local running = M.ensure_server()
   local views = running and M.group_views(opts.group) or {}
 
@@ -303,9 +299,7 @@ function M.attach(group, target)
     return nil
   end
   exec("set-option", "-t", view, "@vantage-view", "1")
-  if target and target ~= "" then
-    exec("select-window", "-t", view .. ":" .. target)
-  end
+  exec("select-window", "-t", view .. ":" .. target)
   return view
 end
 
