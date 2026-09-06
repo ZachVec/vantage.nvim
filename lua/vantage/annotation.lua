@@ -84,7 +84,7 @@ end
 ---@return vantage.Annotation?
 function M.get(buf, id)
   local by_id = registry[buf]
-  return by_id and by_id[id] or nil
+  return by_id and by_id[id]
 end
 
 --- Replace an annotation's note text.
@@ -158,8 +158,7 @@ end
 ---@param id integer
 ---@param active boolean
 function M.set_active(buf, id, active)
-  local annotation = M.get(buf, id)
-  if not annotation or not vim.api.nvim_buf_is_valid(buf) then
+  if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
   local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, id, {})
@@ -195,7 +194,7 @@ end
 ---@param annotation vantage.Annotation
 ---@param name string
 ---@param cwd string
----@return string?
+---@return string
 local function field(annotation, name, cwd)
   local path = vim.api.nvim_buf_get_name(annotation.buf) or ""
   if name == "note" then
@@ -213,6 +212,7 @@ local function field(annotation, name, cwd)
   elseif name == "end" then
     return tostring(annotation.end_row)
   end
+  return "" -- unknown name: unreachable from whitelisted callers
 end
 
 ---@param annotation vantage.Annotation
@@ -225,7 +225,7 @@ local function render_item(annotation, template, cwd)
       if not FIELDS[name] then
         return "{" .. name .. "}" -- unknown: left literal
       end
-      return field(annotation, name, cwd) or ""
+      return field(annotation, name, cwd)
     end)
   )
 end
@@ -244,7 +244,7 @@ end
 ---@param cwd string
 ---@return string
 function M.location(annotation, cwd)
-  return field(annotation, "lines", cwd) or ""
+  return field(annotation, "lines", cwd)
 end
 
 --- Render every annotation through the configured `item` template into one
