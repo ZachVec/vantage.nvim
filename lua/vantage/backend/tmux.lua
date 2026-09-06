@@ -21,6 +21,20 @@ local function socket()
   return Config.options.socket
 end
 
+--- The repo's scripts/ directory (this file is loaded from
+--- <repo>/lua/vantage/backend/tmux.lua; four dirnames up: backend -> vantage
+--- -> lua -> repo root). Used to call scripts/vantage-counts from a tmux #()
+--- substitution: tmux runs #() with the server's environment, where the
+--- scripts are not on PATH.
+---@return string
+local function scripts_dir()
+  local src = debug.getinfo(1, "S").source
+  if src:sub(1, 1) == "@" then
+    src = src:sub(2)
+  end
+  return vim.fs.joinpath(vim.fn.fnamemodify(src, ":p:h:h:h:h"), "scripts")
+end
+
 --- Run a tmux command; returns exit code.
 local function run(...)
   return Util.run({ "tmux", "-L", socket(), ... })
@@ -67,6 +81,20 @@ local function apply_global_config()
   exec("set", "-g", "focus-events", "on")
   -- No tmux status line: the terminal is the raw agent prompt.
   exec("set", "-g", "status", "off")
+  -- Agent info in the pane's top border: Group · Tool · cwd · per-Group State
+  -- counts, padded with a leading/trailing space so it never touches the
+  -- border lines. Group/Tool/Cwd are explicit create-time window options
+  -- (Tool and Cwd are required fields, so none of the three can be empty);
+  -- the counts are computed read-only per status tick by
+  -- scripts/vantage-counts inside a #() substitution — never stored, zero
+  -- buckets skipped, unset State counts as idle. The command string embeds
+  -- the expanded #{@agent-group}, so tmux dedupes it to one small process
+  -- per Group per tick.
+  exec("set", "-g", "status-interval", "1")
+  exec("set", "-g", "pane-border-status", "top")
+  local counts = ('#("%s/vantage-counts" -L %s #{@agent-group})'):format(scripts_dir(), socket())
+  local border_format = (" #{@agent-group} · #{@agent-tool} · #{@agent-cwd-tilde}%s "):format(counts)
+  exec("set", "-g", "pane-border-format", border_format)
 end
 
 --- Ensure the server is configured. Returns true if it is running (a session
@@ -97,11 +125,10 @@ end
 function M.list()
   M.ensure_server()
   local format_fields = table.concat({
-    "#{?#{session_group},#{session_group},#{session_name}}", -- group
+    "#{@agent-group}", -- group (explicit window data; never derived from session topology)
     "#{window_id}", -- target (@N)
     "#{@agent-cmd}",
     "#{@agent-cwd}",
-    "#{@agent-name}",
     "#{@agent-tool}",
     "#{@agent-state}",
   }, "\t")
@@ -109,8 +136,8 @@ function M.list()
   local seen = {}
   local agents = {}
   for _, line in ipairs(lines) do
-    local group, target, cmd, cwd, name, tool, state =
-      line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
+    local group, target, cmd, cwd, tool, state =
+      line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([^\t]*)$")
     if group ~= "" and target ~= "" and not seen[target] then
       seen[target] = true
       agents[#agents + 1] = {
@@ -118,7 +145,6 @@ function M.list()
         target = target,
         cmd = cmd,
         cwd = cwd,
-        name = name,
         tool = (tool ~= "" and tool) or nil,
         state = (state ~= "" and state) or nil,
       }
@@ -146,19 +172,21 @@ function M.groups()
 end
 
 --- Create an Agent in a Group, creating the Group if it does not exist.
----@param opts { group: string, cmd: string, cwd: string, name?: string, tool?: string }
+---@param opts { group: string, cmd: string, cwd: string, tool: string }
 ---@return vantage.Agent?
 function M.create(opts)
+  if opts.tool == nil or opts.tool == "" then
+    Util.notify("cannot create an agent without a tool (cli.tools key)")
+    return nil
+  end
   local running = M.ensure_server()
-  local name = opts.name or ("agent-" .. os.time())
   local views = running and M.group_views(opts.group) or {}
 
   local window_id
   if #views > 0 then
-    window_id =
-      exec_out("new-window", "-d", "-P", "-F", "#{window_id}", "-t", views[1], "-n", name, "-c", opts.cwd, opts.cmd)
+    window_id = exec_out("new-window", "-d", "-P", "-F", "#{window_id}", "-t", views[1], "-c", opts.cwd, opts.cmd)
   else
-    exec("new-session", "-d", "-s", opts.group, "-n", name, "-c", opts.cwd, opts.cmd)
+    exec("new-session", "-d", "-s", opts.group, "-c", opts.cwd, opts.cmd)
     apply_global_config() -- the new-session just started the server
     window_id = exec_out("display", "-p", "-t", opts.group, "#{window_id}")
   end
@@ -168,19 +196,25 @@ function M.create(opts)
     return nil
   end
 
+  exec("set-window-option", "-t", window_id, "@agent-group", opts.group)
   exec("set-window-option", "-t", window_id, "@agent-cmd", opts.cmd)
   exec("set-window-option", "-t", window_id, "@agent-cwd", opts.cwd)
-  exec("set-window-option", "-t", window_id, "@agent-name", name)
-  exec("set-window-option", "-t", window_id, "@agent-tool", opts.tool or "")
+  -- Display form of the cwd for the pane border (static: an Agent's working
+  -- directory does not change; tilde-izing once here avoids a runtime #()
+  -- process in the border format).
+  exec("set-window-option", "-t", window_id, "@agent-cwd-tilde", Util.tilde(opts.cwd))
+  exec("set-window-option", "-t", window_id, "@agent-tool", opts.tool)
+  -- A fresh Agent starts idle; the lifecycle scripts replace it on the first
+  -- transition (no backfill: only external tampering can leave it unset).
+  exec("set-window-option", "-t", window_id, "@agent-state", "idle")
 
   return {
     group = opts.group,
     target = window_id,
     cmd = opts.cmd,
     cwd = opts.cwd,
-    name = name,
-    tool = (opts.tool and opts.tool ~= "") and opts.tool or nil,
-    state = nil,
+    tool = opts.tool,
+    state = "idle",
   }
 end
 

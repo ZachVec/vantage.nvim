@@ -6,14 +6,14 @@ Terminology lives in the [glossary](glossary.md); this file describes how the pi
 
 ## The tmux substrate
 
-tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI. The plugin drives a private socket (`tmux -L <socket>`, default `vantage`) and keeps all domain state in tmux objects — session groups, windows, and window options (`@agent-cmd`, `@agent-cwd`, `@agent-name`). Global tmux config (a `client-detached` hook, history limit, no status line) is applied idempotently once the server is running.
+tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI. The plugin drives a private socket (`tmux -L <socket>`, default `vantage`) and keeps all domain state in tmux objects — session groups, windows, and window options (`@agent-group`, `@agent-cmd`, `@agent-cwd`, `@agent-tool`, `@agent-state`). Global tmux config (a `client-detached` hook, history limit, no status line; a 1-second status interval and a top pane border whose format shows `Group · Tool · cwd` plus per-Group State counts — the identity segments from explicit create-time window options (`@agent-group`, `@agent-tool`, `@agent-cwd-tilde`; Tool and Cwd are required fields, so no conditional), the counts computed read-only per tick by `scripts/vantage-counts` via `#()`, deduplicated to one run per Group) is applied idempotently once the server is running.
 
 ## Domain model over tmux
 
 The [domain terms](glossary.md) map onto tmux objects:
 
 - A **Group** is a tmux *session group*: one persistent **Anchor** session owns the Agents, plus transient **Views** grouped with it. The Anchor keeps the Group alive even when no View is attached; a Group is destroyed only by `kill <group>`.
-- An **Agent** is a tmux window marked with `@agent-cmd` / `@agent-cwd` / `@agent-name`, shared across the Group's Views.
+- An **Agent** is a tmux window marked with `@agent-group` / `@agent-cmd` / `@agent-cwd` / `@agent-tool` / `@agent-state`, shared across the Group's Views.
 - A **View** is a transient session marked `@vantage-view 1`; a global `client-detached` hook destroys a View when its client detaches, and the driver destroys it when the client re-targets into another Group, so Views never accumulate. When all of a Group's Agents die, the Anchor and every View die with it.
 
 Creating the first Agent uses `new-session` (which also starts the server and applies config); later Agents use `new-window -t <view>` to join the existing group. Attach creates a new grouped session and re-targets it at the chosen window.

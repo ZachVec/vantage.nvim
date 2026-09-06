@@ -46,6 +46,24 @@ local function check_prompts()
   end
 end
 
+--- Validate the cli.tools configuration. Invalid entries (empty name, or a
+--- value without a non-empty `cmd` array) are dropped at setup with a
+--- warning; this check surfaces what was dropped.
+local function check_tools()
+  local config = require("vantage.config")
+  local dropped = config.dropped_tools
+  if next(dropped) ~= nil then
+    local lines = {}
+    for name, reason in pairs(dropped) do
+      lines[#lines + 1] = ("'%s' (%s)"):format(name, reason)
+    end
+    table.sort(lines)
+    err(("cli.tools: dropped invalid entries: %s"):format(table.concat(lines, ", ")))
+  else
+    ok("cli.tools: no invalid entries (non-empty name + non-empty cmd)")
+  end
+end
+
 function M.check()
   start("vantage")
 
@@ -83,6 +101,7 @@ function M.check()
     end
   end
 
+  check_tools()
   check_prompts()
 end
 

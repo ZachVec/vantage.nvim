@@ -86,6 +86,12 @@ winbar, or border. If the terminal's cursor flickers for you, use
 `layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
 fractions of the editor area (0 < v <= 1).
 
+The Agent pane shows a thin tmux top border with the Group, the Agent's
+tool, its working directory — absolute path, `~` for the home prefix — and
+the Group's State counts (running / background / waiting / idle / error,
+non-zero buckets only, shown as Nerd Font icons). It refreshes about once a
+second.
+
 `cli.tools` is empty by default — provide every tool yourself, e.g.:
 
 ```lua
@@ -96,7 +102,9 @@ tools = {
 ```
 
 `tools.<name>.cmd` is run verbatim when creating an Agent (it may include
-arguments); nothing is built in or validated. An Agent's working directory is
+arguments); nothing is built in. A tool entry needs a non-empty name and a
+non-empty `cmd` array — invalid entries are dropped at setup with a warning
+and listed by `:checkhealth vantage`. An Agent's working directory is
 the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 `create --cwd <dir>`. A tool may also carry a `format` function
 (`fun(text): string`), applied to a rendered prompt just before it is sent.

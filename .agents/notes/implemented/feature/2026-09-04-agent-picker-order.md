@@ -108,9 +108,9 @@ of state.
 
 ### Why break ties by window id and not by name?
 
-`agent.name` is a timestamped default (`agent-<time>`) that can collide
-within one second and says nothing about the user's intent; `@N` is
-monotonic with creation, unique, and already the storage key.
+Name-based ties would fall back on tmux's automatic window names, which can
+collide and say nothing about the user's intent; `@N` is monotonic with
+creation, unique, and already the storage key.
 
 ## Consequences
 
