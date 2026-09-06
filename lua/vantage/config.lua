@@ -9,7 +9,6 @@
 ---@field target string tmux window id (@N)
 ---@field cmd string
 ---@field cwd string
----@field name string
 ---@field tool? string the cli.tools key that created it (for the format hook)
 ---@field state? string
 
@@ -86,6 +85,8 @@
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}
+
+local Util = require("vantage.util")
 
 ---@type vantage.Config
 local defaults = {
@@ -175,6 +176,39 @@ local defaults = {
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
+--- Invalid cli.tools entries dropped by the last setup() run (name -> reason),
+--- surfaced by :checkhealth.
+---@type table<string, string>
+M.dropped_tools = {}
+
+--- Validate a cli.tools table in place: drop invalid entries, recording each
+--- in `dropped`. An entry is valid when its name is non-empty and its value
+--- is a table with a non-empty `cmd` array. This is what keeps create()'s
+--- Tool-required contract (and the pane border's unconditional @agent-tool)
+--- honest.
+---@param tools table<string, vantage.Tool>
+---@param dropped? table<string, string> records name -> reason for each dropped entry
+---@return table<string, vantage.Tool> the same table, invalid entries removed
+function M.sanitize_tools(tools, dropped)
+  for name, tool in pairs(tools) do
+    local reason
+    if name == "" then
+      reason = "empty name"
+    elseif type(tool) ~= "table" then
+      reason = "value is not a table"
+    elseif type(tool.cmd) ~= "table" or #tool.cmd == 0 then
+      reason = "cmd is missing or empty"
+    end
+    if reason then
+      if dropped then
+        dropped[name] = reason
+      end
+      tools[name] = nil
+    end
+  end
+  return tools
+end
+
 --- Monotonic stamp for the most-recently-visited window, read by prompt.lua.
 local visit_counter = 0
 
@@ -194,6 +228,12 @@ end
 ---@param opts? vantage.Config
 function M.setup(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+  local dropped = {}
+  M.sanitize_tools(M.options.cli.tools, dropped)
+  M.dropped_tools = dropped
+  for name, reason in pairs(dropped) do
+    Util.warn(("dropping invalid cli.tools entry '%s' (%s)"):format(name, reason))
+  end
   M.track_window_visits()
   require("vantage.annotation").setup()
 

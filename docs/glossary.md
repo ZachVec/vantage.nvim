@@ -29,7 +29,7 @@ _Avoid_: repo, directory
 
 ## State
 
-A transient status of an Agent (done, waiting-for-confirmation, …). Not yet surfaced; the plugin leaves room for it.
+A transient condition of an Agent drawn from a fixed vocabulary of five: `running`, `background`, `waiting`, `idle`, `error`. Written as `idle` by the Backend when an Agent is created, then replaced on each transition by the Agent's lifecycle scripts as a full-value window option (never read-modify-write); the plugin aggregates States per Group read-only into the pane border's counts segment.
 _Avoid_: status
 
 ## Backend

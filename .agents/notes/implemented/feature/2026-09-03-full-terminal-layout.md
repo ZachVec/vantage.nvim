@@ -32,15 +32,17 @@ per-frame cursor redraw that caused the flicker cannot occur. The split
 layouts (`left | top | bottom | right`) are unchanged for users who want the
 terminal alongside the current window.
 
-`retitle()` in `lua/vantage/client.lua` names the terminal buffer on every
-focus: `<tool> · <cwd>`, tool first (e.g. `claude · /home/zach/vantage`),
-falling back from `agent.tool` to `agent.name` to `vantage`, and dropping the
-`· <cwd>` suffix when the Agent has no working directory. The tab label and
-winbar then show the focused Agent instead of `[No Name]`. It runs on both
-focus paths: re-targeting an already-attached Client and attaching a fresh
-one. The rename is per-focus only — nothing polls or mirrors `@agent-state`
-for the title; that state is written by the Agent tool's external callback
-script, and a dynamic title over it was explicitly deferred.
+Agent info is no longer carried by the terminal buffer name: `retitle()` in
+`lua/vantage/client.lua` was removed — see the [tmux pane border
+note](../../feature/2026-09-06-tmux-pane-status.md) — and the buffer keeps
+Neovim's default name. The focused Agent's Tool, cwd, and per-Group State
+counts now show in the pane's top tmux border instead. While it existed, it
+named the buffer `<tool> · <cwd>` (tool first, e.g. `claude ·
+/home/zach/vantage`, falling back to `vantage`, dropping the `· <cwd>` suffix
+when the Agent had no working
+directory) on both focus paths — re-targeting an already-attached Client and
+attaching a fresh one — per-focus only, never polling or mirroring
+`@agent-state` for the title.
 
 ## Alternatives considered
 
@@ -74,7 +76,10 @@ window without overpromising a fullscreen mode.
 A live title would have to track `@agent-state`, which is written by the Agent
 tool's external callback script — a new polling or mirroring mechanism over an
 external write path. Deferred: the name already updates whenever the user
-switches the terminal to another Agent, which is when the title matters.
+switches the terminal to another Agent, which is when the title matters. The
+deferred surface later moved out of Neovim entirely — the [tmux pane border
+note](../../feature/2026-09-06-tmux-pane-status.md) surfaces `@agent-state`
+through per-tick read-only aggregation instead of mirroring it in the client.
 
 ## Consequences
 
@@ -93,8 +98,10 @@ switches the terminal to another Agent, which is when the title matters.
   an empty buffer instead, per the pre-existing single-window rule). The
   buffer and tmux client survive, so the next `show` reopens the same terminal
   in a fresh dedicated tab.
-- The buffer name can go stale only if an Agent's working directory changes
-  between focuses; it never claims to track live Agent state.
+- The terminal buffer name no longer carries Agent info (see the [tmux pane
+  border note](../../feature/2026-09-06-tmux-pane-status.md)); the pane
+  border's cwd is live (`pane_current_path`) and its State counts re-derive
+  per tick, so the display never mirrors cached state.
 - The Client stays the single re-targeted terminal of the
   [single-Client-terminal decision](../architecture/2026-08-31-single-terminal-frontend.md);
   this note only decides how that one window is presented and named.

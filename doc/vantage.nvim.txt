@@ -89,11 +89,19 @@ winbar, or border. If the terminal's cursor flickers for you, use
 `layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
 fractions of the editor area (0 < v <= 1).
 
+The Agent pane draws a top tmux border showing the Group, the Agent's Tool,
+its working directory — absolute path, `~` for the home prefix — and the
+Group's State counts (running / background / waiting / idle / error, non-zero
+buckets only, shown as Nerd Font icons). It refreshes about once a second,
+is always on and not configurable.
+
 `cli.tools` is empty by default — provide every tool yourself, e.g. `tools = {
 claude = { cmd = { "claude" } } }`. `tools.<name>.cmd` is run verbatim when
 creating an Agent; it may include arguments, e.g.
-`{ cmd = { "claude", "--dangerously-skip-permissions" } }`. Nothing is built in
-or validated. A tool may also carry a `format` function
+`{ cmd = { "claude", "--dangerously-skip-permissions" } }`. Nothing is built
+in. A tool entry needs a non-empty name and a non-empty `cmd` array — invalid
+entries are dropped at setup with a warning and listed by `:checkhealth
+vantage`. A tool may also carry a `format` function
 (`fun(text): string`), applied to a rendered prompt just before it is sent to
 the Agent — e.g. to translate the Claude-dialect location references for
 another tool.
@@ -316,6 +324,13 @@ View ~
     detaches the client, the client-detached hook destroys the View, and the
     Agents keep running. Switching the client into another Group destroys its
     old View there (a fresh View is created in the destination Group).
+
+State ~
+    A transient condition of an Agent — running, background, waiting, idle,
+    error (a fixed vocabulary). Written by the Agent's lifecycle scripts
+    (`scripts/vantage-status` is the manual trigger and calling convention)
+    and aggregated per Group by the plugin's counting scripts; an Agent that
+    has not reported yet counts as idle.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

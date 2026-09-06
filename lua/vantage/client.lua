@@ -282,21 +282,6 @@ function M.attach_terminal(view)
   return true
 end
 
---- Name the terminal buffer after the focused Agent's tool and its working
---- directory, so tabs and winbars show a meaningful title instead of an empty
---- scratch name.
-local function retitle()
-  local agent = M.last_agent
-  if not agent or not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
-    return
-  end
-  local title = agent.tool or agent.name or "vantage"
-  if agent.cwd and agent.cwd ~= "" then
-    title = title .. " · " .. agent.cwd
-  end
-  vim.api.nvim_buf_set_name(M.buffer, title)
-end
-
 --- Focus an Agent: re-target the existing terminal, or attach a new one.
 ---@param agent vantage.Agent
 ---@return boolean
@@ -311,7 +296,6 @@ function M.focus(agent)
       return false
     end
     M.view = view
-    retitle()
     return M.show()
   end
 
@@ -320,7 +304,6 @@ function M.focus(agent)
     return false
   end
   local ok = M.attach_terminal(view)
-  retitle()
   return ok
 end
 
@@ -341,7 +324,6 @@ function M.retarget(agent)
     return false
   end
   M.view = view
-  retitle()
   return true
 end
 

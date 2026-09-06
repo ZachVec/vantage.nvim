@@ -68,6 +68,7 @@ future ask.
   with its facts updated (the default it recorded was itself changed, in this
   same change, before any release); the
   [full-terminal-layout note](2026-09-03-full-terminal-layout.md) stays active
-  carrying the flicker rationale and the retitle decision — its "full is the
-  default" phrasing is superseded and cross-linked here, its retitle decision
-  is not.
+  carrying the flicker rationale — its "full is the default" phrasing is
+  superseded and cross-linked here, and its retitle decision is superseded by
+  the [tmux pane border
+  note](2026-09-06-tmux-pane-status.md).

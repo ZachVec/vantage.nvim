@@ -12,7 +12,7 @@ The domain maps onto tmux session groups:
 
 - **Group** = a tmux session group, derived from its agents.
 - **Anchor** = the one persistent session that owns the agents; it is never marked and never auto-destroyed, so the group stays alive headless.
-- **Agent** = a tmux window in the Anchor, marked with `@agent-cmd` / `@agent-cwd` / `@agent-name`.
+- **Agent** = a tmux window in the Anchor, marked with `@agent-cmd` / `@agent-cwd` / `@agent-tool`.
 - **View** = a transient session grouped with the Anchor, marked `@vantage-view 1`; a global `client-detached` hook kills a View when its client detaches, so Views never accumulate.
 
 Creating the first agent uses `new-session` (which also starts the server and applies config); later agents use `new-window -t <view>` so they join the existing group. Attach creates a new grouped session and re-targets it at the chosen window.
