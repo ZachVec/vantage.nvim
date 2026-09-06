@@ -7,6 +7,59 @@ describe("vantage.util", function()
     assert.are.equal(vim.fn.nr2char(0xF105), Util.picker_prompt)
   end)
 
+  describe("interpolate", function()
+    local allowed = { name = true, file = true }
+
+    it("renders known placeholders and leaves unknown ones literal", function()
+      local rendered, failed = Util.interpolate("hello {name} {file} {bogus}", allowed, function(key)
+        if key == "name" then
+          return "zach"
+        end
+        return "a.lua"
+      end)
+      assert.are.equal("hello zach a.lua {bogus}", rendered)
+      assert.are.equal(nil, failed)
+    end)
+
+    it("returns the failing placeholder when a resolver yields nil", function()
+      local rendered, failed = Util.interpolate("see {name}", allowed, function()
+        return nil
+      end)
+      assert.are.equal(nil, rendered)
+      assert.are.equal("name", failed)
+    end)
+  end)
+
+  describe("agent_window_index", function()
+    it("parses tmux window targets numerically", function()
+      assert.are.equal(2, Util.agent_window_index("@2"))
+      assert.are.equal(10, Util.agent_window_index("@10"))
+    end)
+
+    it("degrades malformed targets to zero", function()
+      assert.are.equal(0, Util.agent_window_index("@bad"))
+      assert.are.equal(0, Util.agent_window_index(""))
+    end)
+  end)
+
+  describe("shell_quote", function()
+    it("quotes empty strings as a standalone empty argument", function()
+      assert.are.equal("''", Util.shell_quote(""))
+    end)
+
+    it("single-quotes ordinary arguments", function()
+      assert.are.equal("'claude'", Util.shell_quote("claude"))
+    end)
+
+    it("escapes embedded single quotes for POSIX sh", function()
+      assert.are.equal("'a'\\''b'", Util.shell_quote("a'b"))
+    end)
+
+    it("joins an argv array with preserved argument boundaries", function()
+      assert.are.equal("'sh' '-c' 'echo hello world'", Util.shell_join({ "sh", "-c", "echo hello world" }))
+    end)
+  end)
+
   describe("relpath", function()
     it("relativizes paths below cwd", function()
       assert.are.equal("src/a.lua", Util.relpath("/proj", "/proj/src/a.lua"))

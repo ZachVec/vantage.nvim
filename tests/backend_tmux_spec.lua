@@ -114,6 +114,15 @@ describe("vantage.backend.tmux", function()
     assert.is_true(find_agent(first.target) ~= nil)
   end)
 
+  it("snapshot returns agents and derived groups from one inventory read", function()
+    create("g-snap-a", "codex")
+    create("g-snap-b", "claude")
+
+    local snapshot = Backend.snapshot()
+    assert.are.equal(2, #snapshot.agents)
+    assert.are.same({ "g-snap-a", "g-snap-b" }, snapshot.groups)
+  end)
+
   it("captures recent pane output", function()
     local agent = create("g-capture", "codex", "printf 'READY\\n'; exec sleep 300")
     assert.are.equal(

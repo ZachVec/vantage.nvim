@@ -96,8 +96,9 @@ buckets only, shown as Nerd Font icons). It refreshes about once a second,
 is always on and not configurable.
 
 `cli.tools` is empty by default — provide every tool yourself, e.g. `tools = {
-claude = { cmd = { "claude" } } }`. `tools.<name>.cmd` is run verbatim when
-creating an Agent; it may include arguments, e.g.
+claude = { cmd = { "claude" } } }`. `tools.<name>.cmd` is an argv array: each
+element is shell-quoted before the Agent's shell runs it, so arguments keep
+their boundaries. It may include arguments, e.g.
 `{ cmd = { "claude", "--dangerously-skip-permissions" } }`. Nothing is built
 in. A tool entry needs a non-empty name and a non-empty `cmd` array — invalid
 entries are dropped at setup with a warning and listed by `:checkhealth
@@ -143,7 +144,7 @@ Examples: >
 <
 
 The Agent's working directory is the current window's local cwd (respects
-`:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
+`:lcd` / `:tcd`).
 
 ANNOTATIONS ~
 

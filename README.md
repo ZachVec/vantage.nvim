@@ -97,12 +97,13 @@ tools = {
 }
 ```
 
-`tools.<name>.cmd` is run verbatim when creating an Agent (it may include
-arguments); nothing is built in. A tool entry needs a non-empty name and a
-non-empty `cmd` array — invalid entries are dropped at setup with a warning
+`tools.<name>.cmd` is an argv array: each element is shell-quoted before the
+Agent's shell runs it, so arguments keep their boundaries. Nothing is built
+in. A tool entry needs a non-empty name and a non-empty `cmd` array — invalid
+entries are dropped at setup with a warning
 and listed by `:checkhealth vantage`. An Agent's working directory is
-the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
-`create --cwd <dir>`. A tool may also carry a `format` function
+the current window's local cwd (respects `:lcd`/`:tcd`). A tool may also
+carry a `format` function
 (`fun(text): string`), applied to a rendered prompt just before it is sent.
 
 ### Prompt templates
@@ -260,4 +261,3 @@ terminal):
 ```lua
 vim.keymap.set("n", "<leader>vt", "<cmd>Vantage toggle<CR>", { desc = "Toggle Vantage" })
 ```
-

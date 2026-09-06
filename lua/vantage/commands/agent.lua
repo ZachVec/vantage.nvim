@@ -46,7 +46,7 @@ end
 ---@param from_terminal boolean
 local function create_with_tool(tool_name, after, from_terminal)
   local tool = Config.options.cli.tools[tool_name]
-  local cmd = table.concat(tool.cmd, " ")
+  local cmd = Util.shell_join(tool.cmd)
   local picker = Picker.get()
   local function create(group)
     do_create(group, tool_name, cmd, Util.cwd(), after)

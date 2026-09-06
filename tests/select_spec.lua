@@ -56,6 +56,12 @@ describe("vantage.select", function()
     function backend.groups()
       return backend.groups_values or backend.groups
     end
+    function backend.snapshot()
+      return {
+        agents = backend.agents,
+        groups = backend.groups_values or backend.groups,
+      }
+    end
     function backend.capture_pane(target)
       backend.captured[#backend.captured + 1] = target
       return { "line" }

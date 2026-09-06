@@ -23,6 +23,13 @@ local function pick(opts)
   return require("snacks.picker").pick(opts)
 end
 
+---@class vantage.SnacksRenderOpts Internal renderer options for the snacks picker.
+---@field dynamic boolean
+---@field extract fun(item: any): any
+---@field on_choice fun(value: any)
+---@field delete_action? string
+---@field scope_action? string
+
 --- Preview the current item's content (pane lines or rendered annotation)
 --- through the spec's preview thunk; nil means "nothing to preview".
 ---@param spec vantage.PickSpec
@@ -75,162 +82,140 @@ local function restore_terminal_mode(terminal_win)
   end)
 end
 
+--- The shared snacks renderer for the three preview-capable picks. Public
+--- methods keep their distinct result types; this helper owns only the
+--- engine-specific presentation and live-list/refresh machinery.
 ---@param spec vantage.PickSpec
----@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@param opts vantage.SnacksRenderOpts
 ---@return boolean empty
-function M.pick_agent(spec, on_choice)
-  local scope_on = spec.scope ~= nil
+local function render(spec, opts)
+  local scope_on = opts.scope_action ~= nil and spec.scope ~= nil
   local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
-  local function items()
+
+  local function read()
     local all = spec.items_provider()
     if scope_on then
       return spec.scope(all)
     end
     return all
   end
-  local list = items()
+
+  local list = read()
   if #list == 0 then
     return true
   end
+
   local function refresh(picker)
-    list = items()
+    list = read()
     if #list == 0 then
       picker:close()
     else
       picker:refresh()
     end
   end
-  pick({
-    finder = function()
-      return list
-    end,
+
+  local pick_opts = {
     format = "text",
     preview = preview(spec),
     on_close = spec.from_terminal and function()
       restore_terminal_mode(terminal_win)
     end or nil,
-    actions = {
-      agent_kill = function(picker, item)
-        if item and spec.on_delete then
-          spec.on_delete(item)
-        end
-        refresh(picker)
-      end,
-      agent_scope_toggle = function(picker)
-        scope_on = not scope_on
-        refresh(picker)
-      end,
-    },
-    win = {
-      input = {
-        keys = {
-          ["<C-x>"] = { "agent_kill", mode = { "n", "i" } },
-          ["<C-g>"] = { "agent_scope_toggle", mode = { "n", "i" } },
-        },
-      },
-      list = {
-        keys = {
-          ["<C-x>"] = "agent_kill",
-          ["<C-g>"] = "agent_scope_toggle",
-        },
-      },
-      preview = { wo = NO_PREVIEW_LINENR },
-    },
     confirm = function(picker, item)
       picker:close()
       if item then
         vim.schedule(function()
-          on_choice(item)
+          opts.on_choice(opts.extract(item))
         end)
       end
     end,
-  })
+  }
+
+  if opts.dynamic then
+    pick_opts.finder = function()
+      return list
+    end
+  else
+    pick_opts.items = list
+  end
+
+  local actions = {}
+  if opts.delete_action then
+    actions[opts.delete_action] = function(picker, item)
+      if item and spec.on_delete then
+        spec.on_delete(item)
+      end
+      refresh(picker)
+    end
+  end
+  if opts.scope_action then
+    actions[opts.scope_action] = function(picker)
+      scope_on = not scope_on
+      refresh(picker)
+    end
+  end
+  if next(actions) ~= nil then
+    pick_opts.actions = actions
+  end
+
+  local win = { preview = { wo = NO_PREVIEW_LINENR } }
+  if opts.delete_action or opts.scope_action then
+    win.input = { keys = {} }
+    win.list = { keys = {} }
+  end
+  if opts.delete_action then
+    win.input.keys["<C-x>"] = { opts.delete_action, mode = { "n", "i" } }
+    win.list.keys["<C-x>"] = opts.delete_action
+  end
+  if opts.scope_action then
+    win.input.keys["<C-g>"] = { opts.scope_action, mode = { "n", "i" } }
+    win.list.keys["<C-g>"] = opts.scope_action
+  end
+  pick_opts.win = win
+
+  pick(pick_opts)
   return false
+end
+
+---@param spec vantage.PickSpec
+---@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@return boolean empty
+function M.pick_agent(spec, on_choice)
+  return render(spec, {
+    dynamic = true,
+    extract = function(item)
+      return item
+    end,
+    on_choice = on_choice,
+    delete_action = "agent_kill",
+    scope_action = "agent_scope_toggle",
+  })
 end
 
 ---@param spec vantage.PickSpec
 ---@param on_choice fun(target: string)
 ---@return boolean empty
 function M.pick_kill(spec, on_choice)
-  local items = spec.items_provider()
-  if #items == 0 then
-    return true
-  end
-  local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
-  pick({
-    items = items,
-    format = "text",
-    preview = preview(spec),
-    on_close = spec.from_terminal and function()
-      restore_terminal_mode(terminal_win)
-    end or nil,
-    win = { preview = { wo = NO_PREVIEW_LINENR } },
-    confirm = function(picker, item)
-      picker:close()
-      if item then
-        vim.schedule(function()
-          on_choice(item.target)
-        end)
-      end
+  return render(spec, {
+    dynamic = false,
+    extract = function(item)
+      return item.target
     end,
+    on_choice = on_choice,
   })
-  return false
 end
 
 ---@param spec vantage.PickSpec
 ---@param on_choice fun(annotation: vantage.Annotation)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
-  local items = spec.items_provider()
-  if #items == 0 then
-    return true
-  end
-  local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
-  pick({
-    finder = function()
-      return items
+  return render(spec, {
+    dynamic = true,
+    extract = function(item)
+      return item.annotation
     end,
-    format = "text",
-    preview = preview(spec),
-    on_close = spec.from_terminal and function()
-      restore_terminal_mode(terminal_win)
-    end or nil,
-    confirm = function(picker, item)
-      picker:close()
-      if item then
-        vim.schedule(function()
-          on_choice(item.annotation)
-        end)
-      end
-    end,
-    actions = {
-      annotation_delete = function(picker, item)
-        if item and spec.on_delete then
-          spec.on_delete(item)
-        end
-        items = spec.items_provider()
-        if #items == 0 then
-          picker:close()
-        else
-          picker:refresh()
-        end
-      end,
-    },
-    win = {
-      input = {
-        keys = {
-          ["<C-x>"] = { "annotation_delete", mode = { "n", "i" } },
-        },
-      },
-      list = {
-        keys = {
-          ["<C-x>"] = "annotation_delete",
-        },
-      },
-      preview = { wo = NO_PREVIEW_LINENR },
-    },
+    on_choice = on_choice,
+    delete_action = "annotation_delete",
   })
-  return false
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select

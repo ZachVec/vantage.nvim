@@ -187,22 +187,9 @@ local resolvers = {
 ---@return string? rendered line, nil when a placeholder resolved empty
 ---@return string? the placeholder name that failed, when nil is returned
 local function render_line(line, ctx)
-  local failed
-  local out = line:gsub("{([%w_]+)}", function(name)
-    if not PLACEHOLDERS[name] then
-      return "{" .. name .. "}" -- unknown: leave literal (healthcheck flags it)
-    end
-    local value = resolvers[name](ctx)
-    if value == nil then
-      failed = name
-      return ""
-    end
-    return value
+  return Util.interpolate(line, PLACEHOLDERS, function(name)
+    return resolvers[name](ctx)
   end)
-  if failed then
-    return nil, failed
-  end
-  return out
 end
 
 --- Render a template against `ctx`. Returns the rendered text, or nil (with the

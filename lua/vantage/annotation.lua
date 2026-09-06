@@ -220,14 +220,9 @@ end
 ---@param cwd string
 ---@return string
 local function render_item(annotation, template, cwd)
-  return (
-    template:gsub("{([%w_]+)}", function(name)
-      if not FIELDS[name] then
-        return "{" .. name .. "}" -- unknown: left literal
-      end
-      return field(annotation, name, cwd)
-    end)
-  )
+  return Util.interpolate(template, FIELDS, function(name)
+    return field(annotation, name, cwd)
+  end) or ""
 end
 
 --- Render one annotation through the configured `item` template (for picker

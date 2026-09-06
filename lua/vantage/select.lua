@@ -54,9 +54,7 @@ local function agent_order(left, right)
   end
   -- @N window ids sort numerically; a malformed id (never produced by the
   -- tmux driver) degrades to 0 so the comparator stays total.
-  local left_id = tonumber(left.target:match("^@(%d+)$")) or 0
-  local right_id = tonumber(right.target:match("^@(%d+)$")) or 0
-  return left_id < right_id
+  return Util.agent_window_index(left.target) < Util.agent_window_index(right.target)
 end
 
 --- The cwd to relativize against: the focused Agent's cwd, else the current
@@ -105,11 +103,12 @@ end
 --- Agents (as { target, agent }) + Groups (as { target }) to kill. May be empty.
 ---@return { target: string, agent?: vantage.Agent, text: string }[]
 local function kill_items()
+  local snapshot = Backend.get().snapshot()
   local items = {}
-  for _, agent in ipairs(Backend.get().list()) do
+  for _, agent in ipairs(snapshot.agents) do
     items[#items + 1] = { target = agent.target, agent = agent, text = format_agent(agent) }
   end
-  for _, group in ipairs(Backend.get().groups()) do
+  for _, group in ipairs(snapshot.groups) do
     items[#items + 1] = { target = group, text = ("group %s"):format(group) }
   end
   return items

@@ -35,41 +35,66 @@ local function scripts_dir()
   return vim.fs.joinpath(vim.fn.fnamemodify(src, ":p:h:h:h:h"), "scripts")
 end
 
---- Run a tmux command; returns exit code.
+--- Run a tmux command synchronously.
+---@return integer code
+---@return string stdout
+---@return string stderr
 local function run(...)
   return Util.run({ "tmux", "-L", socket(), ... })
 end
 
---- Exit code only.
+--- Run a tmux command and return a structured result, so callers that need
+--- diagnostics can read `stderr` without every caller handling three return
+--- values.
+---@return { code: integer, stdout: string, stderr: string }
+local function exec_result(...)
+  local code, stdout, stderr = run(...)
+  return { code = code, stdout = stdout, stderr = stderr }
+end
+
+--- Exit code only, for the many commands where success/failure is the whole
+--- question.
 local function exec(...)
-  local code = run(...)
-  return code
+  return exec_result(...).code
 end
 
 --- Trimmed stdout, or "" on error.
 local function exec_out(...)
-  local code, stdout = run(...)
-  if code ~= 0 then
+  local result = exec_result(...)
+  if result.code ~= 0 then
     return ""
   end
-  return vim.trim(stdout)
+  return vim.trim(result.stdout)
 end
 
 --- List of non-empty lines, or {} on error.
 local function exec_lines(...)
-  local code, stdout = run(...)
-  if code ~= 0 then
+  local result = exec_result(...)
+  if result.code ~= 0 then
     return {}
   end
   local lines = {}
   -- Do not trim: tmux -F output is tab-delimited and may carry a trailing
   -- empty field (e.g. @agent-state). Only drop empty/whitespace-only lines.
-  for line in (stdout or ""):gmatch("[^\r\n]+") do
+  for line in (result.stdout or ""):gmatch("[^\r\n]+") do
     if line:find("%S") then
       lines[#lines + 1] = line
     end
   end
   return lines
+end
+
+--- Build a user-facing failure message from a failed tmux result, including
+--- stderr when tmux supplied a reason.
+---@param prefix string
+---@param result { code: integer, stdout: string, stderr: string }
+---@return string
+local function fail_message(prefix, result)
+  local detail = vim.trim(result.stderr or "")
+  if detail == "" then
+    return prefix
+  end
+  return ("%s: %s"):format(prefix, detail)
 end
 
 --- Apply the global (server-wide) config. Idempotent and cheap; must only be
@@ -151,17 +176,17 @@ function M.list()
     end
   end
   table.sort(agents, function(left, right)
-    return left.target < right.target
+    return Util.agent_window_index(left.target) < Util.agent_window_index(right.target)
   end)
   return agents
 end
 
 --- Unique Group names (derived from Agents).
 ---@return string[]
-function M.groups()
+local function groups_from_agents(agents)
   local seen = {}
   local names = {}
-  for _, agent in ipairs(M.list()) do
+  for _, agent in ipairs(agents) do
     if not seen[agent.group] then
       seen[agent.group] = true
       names[#names + 1] = agent.group
@@ -169,6 +194,20 @@ function M.groups()
   end
   table.sort(names)
   return names
+end
+
+---@return string[]
+function M.groups()
+  return groups_from_agents(M.list())
+end
+
+--- One read of the live Agent inventory, including the derived Groups. Lets a
+--- caller such as the kill picker avoid `list()` + `groups()` (and their
+--- duplicate `list()`).
+---@return { agents: vantage.Agent[], groups: string[] }
+function M.snapshot()
+  local agents = M.list()
+  return { agents = agents, groups = groups_from_agents(agents) }
 end
 
 --- Create an Agent in a Group, creating the Group if it does not exist.
@@ -179,16 +218,23 @@ function M.create(opts)
   local views = running and M.group_views(opts.group) or {}
 
   local window_id
+  local failed
   if #views > 0 then
-    window_id = exec_out("new-window", "-d", "-P", "-F", "#{window_id}", "-t", views[1], "-c", opts.cwd, opts.cmd)
+    failed = exec_result("new-window", "-d", "-P", "-F", "#{window_id}", "-t", views[1], "-c", opts.cwd, opts.cmd)
+    window_id = failed.code == 0 and vim.trim(failed.stdout) or ""
   else
-    exec("new-session", "-d", "-s", opts.group, "-c", opts.cwd, opts.cmd)
+    failed = exec_result("new-session", "-d", "-s", opts.group, "-c", opts.cwd, opts.cmd)
+    if failed.code ~= 0 then
+      Util.notify(fail_message(("failed to create agent in group '%s'"):format(opts.group), failed))
+      return nil
+    end
     apply_global_config() -- the new-session just started the server
-    window_id = exec_out("display", "-p", "-t", opts.group, "#{window_id}")
+    failed = exec_result("display", "-p", "-t", opts.group, "#{window_id}")
+    window_id = failed.code == 0 and vim.trim(failed.stdout) or ""
   end
 
   if window_id == "" then
-    Util.notify(("failed to create agent in group '%s'"):format(opts.group))
+    Util.notify(fail_message(("failed to create agent in group '%s'"):format(opts.group), failed))
     return nil
   end
 
@@ -241,9 +287,9 @@ end
 function M.retarget(view, group, target)
   local current_group = exec_out("display", "-p", "-t", view, "#{?#{session_group},#{session_group},#{session_name}}")
   if current_group == group then
-    local code = exec("select-window", "-t", view .. ":" .. target)
-    if code ~= 0 then
-      Util.warn(("can't switch to window %s (not in view '%s')"):format(target, view))
+    local result = exec_result("select-window", "-t", view .. ":" .. target)
+    if result.code ~= 0 then
+      Util.warn(fail_message(("can't switch to window %s (not in view '%s')"):format(target, view), result))
       return nil
     end
     return view
@@ -254,11 +300,12 @@ function M.retarget(view, group, target)
     Util.warn(("no such group '%s'"):format(group))
     return nil
   end
-  local new_view = exec_out("new-session", "-d", "-P", "-F", "#{session_name}", "-t", views[1])
-  if new_view == "" then
-    Util.warn(("failed to create a view for group '%s'"):format(group))
+  local new_view_result = exec_result("new-session", "-d", "-P", "-F", "#{session_name}", "-t", views[1])
+  if new_view_result.code ~= 0 then
+    Util.warn(fail_message(("failed to create a view for group '%s'"):format(group), new_view_result))
     return nil
   end
+  local new_view = vim.trim(new_view_result.stdout)
   exec("set-option", "-t", new_view, "@vantage-view", "1")
 
   local client = client_of(view)
@@ -270,11 +317,12 @@ function M.retarget(view, group, target)
 
   -- Point the fresh View at the target window before moving the Client, so a
   -- stale target aborts cleanly (no View churn, Client stays in place).
-  local selected = exec("select-window", "-t", new_view .. ":" .. target) == 0
-  local moved = exec("switch-client", "-c", client, "-t", new_view) == 0
-  if not selected or not moved then
+  local select_result = exec_result("select-window", "-t", new_view .. ":" .. target)
+  local switch_result = exec_result("switch-client", "-c", client, "-t", new_view)
+  if select_result.code ~= 0 or switch_result.code ~= 0 then
     exec("kill-session", "-t", new_view)
-    Util.warn(("failed to switch to group '%s'"):format(group))
+    local failed_result = select_result.code ~= 0 and select_result or switch_result
+    Util.warn(fail_message(("failed to switch to group '%s'"):format(group), failed_result))
     return nil
   end
 
@@ -293,11 +341,12 @@ function M.attach(group, target)
     Util.warn(("no such group '%s'"):format(group))
     return nil
   end
-  local view = exec_out("new-session", "-d", "-P", "-F", "#{session_name}", "-t", views[1])
-  if view == "" then
-    Util.notify(("failed to create a view for group '%s'"):format(group))
+  local view_result = exec_result("new-session", "-d", "-P", "-F", "#{session_name}", "-t", views[1])
+  if view_result.code ~= 0 then
+    Util.notify(fail_message(("failed to create a view for group '%s'"):format(group), view_result))
     return nil
   end
+  local view = vim.trim(view_result.stdout)
   exec("set-option", "-t", view, "@vantage-view", "1")
   exec("select-window", "-t", view .. ":" .. target)
   return view
