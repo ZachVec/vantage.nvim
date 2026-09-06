@@ -21,10 +21,6 @@ local function send_prompt(name)
     return
   end
   local template = Config.options.prompts[name]
-  if template == nil then
-    Util.warn(("no such prompt '%s'"):format(name))
-    return
-  end
   local text, failed = Prompt.render(template, Prompt.context(agent))
   if text == nil then
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
