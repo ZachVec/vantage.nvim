@@ -29,22 +29,18 @@ docs.
 
 ```vim
 :Vantage                                   " show help (no default action)
-:Vantage switch                            " re-point the terminal to an Agent (needs a live terminal)
-:Vantage switch @1                         " re-point to a specific Agent
-:Vantage kill @1                           " kill an Agent (or a Group by name)
 :Vantage toggle                            " hide/show the terminal (picks an Agent if none)
 :Vantage detach                            " detach the client (Agents keep running)
-:Vantage prompt                            " pick a prompt and type it into the focused Agent
 :Vantage annotate                          " annotate a range (visual selection, or current line)
 :Vantage annotate list                     " open the annotation picker (read/edit a note)
 :Vantage annotate clear                    " remove every annotation
 :Vantage status                            " debug: clients + sessions
 ```
 
-To create an Agent, open the picker with `:Vantage switch` (or `:Vantage
-toggle` when no terminal is open), pick a Tool row — one per configured
-`cli.tools` key, listed after the Agent rows — then choose a Group or type a
-new name.
+To create an Agent, open the Agent picker from inside the terminal with the
+`switch` key (see Terminal filetype & keymaps) — or run `:Vantage toggle` when
+no terminal is open — pick a Tool row (one per configured `cli.tools` key,
+listed after the Agent rows), then choose a Group or type a new name.
 
 Vantage shows Agents in a single `:terminal`. Closing that terminal leaves your
 Agents running — they keep going in the background until killed.
@@ -114,9 +110,10 @@ the current window's local cwd (respects `:lcd`/`:tcd`), overridable with
 `prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
 and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
 location references and the accumulated Annotations are always available. The
-`{annotations}` prompt is hidden while there are no Annotations. `:Vantage
-prompt` picks one through the pluggable picker's plain-select form and pastes
-it into the focused Agent's input; it never auto-submits. Your `prompts` merge additively: a name you set overrides the
+`{annotations}` prompt is hidden while there are no Annotations. The `prompt`
+key (see Terminal filetype & keymaps) picks one through the pluggable picker's
+plain-select form and pastes it into the focused Agent's input; it never
+auto-submits. Your `prompts` merge additively: a name you set overrides the
 built-in, and names you leave unset are kept. Templates may use five
 placeholders, four of which are Claude-style location references relative to
 the focused Agent's cwd:
@@ -179,14 +176,14 @@ code use `item = "{lines} {note}\n{code}"`. With `clear_on_send = true`
 
 ### Pickers & prompts
 
-Agent rows in the Agent picker (`:Vantage switch`, or `:Vantage toggle` with no
+Agent rows in the Agent picker (the `switch` key, or `:Vantage toggle` with no
 terminal) are sorted by group, working directory, and tool name; when the list
 is opened from the terminal window, the Agent that terminal shows is pinned to
 the top with a `(focused)` marker, and confirming that row does nothing. When
 no Agent is running and no tool is configured, the picker warns instead of
 opening.
 
-The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
+The Agent list (the `switch` key) and the kill list (the `kill` key) go
 through a pluggable picker, chosen by `picker`:
 
 - `"native"` — built-in `vim.ui.select` (default). Respects any global
@@ -201,7 +198,7 @@ one session), closing when nothing remains. The pinned `(focused)` row and the
 Tool rows ignore `<c-x>`; native is selection-only. The Agent list opens
 scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
 (Tool rows always stay, and with nothing focused the whole list shows).
-Creating an Agent (choosing a Group) and `:Vantage prompt` use the same picker
+Creating an Agent (choosing a Group) and the `prompt` key use the same picker
 in a compact plain-select form. Free-text prompts (e.g. the new-Group name)
 use `input()` and are insert-mode by default; Yes/No confirmations use
 Neovim's built-in confirm dialog.
@@ -213,17 +210,31 @@ Neovim's built-in confirm dialog.
 
 **A. `cli.win.keys`** — a list of 4-tuples `{ lhs, rhs, mode = "n", desc }`,
 applied buffer-locally when the terminal is created. `rhs` is passed verbatim to
-`vim.keymap.set` — a key sequence / `<cmd>` RHS, or a Lua function. `mode` is
+`vim.keymap.set` — a key sequence / `<cmd>` RHS, or a Lua function — except a
+string naming a built-in terminal action, which runs that action. `mode` is
 `"n"` / `"t"` / `"nt"`.
+
+| `rhs`      | action |
+|------------|--------|
+| `"switch"` | re-point the terminal to an Agent (Agent picker) |
+| `"kill"`   | kill an Agent or Group (kill picker) |
+| `"prompt"` | pick a prompt and type it into the focused Agent |
+| `"toggle"` | hide/show the terminal |
+
+`switch`, `kill` and `prompt` are terminal actions only — there is no
+`:Vantage` command for them; bind them here.
 
 ```lua
 require("vantage").setup({
   cli = {
     win = {
       keys = {
-        { "<c-q>", "<cmd>Vantage toggle<CR>", mode = "t", desc = "toggle the terminal" },
-        { "q", "<cmd>Vantage toggle<CR>", mode = "n", desc = "toggle the terminal" },
+        { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
+        { "q", "toggle", mode = "n", desc = "hide/show the terminal" },
         { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
+        { "s", "switch", mode = "n", desc = "switch Agent" },
+        { "k", "kill", mode = "n", desc = "kill Agent/Group" },
+        { "p", "prompt", mode = "n", desc = "send a prompt" },
       },
     },
   },

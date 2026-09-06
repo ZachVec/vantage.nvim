@@ -38,7 +38,7 @@ end
 
 --- Open the annotation picker; selecting an annotation opens its note float.
 local function annotate_list()
-  local empty = Picker.get().pick_annotation(Select.annotation_spec(), function(annotation)
+  local empty = Picker.get().pick_annotation(Select.annotation_spec(false), function(annotation)
     if not jump_to_annotation(annotation) then
       return
     end

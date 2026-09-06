@@ -26,7 +26,7 @@ The picker interface:
   the list was empty and nothing was shown. `pick_plain` is unchanged.
 - A `PickSpec` carries the picker's **inputs** only: `items_provider`
   (`fun(): table[]`), `preview` (`fun(item): string[]?`, nil = nothing to
-  preview), `prompt`, `invoked_from_terminal` (an invoke-time fact),
+  preview), `prompt`, `from_terminal` (a caller-declared fact),
   `on_delete` (an in-flight action), and `scope` (an optional live items
   transform, re-applied on every read while the picker's `<c-g>` toggle is
   on — see the [group-scope note](../feature/2026-09-05-agent-picker-group-scope.md)).
@@ -63,7 +63,7 @@ Consequences of that boundary:
   queued *before* the choice handler runs (its `select` shim owns `on_close`;
   the ordering protects the new-Group cmdline re-entry — see [the fix
   note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)) — keyed on
-  `invoked_from_terminal`. The same scheduled handler re-asserts the invoked-
+  `from_terminal`. The same scheduled handler re-asserts the invoked-
   from window's focus on close (see [the float client focus
   note](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md)), still
   without requiring any Vantage module: the window id is captured from

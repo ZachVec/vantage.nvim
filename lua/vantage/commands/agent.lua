@@ -1,4 +1,4 @@
---- Agent commands: switch, kill, and the create/pick flow behind both the
+--- Agent actions: switch, kill, and the create/pick flow behind both the
 --- Agent picker's Tool rows and toggle's open path. All Agent domain work for
 --- the command layer lives here.
 local Backend = require("vantage.backend")
@@ -9,16 +9,6 @@ local Select = require("vantage.select")
 local Util = require("vantage.util")
 
 local M = {}
-
----@param target string
----@return vantage.Agent?
-local function find_agent(target)
-  for _, agent in ipairs(Backend.get().list()) do
-    if agent.target == target then
-      return agent
-    end
-  end
-end
 
 ---@param group string
 ---@param tool_name string
@@ -53,7 +43,8 @@ end
 --- the Agent picker.
 ---@param tool_name string
 ---@param after fun(agent: vantage.Agent)
-local function create_with_tool(tool_name, after)
+---@param from_terminal boolean
+local function create_with_tool(tool_name, after, from_terminal)
   local tool = Config.options.cli.tools[tool_name]
   local cmd = table.concat(tool.cmd, " ")
   local picker = Picker.get()
@@ -66,20 +57,16 @@ local function create_with_tool(tool_name, after)
     return
   end
   groups[#groups + 1] = NEW_GROUP
-  picker.pick_plain(
-    groups,
-    { prompt = "Group: ", invoked_from_terminal = Select.invoked_from_terminal() },
-    function(group)
-      if not group then
-        return
-      end
-      if group == NEW_GROUP then
-        ask_new_group_name(create)
-      else
-        create(group)
-      end
+  picker.pick_plain(groups, { prompt = "Group: ", from_terminal = from_terminal }, function(group)
+    if not group then
+      return
     end
-  )
+    if group == NEW_GROUP then
+      ask_new_group_name(create)
+    else
+      create(group)
+    end
+  end)
 end
 
 --- Pick an Agent to act on (focus or re-target), create one from a trailing
@@ -88,10 +75,11 @@ end
 --- path) materializes and shows a terminal; `Client.retarget` (switch) only
 --- re-points an existing one.
 ---@param after fun(agent: vantage.Agent)
-function M.pick_or_new(after)
-  local empty = Picker.get().pick_agent(Select.agent_spec(), function(choice)
+---@param from_terminal boolean
+function M.pick_or_new(after, from_terminal)
+  local empty = Picker.get().pick_agent(Select.agent_spec(from_terminal), function(choice)
     if choice.kind == "tool" then
-      create_with_tool(choice.tool, after)
+      create_with_tool(choice.tool, after, from_terminal)
     elseif not choice.focused then
       after(choice.agent)
     end
@@ -101,39 +89,20 @@ function M.pick_or_new(after)
   end
 end
 
---- `:Vantage switch`: re-point the existing terminal to an Agent (interactive
---- if no argument). Requires a live terminal; with none it warns.
----@param remaining string[]
-function M.switch(remaining)
-  if not Client.is_attached() then
-    Util.warn("no client — use :Vantage toggle to open one")
-    return
-  end
-  if #remaining == 0 then
-    M.pick_or_new(Client.retarget)
-    return
-  end
-  local agent = find_agent(remaining[1])
-  if agent then
-    Client.retarget(agent)
-  else
-    Util.warn(("no such agent '%s'"):format(remaining[1]))
-  end
+--- `switch` (terminal keymap token): re-point the live terminal to an Agent,
+--- interactively.
+function M.switch()
+  M.pick_or_new(Client.retarget, true)
 end
 
---- `:Vantage kill`: kill a Group or Agent (interactive if no argument).
----@param remaining string[]
-function M.kill(remaining)
-  if #remaining == 0 then
-    local empty = Picker.get().pick_kill(Select.kill_spec(), function(target)
-      Backend.get().kill(target)
-    end)
-    if empty then
-      Util.warn("nothing to kill")
-    end
-    return
+--- `kill` (terminal keymap token): kill a Group or Agent, interactively.
+function M.kill()
+  local empty = Picker.get().pick_kill(Select.kill_spec(true), function(target)
+    Backend.get().kill(target)
+  end)
+  if empty then
+    Util.warn("nothing to kill")
   end
-  Backend.get().kill(remaining[1])
 end
 
 return M

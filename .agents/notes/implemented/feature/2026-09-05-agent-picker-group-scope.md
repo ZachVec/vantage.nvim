@@ -30,12 +30,12 @@ the input and list panes, normal + insert; fzf-lua binds ctrl-g with
   members), and with no focused Agent — including one that dies while the
   picker is open — the whole list shows. No stale scope.
 - The anchor is the live focused Agent, not the pinned row: the pin only
-  appears when the picker is invoked from the terminal window, while the
-  scope applies whenever a focused Agent exists — the literal reading of
+  appears when the caller declares `from_terminal`, while the scope applies
+  whenever a focused Agent exists — the literal reading of
   "the current focused Agent's Group".
 - `native` (`vim.ui.select`) has no keymaps: it keeps showing the whole list,
-  exactly as before; `:Vantage kill` and `:Vantage switch @N` continue to
-  cover the cross-Group paths for every engine.
+  exactly as before; the `kill` key and the switch picker continue to cover
+  the cross-Group paths for every engine.
 - No config option and no additional indicator: the default is on, the list
   content is the state (only the focused Group's rows plus Tool rows), and
   the behavior is documented.
@@ -44,7 +44,7 @@ the input and list panes, normal + insert; fzf-lua binds ctrl-g with
 
 ### Why not derive the scope Group from the pinned `(focused)` row?
 
-The pin is UI data gated on `invoked_from_terminal`; the scope is a domain
+The pin is UI data gated on `from_terminal`; the scope is a domain
 fact (`last_agent_alive`). Anchoring on the domain fact keeps the scope when
 the picker is opened from a plain window with a live client, and makes the
 "focused Agent died" degradation automatic rather than a second special case

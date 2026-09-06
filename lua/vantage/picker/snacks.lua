@@ -53,7 +53,7 @@ end
 --- first *tiled* window (never to a sibling float), so from a floating Client
 --- the focus lands on the editor behind it and the terminal window must be
 --- re-asserted explicitly. Every snacks pick restores: the three
---- preview-capable picks pass `on_close = spec.invoked_from_terminal and
+--- preview-capable picks pass `on_close = spec.from_terminal and
 --- restore_terminal_mode`, `pick_plain` calls it from a wrapped `on_choice`
 --- (snacks' select shim owns its own `on_close`) *before* the choice handler
 --- runs. The new-Group name prompt (a cmdline `input()`) opens from inside
@@ -80,7 +80,7 @@ end
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
   local scope_on = spec.scope ~= nil
-  local terminal_win = spec.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
+  local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
   local function items()
     local all = spec.items_provider()
     if scope_on then
@@ -106,7 +106,7 @@ function M.pick_agent(spec, on_choice)
     end,
     format = "text",
     preview = preview(spec),
-    on_close = spec.invoked_from_terminal and function()
+    on_close = spec.from_terminal and function()
       restore_terminal_mode(terminal_win)
     end or nil,
     actions = {
@@ -156,12 +156,12 @@ function M.pick_kill(spec, on_choice)
   if #items == 0 then
     return true
   end
-  local terminal_win = spec.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
+  local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
   pick({
     items = items,
     format = "text",
     preview = preview(spec),
-    on_close = spec.invoked_from_terminal and function()
+    on_close = spec.from_terminal and function()
       restore_terminal_mode(terminal_win)
     end or nil,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
@@ -185,14 +185,14 @@ function M.pick_annotation(spec, on_choice)
   if #items == 0 then
     return true
   end
-  local terminal_win = spec.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
+  local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
   pick({
     finder = function()
       return items
     end,
     format = "text",
     preview = preview(spec),
-    on_close = spec.invoked_from_terminal and function()
+    on_close = spec.from_terminal and function()
       restore_terminal_mode(terminal_win)
     end or nil,
     confirm = function(picker, item)
@@ -240,12 +240,12 @@ end
 ---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)
 function M.pick_plain(items, opts, on_choice)
-  local terminal_win = opts.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
+  local terminal_win = opts.from_terminal and vim.api.nvim_get_current_win() or nil
   require("snacks.picker").select(items, {
     prompt = opts.prompt,
     format_item = opts.format_item,
   }, function(item, idx)
-    if opts.invoked_from_terminal then
+    if opts.from_terminal then
       restore_terminal_mode(terminal_win)
     end
     on_choice(item, idx)

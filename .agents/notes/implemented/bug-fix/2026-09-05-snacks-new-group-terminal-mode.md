@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`:Vantage switch` from the vantage terminal, choosing a Tool row and then
+The `switch` key from the vantage terminal, choosing a Tool row and then
 `+ new group` in the Group pick (with existing Groups; no-Groups skips the
 pick), left the client terminal in terminal-normal mode (`nt`) after the
 Agent was created — typing did nothing until the user pressed `i`. Switch's
@@ -56,7 +56,7 @@ and is mode-neutral).
 ### Why not restore after the cmdline at the command layer?
 
 `ask_new_group_name`'s callback could re-enter terminal mode once the prompt
-closes (`invoked_from_terminal` + `startinsert` when `nt`). Deterministic,
+closes (`from_terminal` + `startinsert` when `nt`). Deterministic,
 but the re-entry is the snacks backend's compensation for its own close
 semantics; putting a copy in `commands/agent.lua` would cross the Picker seam
 for one engine's defect, and the shared helper it would need is exactly the
@@ -89,7 +89,7 @@ the cmdline path is what works everywhere else.
   and the [picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md)
   were updated in place with the ordering fact; no API or user-visible
   behavior changed, and no other engine or command path was touched.
-- A Tool-row creation through `:Vantage switch` with a new Group now ends
+- A Tool-row creation through the `switch` key with a new Group now ends
   with the terminal in terminal mode, matching the existing-Group and
   no-Groups paths.
 

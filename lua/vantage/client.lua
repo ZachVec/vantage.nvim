@@ -12,6 +12,7 @@
 --- client-detached hook then destroys the View.
 local Backend = require("vantage.backend")
 local Config = require("vantage.config")
+local Keys = require("vantage.keys")
 local Util = require("vantage.util")
 
 ---@class vantage.Client
@@ -86,7 +87,9 @@ local function configure_window()
   vim.wo[M.window].cursorline = false
 end
 
---- Apply a single cli.win.keys entry to the terminal buffer.
+--- Apply a single cli.win.keys entry to the terminal buffer. A `rhs` string
+--- naming a built-in terminal action (see vantage.keys) resolves to that
+--- action; any other `rhs` is bound verbatim.
 ---@param buffer integer
 ---@param keymap table
 local function apply_key(buffer, keymap)
@@ -95,6 +98,7 @@ local function apply_key(buffer, keymap)
     Util.warn("keymap entry must be a 4-tuple { lhs, rhs, mode?, desc? }")
     return
   end
+  rhs = Keys.resolve(rhs)
   local mode = keymap.mode or "n"
   if type(mode) == "table" then
     mode = table.concat(mode, "")
@@ -111,7 +115,9 @@ end
 --- Apply cli.win.keys to the terminal buffer (buffer-local), at terminal
 --- creation. Each entry is a 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is
 --- passed verbatim to vim.keymap.set (a key sequence / <cmd> RHS or a Lua
---- function). mode may be "n" | "t" | "nt" (or a table of modes).
+--- function), except a string naming a built-in terminal action ("switch",
+--- "kill", "prompt", "toggle"), which resolves to that action. mode may be
+--- "n" | "t" | "nt" (or a table of modes).
 ---@param buffer integer
 function M.apply_keys(buffer)
   for _, keymap in ipairs(Config.options.cli.win.keys or {}) do

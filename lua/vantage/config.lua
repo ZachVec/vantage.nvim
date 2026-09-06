@@ -46,7 +46,7 @@
 ---@class vantage.PickSpec The selection contract passed to a picker
 --- implementation. Each field is an input to the picker — the items to render
 --- (`items_provider`), preview content (`preview`), the prompt glyph
---- (`prompt`), an environment fact (`invoked_from_terminal`), an in-flight
+--- (`prompt`), a caller-declared fact (`from_terminal`), an in-flight
 --- removal action (`on_delete`, used by the picker's `<c-x>`), and an optional
 --- live scope transform (`scope`, the picker's `<c-g>` toggle). The chosen
 --- item is delivered through the positional `on_choice`; the picker returns a
@@ -54,7 +54,7 @@
 ---@field prompt string
 ---@field items_provider fun(): table[]
 ---@field preview? fun(item: any): string[]?
----@field invoked_from_terminal? boolean
+---@field from_terminal? boolean
 ---@field on_delete? fun(item: any) the `<c-x>` in-flight removal action: the
 ---   call site receives the raw item and decides what "remove this row" means
 ---   (an Annotation is deleted, an Agent is killed) — or no-ops for rows with
@@ -68,11 +68,11 @@
 ---   filtering.
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
---- (`pick_plain`), mirroring `vim.ui.select`'s opts plus the invoke-time fact
---- the snacks implementation uses to restore terminal mode.
+--- (`pick_plain`), mirroring `vim.ui.select`'s opts plus the caller-declared
+--- `from_terminal` fact the snacks implementation uses to restore terminal mode.
 ---@field prompt? string
 ---@field format_item? fun(item: any): string
----@field invoked_from_terminal? boolean
+---@field from_terminal? boolean
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
 --- snacks) rendering every Vantage selection on its own engine. The frontend
@@ -160,13 +160,17 @@ local defaults = {
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
       --- 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is passed verbatim to
-      --- vim.keymap.set (a key sequence / <cmd> RHS or a Lua function).
+      --- vim.keymap.set (a key sequence / <cmd> RHS or a Lua function), except
+      --- a string naming a built-in terminal action — "switch", "kill",
+      --- "prompt", or "toggle" — which resolves to that action.
       ---
       --- Example:
       ---   keys = {
-      ---     { "<c-q>", "<cmd>Vantage toggle<CR>", mode = "t", desc = "toggle the terminal" },
-      ---     { "q", "<cmd>Vantage toggle<CR>", mode = "n", desc = "toggle the terminal" },
+      ---     { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
       ---     { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
+      ---     { "s", "switch", mode = "n", desc = "switch Agent" },
+      ---     { "k", "kill", mode = "n", desc = "kill Agent/Group" },
+      ---     { "p", "prompt", mode = "n", desc = "send a prompt" },
       ---   },
       keys = {},
     },

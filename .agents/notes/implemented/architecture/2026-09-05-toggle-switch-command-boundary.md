@@ -4,26 +4,26 @@ Status: implemented
 
 ## Problem
 
-`:Vantage toggle` and `:Vantage switch` had overlapping jobs. `toggle` did
+`toggle` and `switch` had overlapping jobs. `toggle` did
 three things: hide the open terminal, show the hidden terminal, and — with no
 live terminal — either re-open the last-focused Agent, run the Agent-creation
 wizard (when no Agent ran), or open the Agent picker. That third behavior is
 target work (choosing which Agent the terminal displays) smuggled into a
-presence command. The two commands shared the same `pick_or_new` builder, and
+presence command. The two paths shared the same `pick_or_new` builder, and
 the "creates if empty" wizard duplicated the Tool rows the Agent picker already
 offered.
 
 ## Decision
 
-The single Client has two independent concerns, owned by two commands:
+The single Client has two independent concerns:
 
 - `:Vantage toggle` owns **presence** — hide the open terminal, show the hidden
   terminal, or, with no live terminal, open the Agent picker and open the
   terminal on the chosen Agent. It no longer re-opens to the last-focused Agent
   and no longer runs a creation wizard: with no terminal it always picks.
-- `:Vantage switch` owns **target** — re-point the existing terminal to another
-  Agent, never showing or hiding it. With no live terminal it warns
-  (`no client — use :Vantage toggle to open one`) and does nothing.
+- `switch` (the `cli.win.keys` terminal action) owns **target** — re-point the
+  existing terminal to another Agent, never showing or hiding it. The terminal
+  is live by construction when the key is pressed.
 
 The tail action after a pick is the only difference, so it is injected as a
 callback rather than forked:
@@ -31,7 +31,7 @@ callback rather than forked:
 - `commands/agent.lua` has one `pick_or_new(after)` and one
   `create_with_tool(tool_name, after)`, each threading `after` through to
   `do_create`. `Client.focus` (materialize + show) is toggle's `after`;
-  `Client.retarget` (re-point, no show) is switch's.
+  `Client.retarget` (re-point, no show) is the switch key's.
 - `Client.retarget(agent)` is the new re-point-only primitive: with a live
   terminal it re-points through the Backend (`retarget` — a window select
   within the Client's Group, a View relocation into the target Group when the
@@ -68,10 +68,10 @@ The only difference is the tail action. One function parameterized by an
 ## Consequences
 
 - `:Vantage toggle` no longer "creates if empty" nor re-opens to the last
-  Agent: with no terminal it opens the picker. `:Vantage switch` no longer
-  creates or shows a terminal; it warns with none.
-- `:Vantage switch @1` after a detach no longer works directly (no terminal) —
-  `toggle` must reopen one first.
+  Agent: with no terminal it opens the picker. The `switch` key never creates
+  or shows a terminal — it only re-points.
+- The `switch` key has no `@N` form: it always opens the picker. After a
+  detach the terminal must be reopened with `:Vantage toggle` first.
 - `create_wizard` and its Tool step are gone; the Tool rows are the single
   creation channel.
 - README, `doc/vantage.nvim.txt`, and `docs/architecture.md` describe the
