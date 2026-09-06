@@ -26,7 +26,7 @@ local function send_prompt(name)
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
     return
   end
-  local tool = agent.tool and Config.options.cli.tools[agent.tool]
+  local tool = Config.options.cli.tools[agent.tool]
   if tool and tool.format then
     text = tool.format(text)
     if text == nil or text == "" then

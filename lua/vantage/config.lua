@@ -9,7 +9,7 @@
 ---@field target string tmux window id (@N)
 ---@field cmd string
 ---@field cwd string
----@field tool? string the cli.tools key that created it (for the format hook)
+---@field tool string the cli.tools key that created it (for the format hook)
 ---@field state? string
 
 ---@class vantage.Win Terminal window options.

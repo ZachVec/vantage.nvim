@@ -29,6 +29,9 @@ Shipped removals:
 - `backend/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
   `M.attach` drops the `target and target ~= ""` guard; `M.list` drops the
   `tool ~= ""` empty-check — `tool` is always a non-empty `cli.tools` key.
+- `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `select.lua`
+  drops the `agent.tool or agent.cmd` display fallback and `commands/prompt.lua`
+  drops the `agent.tool and` guard — `tool` is never nil for a created Agent.
 - `client.lua` `open_win` drops the `width and` / `height and` re-checks (the
   `or 0` default already made them non-nil).
 - `commands/agent.lua` `create_with_tool` drops `if not tool`; the name is a
