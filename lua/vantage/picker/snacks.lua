@@ -83,7 +83,7 @@ function M.pick_agent(spec, on_choice)
   local terminal_win = spec.invoked_from_terminal and vim.api.nvim_get_current_win() or nil
   local function items()
     local all = spec.items_provider()
-    if scope_on and spec.scope then
+    if scope_on then
       return spec.scope(all)
     end
     return all

@@ -48,7 +48,7 @@ local function pick_static(spec, extract, on_choice, alt)
   local scope_on = spec.scope ~= nil
   local function read()
     local all = spec.items_provider()
-    if scope_on and spec.scope then
+    if scope_on then
       return spec.scope(all)
     end
     return all
