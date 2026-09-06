@@ -111,9 +111,10 @@ PROMPT TEMPLATES ~
 `prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
 and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
 location references and the accumulated Annotations are always available. The
-`{annotations}` prompt is hidden while there are no Annotations. `:Vantage
-prompt` picks one through the pluggable Picker's plain-select form and pastes
-it into the focused Agent's input (no auto-submit). Your `prompts` merge additively: a name you set overrides the
+`{annotations}` prompt is hidden while there are no Annotations. The `prompt`
+key (see TERMINAL FILETYPE & KEYMAPS) picks one through the pluggable Picker's
+plain-select form and pastes it into the focused Agent's input (no
+auto-submit). Your `prompts` merge additively: a name you set overrides the
 built-in, and names you leave unset are kept. A template may use five
 placeholders, four of which are Claude-style location references relative to
 the Agent's cwd:
@@ -186,7 +187,7 @@ successful send whose template used `{annotations}` clears all annotations.
 
 PICKERS & PROMPTS ~
 
-The Agent list (`:Vantage switch`) and the kill list (`:Vantage kill`) go
+The Agent list (the `switch` key) and the kill list (the `kill` key) go
 through a pluggable picker, chosen by `picker`:
 
   `picker = "native"`   built-in `vim.ui.select` (default). Respects any
@@ -202,7 +203,7 @@ session), closing when nothing remains; the pinned `(focused)` row and the
 Tool rows ignore `<c-x>`, and `native` is selection-only. The Agent list opens
 scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
 (Tool rows always stay; with nothing focused the whole list shows). The
-Agent-creation Group step and `:Vantage prompt` run through the same picker in
+Agent-creation Group step and the `prompt` key run through the same picker in
 its compact plain-select form, so a flow never depends on a global
 `vim.ui.select` override (`native` follows any override by definition).
 Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
@@ -216,15 +217,28 @@ No keymaps are added by default. The terminal buffer has filetype
 1. `cli.win.keys` — a list of 4-tuples `{ lhs, rhs, mode = "n", desc }`,
    applied buffer-locally to the terminal when it is created. `rhs` is passed
    verbatim to `vim.keymap.set` — a key sequence / `<cmd>` RHS, or a Lua
-   function. `mode` is `"n"`, `"t"` or `"nt"` (also a table). Example: >
+   function — except a string naming a built-in terminal action, which runs
+   that action. `mode` is `"n"`, `"t"` or `"nt"` (also a table). The built-in
+   actions:
+
+     `"switch"`  re-point the terminal to an Agent (Agent picker)
+     `"kill"`    kill an Agent or Group (kill picker)
+     `"prompt"`  pick a prompt and type it into the focused Agent
+     `"toggle"`  hide/show the terminal
+
+   `switch`, `kill` and `prompt` are terminal actions only — there is no
+   `:Vantage` command for them; bind them here. Example: >
 
       require("vantage").setup({
         cli = {
           win = {
             keys = {
-              { "<c-q>", "<cmd>Vantage toggle<CR>", mode = "t", desc = "toggle the terminal" },
-              { "q", "<cmd>Vantage toggle<CR>", mode = "n", desc = "toggle the terminal" },
+              { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
+              { "q", "toggle", mode = "n", desc = "hide/show the terminal" },
               { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
+              { "s", "switch", mode = "n", desc = "switch Agent" },
+              { "k", "kill", mode = "n", desc = "kill Agent/Group" },
+              { "p", "prompt", mode = "n", desc = "send a prompt" },
             },
           },
         },
@@ -258,24 +272,6 @@ inside the terminal buffer): >
 `:Vantage`
     Show help (no default action).
 
-`:Vantage switch @N`
-    Re-point the terminal to an Agent. Requires a live terminal: with none it
-    warns and does nothing (use `:Vantage toggle` to open one). Agent rows
-    sort by group, working directory, and tool name; when the list is opened
-    from the terminal window, the Agent that terminal shows is pinned to the
-    top, marked `(focused)`, and confirming that row does nothing. The Agent
-    rows end with one row per configured `cli.tools` key: picking a Tool row
-    creates an Agent of that Tool (Group or new-Group name first) and
-    re-points to it. In fzf-lua/snacks, `<c-x>` kills the row's Agent in place
-    (the pinned `(focused)` row excluded) and `<c-g>` toggles the Group scope
-    — see PICKERS & PROMPTS. With `@N` re-point directly. Switching never
-    shows or hides the terminal. Re-pointing to an Agent in another Group
-    relocates the terminal to that Group (a fresh View in it; the previous
-    Group's View is destroyed); within a Group it is a plain window re-point.
-
-`:Vantage kill group|@N`
-    Kill a Group or a single Agent. With no argument, pick interactively.
-
 `:Vantage toggle`
     Hide the terminal window if it is open, or show it again — a lightweight
     toggle that keeps the buffer, tmux client and View alive. If there is no
@@ -286,11 +282,6 @@ inside the terminal buffer): >
 `:Vantage detach`
     Detach the terminal's client (the client-detached hook destroys the View).
     Agents keep running headless.
-
-`:Vantage prompt`
-    Pick a Prompt and type it into the focused Agent's input (renders
-    `{file}` / `{line}` / `{function}` / `{class}` / `{annotations}`; no
-    auto-submit). Warns when there is no focused Agent.
 
 `:Vantage annotate`
     Add an Annotation over the command's range — a visual selection, or the

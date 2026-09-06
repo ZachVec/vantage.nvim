@@ -59,16 +59,6 @@ local function agent_order(left, right)
   return left_id < right_id
 end
 
---- The window predicate for "invoked from the vantage terminal window": the
---- terminal is open and is the current window (the window the cursor was last
---- in). An invoke-time fact — the snacks picker consumes it (via the spec, or
---- via `pick_plain`'s opts) to decide whether to re-enter terminal mode on
---- close.
----@return boolean
-function M.invoked_from_terminal()
-  return Client.is_open() and vim.api.nvim_get_current_win() == Client.window
-end
-
 --- The cwd to relativize against: the focused Agent's cwd, else the current
 --- window's local cwd. Shared by the annotation preview and the note float
 --- title.
@@ -188,9 +178,9 @@ end
 --- is re-resolved per read, so the pin follows the live Agent. The Agent
 --- list opens scoped to the focused Agent's Group by default (fzf-lua/snacks
 --- toggle it with `<c-g>`; native keeps showing everything).
+---@param from_terminal boolean caller-declared: this pick runs inside the terminal
 ---@return vantage.PickSpec
-function M.agent_spec()
-  local from_terminal = M.invoked_from_terminal()
+function M.agent_spec(from_terminal)
   return {
     prompt = PROMPT,
     items_provider = function()
@@ -198,7 +188,7 @@ function M.agent_spec()
       return agent_items(focused)
     end,
     preview = pane_preview,
-    invoked_from_terminal = from_terminal,
+    from_terminal = from_terminal,
     on_delete = function(item)
       if item.kind == "agent" and not item.focused then
         Backend.get().kill(item.agent.target)
@@ -209,26 +199,28 @@ function M.agent_spec()
 end
 
 --- The kill-list selection spec.
+---@param from_terminal boolean caller-declared: this pick runs inside the terminal
 ---@return vantage.PickSpec
-function M.kill_spec()
+function M.kill_spec(from_terminal)
   return {
     prompt = PROMPT,
     items_provider = kill_items,
     preview = pane_preview,
-    invoked_from_terminal = M.invoked_from_terminal(),
+    from_terminal = from_terminal,
   }
 end
 
 --- The annotation-list selection spec. `on_delete` removes the chosen
 --- annotation; the picker re-reads `items_provider` afterwards and closes
 --- when nothing remains.
+---@param from_terminal boolean caller-declared: this pick runs inside the terminal
 ---@return vantage.PickSpec
-function M.annotation_spec()
+function M.annotation_spec(from_terminal)
   return {
     prompt = PROMPT,
     items_provider = annotation_items,
     preview = annotation_preview,
-    invoked_from_terminal = M.invoked_from_terminal(),
+    from_terminal = from_terminal,
     on_delete = function(item)
       Annotation.delete(item.annotation.buf, item.annotation.id)
     end,

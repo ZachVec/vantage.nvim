@@ -6,7 +6,6 @@ local Agent = require("vantage.commands.agent")
 local Annotation = require("vantage.commands.annotation")
 local Backend = require("vantage.backend")
 local Client = require("vantage.client")
-local Prompt = require("vantage.commands.prompt")
 local Util = require("vantage.util")
 
 local M = {}
@@ -16,11 +15,8 @@ local function usage()
     table.concat({
       "Vantage — coding-agent manager",
       "",
-      "  :Vantage switch @N       re-point the terminal to an Agent; interactive if no @N",
-      "  :Vantage kill group|@N   kill a Group or Agent; interactive if no argument",
       "  :Vantage toggle          hide/show the terminal (picks an Agent if none)",
       "  :Vantage detach          detach the client (kills the View; Agents survive)",
-      "  :Vantage prompt          pick a prompt and type it into the focused Agent",
       "  :Vantage annotate        annotate a range (visual selection, or current line)",
       "  :Vantage annotate list   open the annotation picker",
       "  :Vantage annotate clear  clear every annotation",
@@ -36,7 +32,7 @@ local function toggle()
   if Client.toggle() then
     return
   end
-  Agent.pick_or_new(Client.focus)
+  Agent.pick_or_new(Client.focus, false)
 end
 
 local function detach()
@@ -66,16 +62,10 @@ function M.run(args)
 
   if subcommand == nil then
     usage()
-  elseif subcommand == "switch" then
-    Agent.switch(remaining)
-  elseif subcommand == "kill" then
-    Agent.kill(remaining)
   elseif subcommand == "toggle" then
     toggle()
   elseif subcommand == "detach" then
     detach()
-  elseif subcommand == "prompt" then
-    Prompt.run()
   elseif subcommand == "annotate" then
     Annotation.run(remaining[1], args.line1, args.line2)
   elseif subcommand == "status" then
@@ -90,7 +80,7 @@ end
 ---@param cmdline string
 ---@return string[]
 function M.complete(arglead, cmdline)
-  local subcommands = { "switch", "kill", "toggle", "detach", "prompt", "annotate", "status" }
+  local subcommands = { "toggle", "detach", "annotate", "status" }
   if cmdline:match("^%s*Vantage%s+annotate%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
@@ -103,5 +93,8 @@ function M.complete(arglead, cmdline)
   end
   return {}
 end
+
+--- Resolved by the `toggle` terminal keymap token (see vantage.keys).
+M.toggle = toggle
 
 return M

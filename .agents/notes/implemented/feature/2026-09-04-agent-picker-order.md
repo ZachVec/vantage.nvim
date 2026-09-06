@@ -4,8 +4,8 @@ Status: implemented
 
 ## Problem
 
-The Agent picker (`:Vantage switch`, and the `:Vantage toggle` fallback that
-shares its builder) listed Agents in tmux window-id order and hid creation
+The Agent picker (the `switch` terminal key, and the `:Vantage toggle`
+fallback that shares its builder) listed Agents in tmux window-id order and hid creation
 behind a single `+ new agent` sentinel that re-entered the whole Tool → Group
 wizard. Invoking switch from inside the vantage terminal offered the Agent
 you were already looking at as a first-class choice, with nothing marking it
@@ -19,10 +19,10 @@ explicit ordering and a pinned, inert current-Agent row.
 the rows and is the single ordering point every engine renders as given
 (engines only reorder by fuzzy relevance while a query is typed):
 
-- **Focused-Agent pin.** When the picker is invoked from the vantage
-  terminal window — the terminal is open and is the current window, i.e. the
-  window the cursor was last in — the Agent that terminal shows
-  (`Client.last_agent_alive()`) is pinned first, exempt from the ordering.
+- **Focused-Agent pin.** When the caller declares the pick runs inside the
+  terminal (`from_terminal = true` — `switch`, which is terminal-only), the
+  Agent that terminal shows (`Client.last_agent_alive()`) is pinned first,
+  exempt from the ordering.
   Its row text gains a ` (focused)` suffix. Confirming it does nothing:
   `commands/agent.lua`'s `pick_or_new` filters on the item's `focused` field and
   returns. The snacks engine restores terminal mode on the client terminal
@@ -34,7 +34,8 @@ the rows and is the single ordering point every engine renders as given
   swallow it — see
   [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
   No engine-specific disabled-row machinery is used (see Alternatives).
-  Invoked from any other window, there is no focused Agent and no pin.
+  Declared not-from-terminal (`toggle`'s open-path fallback), there is no
+  focused Agent and no pin.
 - **Agent ordering.** Remaining Agent rows sort ascending by group, absolute
   cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
   nil fallback — the same key the row text shows); exact ties break by
@@ -114,8 +115,8 @@ creation, unique, and already the storage key.
 
 ## Consequences
 
-- The `:Vantage switch` picker now reads as: pinned `(focused)` Agent (when
-  invoked from the terminal), Agents sorted by group → cwd → tool, then one
+- The `switch` picker now reads as: pinned `(focused)` Agent (when invoked
+  from the terminal), Agents sorted by group → cwd → tool, then one
   toggle-off row per configured Tool.
 - `+ new agent` disappears from every picker; creation from the Agent list
   is one confirm (Tool row) + one Group choice instead of the two-step

@@ -23,7 +23,8 @@ The command layer is a directory mirroring the repo's existing
   create/pick flow (`find_agent`, `do_create`, `ask_new_group_name`,
   `create_with_tool`, `pick_or_new`). `pick_or_new` is exported because
   toggle's open path reuses it.
-- `commands/prompt.lua` owns `:Vantage prompt` (`run` + `send_prompt`).
+- `commands/prompt.lua` owns the `prompt` terminal action (`run` +
+  `send_prompt`).
 - `commands/annotation.lua` owns `:Vantage annotate` and its sub-actions
   (`run(action, line1, line2)` + `jump_to_annotation`, `note_style`,
   `annotate_list`, `annotate_add`, `annotate_clear`); the note editor itself
@@ -32,9 +33,8 @@ The command layer is a directory mirroring the repo's existing
 Prompt and Annotation are **peers**, matching the domain modules `prompt.lua`
 and `annotation.lua`: the `{annotations}` placeholder is a prompt that reads
 annotation data (a "uses" dependency), not an "annotation is a kind of prompt"
-subordination. Sub-dispatch stays in each module (`agent.switch` / `agent.kill`
-own their arg-vs-interactive branch; `annotation.run` owns list/clear/add), so
-`init.lua` never parses an argument.
+subordination. `annotation.run` owns the remaining sub-dispatch
+(list/clear/add); `agent.switch` / `agent.kill` take no arguments.
 
 `config.lua` is unchanged: `require("vantage.commands")` now resolves
 `commands/init.lua` instead of `commands.lua`.

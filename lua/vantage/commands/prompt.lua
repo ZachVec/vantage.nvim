@@ -1,12 +1,11 @@
---- The `:Vantage prompt` command: pick a Prompt and type it into the focused
---- Agent's input.
+--- The `prompt` terminal keymap action: pick a Prompt and type it into the
+--- focused Agent's input.
 local Annotation = require("vantage.annotation")
 local Backend = require("vantage.backend")
 local Client = require("vantage.client")
 local Config = require("vantage.config")
 local Picker = require("vantage.picker")
 local Prompt = require("vantage.prompt")
-local Select = require("vantage.select")
 local Util = require("vantage.util")
 
 local M = {}
@@ -17,7 +16,7 @@ local M = {}
 local function send_prompt(name)
   local agent = Client.last_agent_alive()
   if not agent then
-    Util.warn("no focused agent — use :Vantage toggle or :Vantage switch first")
+    Util.warn("no focused agent — use :Vantage toggle first")
     return
   end
   local template = Config.options.prompts[name]
@@ -60,14 +59,13 @@ function M.run()
       vim.api.nvim_set_current_win(win)
     end
   end
-  Picker.get()
-    .pick_plain(names, { prompt = "Prompt: ", invoked_from_terminal = Select.invoked_from_terminal() }, function(name)
-      if name then
-        send_prompt(name)
-      end
-      restore()
-      vim.schedule(restore)
-    end)
+  Picker.get().pick_plain(names, { prompt = "Prompt: ", from_terminal = true }, function(name)
+    if name then
+      send_prompt(name)
+    end
+    restore()
+    vim.schedule(restore)
+  end)
 end
 
 return M

@@ -5,8 +5,8 @@ Status: implemented
 ## Problem
 
 With `cli.win.layout = "float"` and `picker = "snacks"`, any pick that was
-invoked from the vantage terminal — `:Vantage switch` to another Agent, the
-kill pick, the annotation pick, the Group step, `:Vantage prompt` — left the
+invoked from the vantage terminal — the `switch` key to another Agent, the
+kill pick, the Group step, the `prompt` key — left the
 cursor in the editor window behind the float instead of back on the agent
 terminal after the picker closed. The pick succeeded (the Client re-pointed),
 but focus was on the "next" tiled window, as if the pick came from the editor.
@@ -28,9 +28,9 @@ invoked from*, it restored the default first window.
 
 The snacks close compensation (`restore_terminal_mode` in
 `lua/vantage/picker/snacks.lua`) now also re-asserts window focus. At pick
-start, when `invoked_from_terminal` is set, the implementation captures
+start, when `from_terminal` is set, the implementation captures
 `vim.api.nvim_get_current_win()` — at that moment the current window *is* the
-Client window, since the fact means "the terminal is open and current" — and
+Client window, since `from_terminal` means the pick runs inside the terminal — and
 passes it into the same scheduled close handler. In the scheduled handler the
 terminal window is re-focused with `nvim_set_current_win` when it is still
 valid and not already current, *before* the existing terminal-mode re-entry
@@ -52,10 +52,9 @@ invoked-from window is captured, not looked up through a Vantage module).
 
 ### Why not re-assert the Client window in the command layer (`Client.retarget`)?
 
-`retarget` does not know it was reached through a picker close (it is also the
-non-interactive `:Vantage switch @N` path), and focusing from there would steal
-the cursor from a user who invoked switch from the editor — re-pointing must
-not change focus. The compensation belongs to the engine that loses it, the
+`retarget` does not know it was reached through a picker close, and focusing
+from there would change focus as a side effect of re-pointing. The
+compensation belongs to the engine that loses it, the
 same reasoning as the [new-Group terminal-mode note](2026-09-05-snacks-new-group-terminal-mode.md).
 
 ### Why not fix the teardown (close picker floats in reverse-open order)?
