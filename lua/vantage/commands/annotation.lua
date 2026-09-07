@@ -36,33 +36,41 @@ local function note_style()
   return Config.options.annotations.float.style == "minimal" and "minimal" or nil
 end
 
+--- Open an annotation's note float: jump to its range, mark it active, and
+--- edit its note (an empty commit deletes it). This is the Annotation item's
+--- `activate` tail.
+---@param annotation vantage.Annotation
+local function open_note(annotation)
+  if not jump_to_annotation(annotation) then
+    return
+  end
+  Annotation.set_active(annotation.buf, annotation.id, true)
+  local cwd = Util.cwd()
+  Note.open({
+    text = annotation.note,
+    title = ("Annotation %s"):format(Annotation.location(annotation, cwd)),
+    footer = "<Esc> save · empty deletes",
+    style = note_style(),
+    on_commit = function(note)
+      if note == "" then
+        -- Empty note = delete, after confirmation; the note UI owns no policy.
+        if vim.fn.confirm("Delete annotation?", "&Yes\n&No", 2) == 1 then
+          Annotation.delete(annotation.buf, annotation.id)
+        end
+      else
+        Annotation.edit(annotation.buf, annotation.id, note)
+      end
+    end,
+    on_close = function()
+      Annotation.set_active(annotation.buf, annotation.id, false)
+    end,
+  })
+end
+
 --- Open the annotation picker; selecting an annotation opens its note float.
 local function annotate_list()
-  local empty = Picker.get().pick_annotation(Select.annotation_spec(false), function(annotation)
-    if not jump_to_annotation(annotation) then
-      return
-    end
-    Annotation.set_active(annotation.buf, annotation.id, true)
-    local cwd = Select.focused_cwd()
-    Note.open({
-      text = annotation.note,
-      title = ("Annotation %s"):format(Annotation.location(annotation, cwd)),
-      footer = "<Esc> save · empty deletes",
-      style = note_style(),
-      on_commit = function(note)
-        if note == "" then
-          -- Empty note = delete, after confirmation; the note UI owns no policy.
-          if vim.fn.confirm("Delete annotation?", "&Yes\n&No", 2) == 1 then
-            Annotation.delete(annotation.buf, annotation.id)
-          end
-        else
-          Annotation.edit(annotation.buf, annotation.id, note)
-        end
-      end,
-      on_close = function()
-        Annotation.set_active(annotation.buf, annotation.id, false)
-      end,
-    })
+  local empty = Picker.get().pick_annotation(Select.annotation_spec(false), function(item)
+    item:activate(open_note)
   end)
   if empty then
     Util.warn("no annotations — add one with :Vantage annotate")

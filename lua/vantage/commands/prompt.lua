@@ -14,7 +14,7 @@ local M = {}
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local agent = Client.last_agent_alive()
+  local agent = Client.focused_agent()
   if not agent then
     Util.warn("no focused agent — use :Vantage toggle first")
     return

@@ -15,7 +15,7 @@ end
 ---@param cb fun(line?: string)
 local function emit(items, cb)
   for i, item in ipairs(items) do
-    cb(("%d. %s"):format(i, item.text))
+    cb(("%d. %s"):format(i, item:format()))
   end
   cb(nil)
 end
@@ -31,25 +31,23 @@ local function index_of(selected)
   return tonumber(entry:match("^%s*(%d+)%."))
 end
 
---- Open an fzf_exec picker over `spec` with a live item list: a c-x action
---- (`alt`, the flow's `on_delete` specialization, optional) removes the
---- current row's domain value in place, then re-reads `items_provider` and
---- reloads the list, exiting when nothing remains. When `spec.scope` exists,
---- its transform applies on every read while the c-g toggle is on (default)
---- and the picker binds ctrl-g to flip it in place. `extract` maps a chosen
---- item to the value `on_choice` receives.
+--- Open an fzf_exec picker over `spec` with a live item list. When `deletable`
+--- is set, a c-x action removes the current row in place via `item:delete()`
+--- — re-reading `items_provider` and reloading the list only when it reports a
+--- removal, exiting when nothing remains. When `spec.group` exists, its
+--- filter applies on every read while the c-g toggle is on (default) and
+--- the picker binds ctrl-g to flip it in place. The chosen item is passed to
+--- `on_choice` unchanged.
 ---@param spec vantage.PickSpec
----@param extract fun(item: any): any
----@param on_choice fun(value: any)
----@param alt? fun(item: any) the c-x removal action (`spec.on_delete`); it
----   receives the raw item and ignores rows with nothing to remove
+---@param on_choice fun(item: any)
+---@param deletable? boolean whether the picker binds c-x in-place removal
 ---@return boolean empty
-local function pick_static(spec, extract, on_choice, alt)
-  local scope_on = spec.scope ~= nil
+local function pick_static(spec, on_choice, deletable)
+  local group_on = spec.group ~= nil
   local function read()
     local all = spec.items_provider()
-    if scope_on then
-      return spec.scope(all)
+    if group_on then
+      return spec.group(all)
     end
     return all
   end
@@ -71,30 +69,29 @@ local function pick_static(spec, extract, on_choice, alt)
       local item = item_of(selected)
       if item then
         vim.schedule(function()
-          on_choice(extract(item))
+          on_choice(item)
         end)
       end
     end,
   }
-  if alt then
+  if deletable then
     actions["ctrl-x"] = {
       fn = function(selected)
         local item = item_of(selected)
-        if item then
-          alt(item)
-        end
-        state.items = read()
-        if #state.items == 0 then
-          require("fzf-lua").utils.fzf_exit()
+        if item and item:delete() then
+          state.items = read()
+          if #state.items == 0 then
+            require("fzf-lua").utils.fzf_exit()
+          end
         end
       end,
       reload = true,
     }
   end
-  if spec.scope then
+  if spec.group then
     actions["ctrl-g"] = {
       fn = function()
-        scope_on = not scope_on
+        group_on = not group_on
         state.items = read()
         if #state.items == 0 then
           require("fzf-lua").utils.fzf_exit()
@@ -112,7 +109,7 @@ local function pick_static(spec, extract, on_choice, alt)
       if not item then
         return ""
       end
-      local lines = spec.preview and spec.preview(item)
+      local lines = item:preview()
       if not lines then
         return ""
       end
@@ -123,30 +120,24 @@ local function pick_static(spec, extract, on_choice, alt)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  return pick_static(spec, function(item)
-    return item
-  end, on_choice, spec.on_delete)
+  return pick_static(spec, on_choice, true)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(target: string)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_kill(spec, on_choice)
-  return pick_static(spec, function(item)
-    return item.target
-  end, on_choice)
+  return pick_static(spec, on_choice)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(annotation: vantage.Annotation)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
-  return pick_static(spec, function(item)
-    return item.annotation
-  end, on_choice, spec.on_delete)
+  return pick_static(spec, on_choice, true)
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own

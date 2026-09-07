@@ -159,6 +159,17 @@ describe("vantage.backend.tmux", function()
     assert.are.same({ "tmux", "-L", socket, "attach-session", "-t", view }, Backend.client_command(view))
   end)
 
+  it("reports the Agent currently displayed by a View", function()
+    local first = create("g-focused", "codex")
+    local second = create("g-focused", "claude")
+    local view = Backend.attach("g-focused", first.target)
+
+    assert.are.same(first, Backend.focused_agent(view))
+
+    Backend.retarget(view, "g-focused", second.target)
+    assert.are.same(second, Backend.focused_agent(view))
+  end)
+
   it("fails a cross-group retarget cleanly when no client is attached", function()
     local first = create("g-cross-a", "codex")
     local second = create("g-cross-b", "codex")

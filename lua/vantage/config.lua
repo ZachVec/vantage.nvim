@@ -45,25 +45,19 @@
 
 ---@class vantage.PickSpec The selection contract passed to a picker
 --- implementation. Each field is an input to the picker — the items to render
---- (`items_provider`), preview content (`preview`), the prompt glyph
---- (`prompt`), a caller-declared fact (`from_terminal`), an in-flight
---- removal action (`on_delete`, used by the picker's `<c-x>`), and an optional
---- live scope transform (`scope`, the picker's `<c-g>` toggle). The chosen
+--- (`items_provider`), the prompt glyph (`prompt`), a caller-declared fact
+--- (`from_terminal`), and an optional live group filter (`group`, the
+--- picker's `<c-g>` toggle). Preview content and the `<c-x>` in-place removal
+--- are read directly off the chosen item through its `preview()` and
+--- `delete()` methods, so the spec carries no per-item behavior. The chosen
 --- item is delivered through the positional `on_choice`; the picker returns a
 --- boolean `empty`.
 ---@field prompt string
 ---@field items_provider fun(): table[]
----@field preview? fun(item: any): string[]?
 ---@field from_terminal? boolean
----@field on_delete? fun(item: any) the `<c-x>` in-flight removal action: the
----   call site receives the raw item and decides what "remove this row" means
----   (an Annotation is deleted, an Agent is killed) — or no-ops for rows with
----   nothing to remove (Tool rows, the pinned `(focused)` row). The picker stays
----   generic: it re-reads `items_provider`, refreshes in place, and closes when
----   nothing remains.
----@field scope? fun(items: table[]): table[] the flow's live scope transform:
----   applied to freshly read items while the picker's scope toggle is on (the
----   default when `scope` exists), re-invoked after every re-read (an
+---@field group? fun(items: table[]): table[] the flow's live group filter:
+---   applied to freshly read items while the picker's group toggle is on (the
+---   default when `group` exists), re-invoked after every re-read (an
 ---   in-place delete or the toggle itself). Absent → no toggle key and no
 ---   filtering.
 
@@ -78,10 +72,12 @@
 --- snacks) rendering every Vantage selection on its own engine. The frontend
 --- orchestrator (vantage.select) assembles a PickSpec per flow; the
 --- implementations stay presentation-only and depend on nothing but their
---- engine.
----@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })): boolean
----@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(target: string)): boolean
----@field pick_annotation fun(spec: vantage.PickSpec, on_choice: fun(annotation: vantage.Annotation)): boolean
+--- engine. `on_choice` receives the chosen item itself — an Agent, Tool,
+--- Group, or Annotation domain object carrying its own `format`, `preview`,
+--- `delete`, `activate`, and `group` methods.
+---@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
+---@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
+---@field pick_annotation fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}

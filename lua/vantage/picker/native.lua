@@ -3,13 +3,12 @@
 local M = {}
 
 --- Render a spec's items with vim.ui.select. Returns true when the list is
---- empty (nothing shown); otherwise opens the picker and returns false.
---- `extract` maps a chosen item to the domain value `on_choice` receives.
+--- empty (nothing shown); otherwise opens the picker and returns false. The
+--- chosen item is passed to `on_choice` unchanged.
 ---@param spec vantage.PickSpec
----@param extract fun(item: any): any
----@param on_choice fun(value: any)
+---@param on_choice fun(item: any)
 ---@return boolean empty
-local function select(spec, extract, on_choice)
+local function select(spec, on_choice)
   local items = spec.items_provider()
   if #items == 0 then
     return true
@@ -17,41 +16,35 @@ local function select(spec, extract, on_choice)
   vim.ui.select(items, {
     prompt = spec.prompt,
     format_item = function(item)
-      return item.text
+      return item:format()
     end,
   }, function(item)
     if item then
-      on_choice(extract(item))
+      on_choice(item)
     end
   end)
   return false
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  return select(spec, function(item)
-    return item
-  end, on_choice)
+  return select(spec, on_choice)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(target: string)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_kill(spec, on_choice)
-  return select(spec, function(item)
-    return item.target
-  end, on_choice)
+  return select(spec, on_choice)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(annotation: vantage.Annotation)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
-  return select(spec, function(item)
-    return item.annotation
-  end, on_choice)
+  return select(spec, on_choice)
 end
 
 --- Pick from a plain list (no preview) on this engine: the live global

@@ -1,6 +1,6 @@
---- snacks picker implementation. Drives snacks.picker directly; items carry a
---- `text` field and `format = "text"` renders it. `confirm` receives the
---- original item and must close the picker itself.
+--- snacks picker implementation. Drives snacks.picker directly; previewable
+--- rows are domain objects and snacks formats them via `item:format()`.
+--- `confirm` receives the original item and must close the picker itself.
 local M = {}
 
 --- Preview-pane window options for every preview-capable pick. Snacks renders
@@ -16,7 +16,7 @@ local NO_PREVIEW_LINENR = { number = false, relativenumber = false }
 ---@field set_lines fun(self: vantage.SnacksPreviewPane, lines: string[])
 
 ---@class vantage.SnacksPreviewCtx
----@field item { agent?: vantage.Agent, annotation?: vantage.Annotation, text: string }
+---@field item any
 ---@field preview vantage.SnacksPreviewPane
 
 local function pick(opts)
@@ -25,27 +25,25 @@ end
 
 ---@class vantage.SnacksRenderOpts Internal renderer options for the snacks picker.
 ---@field dynamic boolean
----@field extract fun(item: any): any
----@field on_choice fun(value: any)
+---@field on_choice fun(item: any)
 ---@field delete_action? string
----@field scope_action? string
+---@field group_action? string
 
 --- Preview the current item's content (pane lines or rendered annotation)
---- through the spec's preview thunk; nil means "nothing to preview".
----@param spec vantage.PickSpec
+--- through the item's `preview()`; nil means "nothing to preview".
 ---@return fun(ctx: vantage.SnacksPreviewCtx)
-local function preview(spec)
+local function preview()
   return function(ctx)
     local item = ctx.item
     ctx.preview:reset()
     if not item then
       return
     end
-    local lines = spec.preview and spec.preview(item)
+    local lines = item:preview()
     if not lines then
       return
     end
-    ctx.preview:set_title(item.text)
+    ctx.preview:set_title(item:format())
     ctx.preview:set_lines(lines)
   end
 end
@@ -89,13 +87,13 @@ end
 ---@param opts vantage.SnacksRenderOpts
 ---@return boolean empty
 local function render(spec, opts)
-  local scope_on = opts.scope_action ~= nil and spec.scope ~= nil
+  local group_on = opts.group_action ~= nil and spec.group ~= nil
   local terminal_win = spec.from_terminal and vim.api.nvim_get_current_win() or nil
 
   local function read()
     local all = spec.items_provider()
-    if scope_on then
-      return spec.scope(all)
+    if group_on then
+      return spec.group(all)
     end
     return all
   end
@@ -115,8 +113,10 @@ local function render(spec, opts)
   end
 
   local pick_opts = {
-    format = "text",
-    preview = preview(spec),
+    format = function(item)
+      return { { item:format(), "" } }
+    end,
+    preview = preview(),
     on_close = spec.from_terminal and function()
       restore_terminal_mode(terminal_win)
     end or nil,
@@ -124,7 +124,7 @@ local function render(spec, opts)
       picker:close()
       if item then
         vim.schedule(function()
-          opts.on_choice(opts.extract(item))
+          opts.on_choice(item)
         end)
       end
     end,
@@ -141,15 +141,14 @@ local function render(spec, opts)
   local actions = {}
   if opts.delete_action then
     actions[opts.delete_action] = function(picker, item)
-      if item and spec.on_delete then
-        spec.on_delete(item)
+      if item and item:delete() then
+        refresh(picker)
       end
-      refresh(picker)
     end
   end
-  if opts.scope_action then
-    actions[opts.scope_action] = function(picker)
-      scope_on = not scope_on
+  if opts.group_action then
+    actions[opts.group_action] = function(picker)
+      group_on = not group_on
       refresh(picker)
     end
   end
@@ -158,7 +157,7 @@ local function render(spec, opts)
   end
 
   local win = { preview = { wo = NO_PREVIEW_LINENR } }
-  if opts.delete_action or opts.scope_action then
+  if opts.delete_action or opts.group_action then
     win.input = { keys = {} }
     win.list = { keys = {} }
   end
@@ -166,9 +165,9 @@ local function render(spec, opts)
     win.input.keys["<C-x>"] = { opts.delete_action, mode = { "n", "i" } }
     win.list.keys["<C-x>"] = opts.delete_action
   end
-  if opts.scope_action then
-    win.input.keys["<C-g>"] = { opts.scope_action, mode = { "n", "i" } }
-    win.list.keys["<C-g>"] = opts.scope_action
+  if opts.group_action then
+    win.input.keys["<C-g>"] = { opts.group_action, mode = { "n", "i" } }
+    win.list.keys["<C-g>"] = opts.group_action
   end
   pick_opts.win = win
 
@@ -177,42 +176,33 @@ local function render(spec, opts)
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(choice: { kind: "agent"|"tool", agent?: vantage.Agent, tool?: string, focused?: boolean })
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
   return render(spec, {
     dynamic = true,
-    extract = function(item)
-      return item
-    end,
     on_choice = on_choice,
     delete_action = "agent_kill",
-    scope_action = "agent_scope_toggle",
+    group_action = "agent_group_toggle",
   })
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(target: string)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_kill(spec, on_choice)
   return render(spec, {
     dynamic = false,
-    extract = function(item)
-      return item.target
-    end,
     on_choice = on_choice,
   })
 end
 
 ---@param spec vantage.PickSpec
----@param on_choice fun(annotation: vantage.Annotation)
+---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_annotation(spec, on_choice)
   return render(spec, {
     dynamic = true,
-    extract = function(item)
-      return item.annotation
-    end,
     on_choice = on_choice,
     delete_action = "annotation_delete",
   })

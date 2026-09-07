@@ -196,18 +196,51 @@ local function groups_from_agents(agents)
   return names
 end
 
+local function active_window_target(view)
+  return exec_out("display", "-p", "-t", view, "#{window_id}")
+end
+
+local function find_agent_by_target(agents, target)
+  for _, agent in ipairs(agents) do
+    if agent.target == target then
+      return agent
+    end
+  end
+  return nil
+end
+
 ---@return string[]
 function M.groups()
   return groups_from_agents(M.list())
 end
 
---- One read of the live Agent inventory, including the derived Groups. Lets a
---- caller such as the kill picker avoid `list()` + `groups()` (and their
---- duplicate `list()`).
----@return { agents: vantage.Agent[], groups: string[] }
-function M.snapshot()
+--- One read of the live Agent inventory, including derived Groups and, when a
+--- View is supplied, the Agent that View is displaying.
+---@param view? string tmux View session name
+---@return { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }
+function M.snapshot(view)
   local agents = M.list()
-  return { agents = agents, groups = groups_from_agents(agents) }
+  local focused
+  if view then
+    local target = active_window_target(view)
+    if target ~= "" then
+      focused = find_agent_by_target(agents, target)
+    end
+  end
+  return { agents = agents, groups = groups_from_agents(agents), focused = focused }
+end
+
+--- The Agent currently displayed by a View, derived from the View's active
+--- tmux window. This is Backend-owned state: the Client knows its View name,
+--- but only the Backend reads which Agent that View is showing.
+---@param view string tmux View session name
+---@return vantage.Agent?
+function M.focused_agent(view)
+  local target = active_window_target(view)
+  if target == "" then
+    return nil
+  end
+  return find_agent_by_target(M.list(), target)
 end
 
 --- Create an Agent in a Group, creating the Group if it does not exist.

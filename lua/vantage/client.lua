@@ -20,13 +20,11 @@ local Util = require("vantage.util")
 ---@field buffer? integer
 ---@field window? integer
 ---@field view? string tmux View session name
----@field last_agent? vantage.Agent remembered across detach, for toggle re-open
 local M = {
   job = nil,
   buffer = nil,
   window = nil,
   view = nil,
-  last_agent = nil,
 }
 
 function M.reset()
@@ -49,18 +47,14 @@ function M.is_open()
   return M.window ~= nil and vim.api.nvim_win_is_valid(M.window)
 end
 
---- The last-focused Agent if it still exists, else nil.
+--- The Agent currently displayed by this Client's View, derived by the
+--- Backend from the View's active window. Returns nil when there is no View.
 ---@return vantage.Agent?
-function M.last_agent_alive()
-  if not M.last_agent then
+function M.focused_agent()
+  if not M.view then
     return nil
   end
-  for _, agent in ipairs(Backend.get().list()) do
-    if agent.target == M.last_agent.target then
-      return agent
-    end
-  end
-  return nil
+  return Backend.get().focused_agent(M.view)
 end
 
 --- Detach the client and destroy the terminal buffer. The client-detached hook
@@ -292,7 +286,6 @@ end
 ---@param agent vantage.Agent
 ---@return boolean
 function M.focus(agent)
-  M.last_agent = agent
   local backend = Backend.get()
   backend.ensure_server()
 
@@ -324,7 +317,6 @@ function M.retarget(agent)
   if not M.is_attached() then
     return false
   end
-  M.last_agent = agent
   local view = Backend.get().retarget(M.view, agent.group, agent.target)
   if not view then
     return false
