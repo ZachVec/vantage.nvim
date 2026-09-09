@@ -17,7 +17,7 @@ end
 --- Validate configured prompt placeholders (name -> template).
 local function check_prompts()
   local prompts = require("vantage.config").options.prompts or {}
-  local known = require("vantage.prompt").PLACEHOLDERS
+  local known = require("vantage.commands.prompt").PLACEHOLDERS
   local unknown = {}
   local uses_symbol = false
   for _, template in pairs(prompts) do
@@ -46,9 +46,8 @@ local function check_prompts()
   end
 end
 
---- Validate the cli.tools configuration. Invalid entries (empty name, or a
---- value without a non-empty `cmd` array) are dropped at setup with a
---- warning; this check surfaces what was dropped.
+--- Validate the cli.tools configuration. Invalid entries are dropped at setup
+--- with a warning; this check surfaces what was dropped.
 local function check_tools()
   local config = require("vantage.config")
   local dropped = config.dropped_tools
@@ -58,7 +57,7 @@ local function check_tools()
       lines[#lines + 1] = ("'%s' (%s)"):format(name, reason)
     end
     table.sort(lines)
-    err(("cli.tools: dropped invalid entries: %s"):format(table.concat(lines, ", ")))
+    err(("cli.tools: dropped entries: %s"):format(table.concat(lines, ", ")))
   else
     ok("cli.tools: no invalid entries (non-empty name + non-empty cmd)")
   end
@@ -74,7 +73,7 @@ function M.check()
     return
   end
 
-  for _, check in ipairs(require("vantage.backend").get().health()) do
+  for _, check in ipairs(require("vantage.backend.driver").get().health()) do
     if check.status == "ok" then
       ok(check.message)
     elseif check.status == "warn" then

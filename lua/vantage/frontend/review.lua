@@ -1,25 +1,25 @@
---- Annotation domain: a user note anchored to a line range in a normal file,
---- batched into the focused Agent's input through the `{annotations}` prompt
+--- Review domain: a user note anchored to a line range in a normal file,
+--- batched into the focused Agent's input through the `{reviews}` prompt
 --- placeholder.
 ---
---- An Annotation is a line range (`start_row..end_row`, 1-based inclusive) plus
---- a free-text `note`. It lives entirely in memory: a per-buffer registry maps
+--- A Review is a line range (`start_row..end_row`, 1-based inclusive) plus a
+--- free-text `note`. It lives entirely in memory: a per-buffer registry maps
 --- an extmark id to { buf, start_row, end_row, note }. The extmark carries the
 --- range and a `number_hl_group` tint; when the number column is off there is
---- nothing to tint, so nothing renders (the annotation stays reachable via
+--- nothing to tint, so nothing renders (the review stays reachable via
 --- `list`).
 local Config = require("vantage.config")
 local Util = require("vantage.util")
 
 local M = {}
 
-local NS = vim.api.nvim_create_namespace("vantage_annotation")
+local NS = vim.api.nvim_create_namespace("vantage_review")
 
---- registry[buf][extmark_id] = vantage.Annotation
----@type table<integer, table<integer, vantage.Annotation>>
+--- registry[buf][extmark_id] = vantage.Review
+---@type table<integer, table<integer, vantage.Review>>
 local registry = {}
 
----@class vantage.Annotation
+---@class vantage.Review
 ---@field buf integer source buffer
 ---@field id integer extmark id (unique per buffer)
 ---@field start_row integer 1-based inclusive
@@ -32,9 +32,9 @@ local registry = {}
 
 --- Register buffer-unload pruning and default highlight groups.
 function M.setup()
-  vim.api.nvim_create_augroup("VantageAnnotation", { clear = true })
+  vim.api.nvim_create_augroup("VantageReview", { clear = true })
   vim.api.nvim_create_autocmd("BufUnload", {
-    group = "VantageAnnotation",
+    group = "VantageReview",
     callback = function(args)
       registry[args.buf] = nil
     end,
@@ -44,20 +44,20 @@ function M.setup()
       vim.api.nvim_set_hl(0, name, { link = to })
     end
   end
-  link("VantageAnnotation", "Special")
-  link("VantageAnnotationActive", "WarningMsg")
+  link("VantageReview", "Special")
+  link("VantageReviewActive", "WarningMsg")
 end
 
 -- ---------------------------------------------------------------------------
 -- CRUD
 -- ---------------------------------------------------------------------------
 
---- Create an annotation over lines `start_row..end_row` (1-based inclusive).
+--- Create a review over lines `start_row..end_row` (1-based inclusive).
 ---@param buf integer
 ---@param start_row integer
 ---@param end_row integer
 ---@param note string
----@return vantage.Annotation?
+---@return vantage.Review?
 function M.add(buf, start_row, end_row, note)
   local last = vim.api.nvim_buf_line_count(buf)
   start_row = math.max(1, start_row)
@@ -67,38 +67,38 @@ function M.add(buf, start_row, end_row, note)
   end
   local id = vim.api.nvim_buf_set_extmark(buf, NS, start_row - 1, 0, {
     end_row = end_row - 1,
-    number_hl_group = "VantageAnnotation",
+    number_hl_group = "VantageReview",
     strict = false,
   })
   if id == 0 then
     return nil
   end
-  local annotation = { buf = buf, id = id, start_row = start_row, end_row = end_row, note = note }
+  local review = { buf = buf, id = id, start_row = start_row, end_row = end_row, note = note }
   registry[buf] = registry[buf] or {}
-  registry[buf][id] = annotation
-  return annotation
+  registry[buf][id] = review
+  return review
 end
 
 ---@param buf integer
 ---@param id integer
----@return vantage.Annotation?
+---@return vantage.Review?
 function M.get(buf, id)
   local by_id = registry[buf]
   return by_id and by_id[id]
 end
 
---- Replace an annotation's note text.
+--- Replace a review's note text.
 ---@param buf integer
 ---@param id integer
 ---@param note string
 function M.edit(buf, id, note)
-  local annotation = M.get(buf, id)
-  if annotation then
-    annotation.note = note
+  local review = M.get(buf, id)
+  if review then
+    review.note = note
   end
 end
 
---- Remove one annotation (extmark + registry entry).
+--- Remove one review (extmark + registry entry).
 ---@param buf integer
 ---@param id integer
 function M.delete(buf, id)
@@ -113,7 +113,7 @@ function M.delete(buf, id)
   end
 end
 
---- Remove every annotation.
+--- Remove every review.
 function M.clear()
   for buf in pairs(registry) do
     if vim.api.nvim_buf_is_valid(buf) then
@@ -123,17 +123,17 @@ function M.clear()
   registry = {}
 end
 
---- Every live annotation, sorted by (buffer name, start row). Entries whose
+--- Every live review, sorted by (buffer name, start row). Entries whose
 --- extmark no longer exists (e.g. after `:e!`) are skipped.
----@return vantage.Annotation[]
+---@return vantage.Review[]
 function M.collect()
   local out = {}
   for buf, by_id in pairs(registry) do
     if vim.api.nvim_buf_is_valid(buf) then
-      for _, annotation in pairs(by_id) do
-        local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, annotation.id, {})
+      for _, review in pairs(by_id) do
+        local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, review.id, {})
         if pos and pos[1] then
-          out[#out + 1] = annotation
+          out[#out + 1] = review
         end
       end
     end
@@ -153,7 +153,7 @@ end
 -- Visual emphasis (read/edit)
 -- ---------------------------------------------------------------------------
 
---- Swap one annotation's range tint between the resting and active highlight.
+--- Swap one review's range tint between the resting and active highlight.
 ---@param buf integer
 ---@param id integer
 ---@param active boolean
@@ -167,21 +167,21 @@ function M.set_active(buf, id, active)
   end
   vim.api.nvim_buf_set_extmark(buf, NS, pos[1], pos[2], {
     id = id,
-    number_hl_group = active and "VantageAnnotationActive" or "VantageAnnotation",
+    number_hl_group = active and "VantageReviewActive" or "VantageReview",
   })
 end
 
 -- ---------------------------------------------------------------------------
--- Rendering ({annotations} placeholder)
+-- Rendering ({reviews} placeholder)
 -- ---------------------------------------------------------------------------
 
 local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
 
---- The annotation's selected lines, with leading/trailing blank lines dropped.
----@param annotation vantage.Annotation
+--- The review's selected lines, with leading/trailing blank lines dropped.
+---@param review vantage.Review
 ---@return string
-local function code_text(annotation)
-  local lines = vim.api.nvim_buf_get_lines(annotation.buf, annotation.start_row - 1, annotation.end_row, false)
+local function code_text(review)
+  local lines = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.end_row, false)
   while #lines > 0 and lines[1]:find("^%s*$") do
     table.remove(lines, 1)
   end
@@ -191,70 +191,70 @@ local function code_text(annotation)
   return table.concat(lines, "\n")
 end
 
----@param annotation vantage.Annotation
+---@param review vantage.Review
 ---@param name string
 ---@param cwd string
 ---@return string
-local function field(annotation, name, cwd)
-  local path = vim.api.nvim_buf_get_name(annotation.buf) or ""
+local function field(review, name, cwd)
+  local path = vim.api.nvim_buf_get_name(review.buf) or ""
   if name == "note" then
-    return annotation.note
+    return review.note
   elseif name == "lines" then
-    local range = annotation.start_row == annotation.end_row and (":L%d"):format(annotation.start_row)
-      or (":L%d-%d"):format(annotation.start_row, annotation.end_row)
+    local range = review.start_row == review.end_row and (":L%d"):format(review.start_row)
+      or (":L%d-%d"):format(review.start_row, review.end_row)
     return "@" .. Util.relpath(cwd, path) .. " " .. range
   elseif name == "code" then
-    return code_text(annotation)
+    return code_text(review)
   elseif name == "file" then
     return Util.relpath(cwd, path)
   elseif name == "start" then
-    return tostring(annotation.start_row)
+    return tostring(review.start_row)
   elseif name == "end" then
-    return tostring(annotation.end_row)
+    return tostring(review.end_row)
   end
   return "" -- unknown name: unreachable from whitelisted callers
 end
 
----@param annotation vantage.Annotation
+---@param review vantage.Review
 ---@param template string
 ---@param cwd string
 ---@return string
-local function render_item(annotation, template, cwd)
+local function render_item(review, template, cwd)
   return Util.interpolate(template, FIELDS, function(name)
-    return field(annotation, name, cwd)
+    return field(review, name, cwd)
   end) or ""
 end
 
---- Render one annotation through the configured `item` template (for picker
+--- Render one review through the configured `item` template (for picker
 --- previews: what you see is what gets sent).
----@param annotation vantage.Annotation
+---@param review vantage.Review
 ---@param cwd string focused Agent cwd (relativization base)
 ---@return string
-function M.render_item(annotation, cwd)
-  return render_item(annotation, Config.options.annotations.item, cwd)
+function M.render_item(review, cwd)
+  return render_item(review, Config.options.reviews.item, cwd)
 end
 
---- The `{lines}` location reference for one annotation (`@<relpath> :L<start>-<end>`).
----@param annotation vantage.Annotation
+--- The `{lines}` location reference for one review (`@<relpath> :L<start>-<end>`).
+---@param review vantage.Review
 ---@param cwd string
 ---@return string
-function M.location(annotation, cwd)
-  return field(annotation, "lines", cwd)
+function M.location(review, cwd)
+  return field(review, "lines", cwd)
 end
 
---- Render every annotation through the configured `item` template into one
+--- Render every review through the configured `item` template into one
 --- string, or nil when there are none (so the prompt skips with a warning).
 ---@param cwd string focused Agent cwd (relativization base)
 ---@return string?
 function M.render(cwd)
-  local annotations = M.collect()
-  if #annotations == 0 then
+  local reviews = M.collect()
+  if #reviews == 0 then
     return nil
   end
-  local item = Config.options.annotations.item
+  local item = Config.options.reviews.item
   local out = {}
-  for _, annotation in ipairs(annotations) do
-    out[#out + 1] = render_item(annotation, item, cwd)
+  for _, review in ipairs(reviews) do
+    out[#out + 1] = render_item(review, item, cwd)
   end
   return table.concat(out, "\n")
 end

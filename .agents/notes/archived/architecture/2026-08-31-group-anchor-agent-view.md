@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-09
+
 ## Problem
 
 Agents must outlive the client that created them (headless survival), each attached client needs its own independent view of the same agents, and views must not accumulate as clients come and go.

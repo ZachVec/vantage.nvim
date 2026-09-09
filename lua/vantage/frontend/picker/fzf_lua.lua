@@ -36,8 +36,7 @@ end
 --- — re-reading `items_provider` and reloading the list only when it reports a
 --- removal, exiting when nothing remains. When `spec.group` exists, its
 --- filter applies on every read while the c-g toggle is on (default) and
---- the picker binds ctrl-g to flip it in place. The chosen item is passed to
---- `on_choice` unchanged.
+--- the picker binds ctrl-g to flip it in place.
 ---@param spec vantage.PickSpec
 ---@param on_choice fun(item: any)
 ---@param deletable? boolean whether the picker binds c-x in-place removal
@@ -123,7 +122,7 @@ end
 ---@param on_choice fun(item: any)
 ---@return boolean empty
 function M.pick_agent(spec, on_choice)
-  return pick_static(spec, on_choice, true)
+  return pick_static(spec, on_choice)
 end
 
 ---@param spec vantage.PickSpec
@@ -136,13 +135,13 @@ end
 ---@param spec vantage.PickSpec
 ---@param on_choice fun(item: any)
 ---@return boolean empty
-function M.pick_annotation(spec, on_choice)
+function M.pick_review(spec, on_choice)
   return pick_static(spec, on_choice, true)
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own
 --- ui_select implementation — the same function fzf-lua registers as a global
---- `vim.ui.select` override — so plain selects stay on the fzf renderer family.
+--- `vim.ui.select` override.
 ---@param items any[]
 ---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)

@@ -32,4 +32,5 @@ Tool binaries and keybindings are user-specific and non-portable; empty defaults
 - The terminal is created lazily on first focus and re-targeted thereafter; closing it detaches the client and destroys only its View.
 - How that one window is presented (`cli.win.layout`, default `full` in a dedicated tab) is decided in the [full-terminal-layout note](../feature/2026-09-03-full-terminal-layout.md); its `<tool> · <cwd>` buffer title was removed in the [tmux pane border note](../feature/2026-09-06-tmux-pane-status.md).
 
-The View lifecycle that the terminal attaches to is [the Group/Anchor/Agent/View note](2026-08-31-group-anchor-agent-view.md).
+The attachment lifecycle (terminal exists ⇔ its client is attached) is owned by
+[the layered refactor note](2026-09-09-layered-frontend-backend-refactor.md).

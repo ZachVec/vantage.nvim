@@ -2,7 +2,7 @@
 local M = {}
 
 --- The picker prompt glyph (U+F105, e.g. Nerd Font), passed to the pickers as
---- the PickSpec's `prompt` by the frontend orchestrator (vantage.select).
+--- the PickSpec's `prompt` by the flow layer.
 M.picker_prompt = vim.fn.nr2char(0xF105)
 
 --- Run a command synchronously via vim.system.
@@ -77,10 +77,10 @@ function M.agent_window_index(target)
   return tonumber(target:match("^@(%d+)$")) or 0
 end
 
---- Normalized window-local cwd (respects :lcd / :tcd).
+--- Normalized global cwd (follows :cd, ignores :lcd / :tcd).
 ---@return string
 function M.cwd()
-  return vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(0), ":p"))
+  return vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p"))
 end
 
 --- Path relative to `cwd`, or absolute when it escapes `cwd` or relativizing

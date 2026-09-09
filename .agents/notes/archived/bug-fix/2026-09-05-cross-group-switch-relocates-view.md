@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-09
+
 ## Problem
 
 `:Vantage switch` re-pointed the terminal through `Backend.select_window(view,

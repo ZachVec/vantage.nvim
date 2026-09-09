@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-09
+
 ## Problem
 
 Preview-capable pickers wrapped their domain data in a separate presentation

@@ -30,4 +30,4 @@ Plausible, but tmux 3.x is ubiquitous and already installed; zellij is deferred 
 - The plugin is a thin domain layer over tmux: all state lives in tmux objects, so the Backend reconstructs it by listing sessions/windows rather than keeping its own store.
 - The private socket isolates Vantage from the user's daily tmux server, so its hooks and options never touch unrelated sessions.
 
-The mapping of that state onto tmux objects is [the Group/Anchor/Agent/View note](2026-08-31-group-anchor-agent-view.md); the choice to route every operation through a swappable driver is [the Backend seam note](2026-08-31-backend-driver-seam.md).
+The mapping of that state onto tmux objects is [the layered refactor note](2026-09-09-layered-frontend-backend-refactor.md); the choice to route every operation through a swappable driver is [the Backend seam note](2026-08-31-backend-driver-seam.md).

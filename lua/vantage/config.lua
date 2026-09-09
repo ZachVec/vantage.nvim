@@ -6,7 +6,7 @@
 
 ---@class vantage.Agent A running coding-agent process.
 ---@field group string
----@field target string tmux window id (@N)
+---@field target string multiplexer window id (@N for tmux)
 ---@field cmd string
 ---@field cwd string
 ---@field tool string the cli.tools key that created it (for the format hook)
@@ -18,15 +18,15 @@
 ---@field split table
 ---@field keys table[]
 
----@class vantage.AnnotationFloatConfig Note-float window options.
+---@class vantage.ReviewFloatConfig Note-float window options.
 ---@field style string "inherit" (default) | "minimal"
 
----@class vantage.AnnotationConfig
----@field item string per-annotation send template ({note}/{lines}/{code}/{file}/{start}/{end})
----@field clear_on_send boolean clear after a sent prompt contains {annotations}
----@field float vantage.AnnotationFloatConfig
+---@class vantage.ReviewConfig
+---@field item string per-review send template ({note}/{lines}/{code}/{file}/{start}/{end})
+---@field clear_on_send boolean clear after a sent prompt contains {reviews}
+---@field float vantage.ReviewFloatConfig
 
----@class vantage.NoteOpts Options for the editable-note UI (vantage.ui.note).
+---@class vantage.NoteOpts Options for the editable-note UI (vantage.frontend.note).
 ---@field text string
 ---@field title? string
 ---@field footer? string
@@ -40,44 +40,34 @@
 ---@field socket string
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
----@field annotations vantage.AnnotationConfig
+---@field reviews vantage.ReviewConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickSpec The selection contract passed to a picker
---- implementation. Each field is an input to the picker — the items to render
---- (`items_provider`), the prompt glyph (`prompt`), a caller-declared fact
---- (`from_terminal`), and an optional live group filter (`group`, the
---- picker's `<c-g>` toggle). Preview content and the `<c-x>` in-place removal
---- are read directly off the chosen item through its `preview()` and
---- `delete()` methods, so the spec carries no per-item behavior. The chosen
---- item is delivered through the positional `on_choice`; the picker returns a
---- boolean `empty`.
+--- implementation. Each field is an input to the picker: the items to render
+--- (`items_provider`), the prompt glyph (`prompt`), and an optional live group
+--- filter (`group`, the picker's `<c-g>` toggle). Rows expose `format()` /
+--- `preview()`, and a flow-enabled in-place `<c-x>` calls `delete()`; the
+--- chosen row is delivered through the positional `on_choice`, and the picker
+--- returns a boolean `empty`.
 ---@field prompt string
 ---@field items_provider fun(): table[]
----@field from_terminal? boolean
 ---@field group? fun(items: table[]): table[] the flow's live group filter:
 ---   applied to freshly read items while the picker's group toggle is on (the
----   default when `group` exists), re-invoked after every re-read (an
----   in-place delete or the toggle itself). Absent → no toggle key and no
----   filtering.
+---   default when `group` exists), re-invoked after every re-read.
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
---- (`pick_plain`), mirroring `vim.ui.select`'s opts plus the caller-declared
---- `from_terminal` fact the snacks implementation uses to restore terminal mode.
+--- (`pick_plain`), mirroring `vim.ui.select`'s opts.
 ---@field prompt? string
 ---@field format_item? fun(item: any): string
----@field from_terminal? boolean
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
---- snacks) rendering every Vantage selection on its own engine. The frontend
---- orchestrator (vantage.select) assembles a PickSpec per flow; the
---- implementations stay presentation-only and depend on nothing but their
---- engine. `on_choice` receives the chosen item itself — an Agent, Tool,
---- Group, or Annotation domain object carrying its own `format`, `preview`,
---- `delete`, `activate`, and `group` methods.
+--- snacks) rendering every Vantage selection on its own engine. The command
+--- flows assemble a PickSpec per flow; the implementations stay
+--- presentation-only and depend on nothing but their engine.
 ---@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
 ---@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
----@field pick_annotation fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
+---@field pick_review fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}
@@ -92,82 +82,58 @@ local defaults = {
   socket = "vantage",
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
-  --- Named prompt templates (name -> template string) offered by
-  --- `:Vantage prompt`. Three are built in — {file}, {line}, and {annotations},
-  --- as identity templates ("{file}" -> "{file}") — so the raw location
-  --- references and the accumulated Annotations are always available. The
-  --- {annotations} prompt is hidden when there are no Annotations. User prompts
-  --- merge additively: a name you set overrides the built-in, and names you
-  --- leave unset are kept. Templates may use the placeholders {file}, {line},
-  --- {function}, {class}, and {annotations}, rendered relative to the focused
+  --- Named prompt templates (name -> template string) offered by the `prompt`
+  --- terminal action. Three are built in — {file}, {line}, and {reviews}, as
+  --- identity templates ("{file}" -> "{file}") — so the raw location
+  --- references and the accumulated Reviews are always available. The
+  --- {reviews} prompt is hidden when there are no Reviews. User prompts merge
+  --- additively: a name you set overrides the built-in, and names you leave
+  --- unset are kept. Templates may use the placeholders {file}, {line},
+  --- {function}, {class}, and {reviews}, rendered relative to the focused
   --- Agent's cwd.
   prompts = {
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
-    ["{annotations}"] = "{annotations}",
+    ["{reviews}"] = "{reviews}",
   },
-  --- Annotations: notes anchored to line ranges in normal files, batched into
-  --- the focused Agent through the {annotations} prompt placeholder.
-  annotations = {
-    --- Per-annotation template rendered for each annotation inside {annotations}.
+  --- Reviews: notes anchored to line ranges in normal files, batched into
+  --- the focused Agent through the {reviews} prompt placeholder.
+  reviews = {
+    --- Per-review template rendered for each review inside {reviews}.
     --- Fields: {note} (the text), {lines} (`@<relpath> :L<start>-<end>`),
     --- {code} (the selected lines), and {file}/{start}/{end} as building blocks.
     item = "{lines} {note}",
-    --- Clear every annotation after a prompt containing {annotations} is typed
-    --- into the Agent. Set false to keep them for re-sending.
+    --- Clear every review after a prompt containing {reviews} is typed into
+    --- the Agent. Set false to keep them for re-sending.
     clear_on_send = true,
     --- Note-float window options. `float.style = "inherit"` (default) passes
     --- no float style, so the window takes the options of the window it opens
-    --- from (line numbers, cursorline, … follow the user's config) and reads
-    --- as an editable buffer; `"minimal"` forces Neovim's minimal float style,
-    --- a clean dialog look with those options off.
+    --- from and reads as an editable buffer; `"minimal"` forces Neovim's
+    --- minimal float style, a clean dialog look with those options off.
     float = {
       style = "inherit",
     },
   },
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
-    --- Empty by default: provide your own; nothing is built in or validated.
+    --- Empty by default: provide your own; invalid entries are dropped at
+    --- setup with a warning.
     --- A tool may also carry a `format` function, applied to a rendered prompt
     --- just before it is sent to the Agent.
-    --- Example:
-    ---   tools = {
-    ---     claude = { cmd = { "claude" } },
-    ---     codex  = { cmd = { "codex" }, format = function(text) return text end },
-    ---   },
     tools = {},
     --- The persistent :terminal window that is the tmux client.
     win = {
       --- full | left | top | bottom | right | float
       --- `float` opens a centered floating window at the full editor size —
-      --- floats render no statusline or winbar, so the view is a pure terminal
-      --- (a normal window's statusline row cannot be removed per window while
-      --- 'laststatus' >= 2). The per-frame terminal-cursor redraw inside
-      --- floats can flicker on some Agent-TUI repaints; `full` (a dedicated
-      --- tab) is the alternative for users who see it, and the split layouts
-      --- open the terminal alongside the current window.
+      --- floats render no statusline or winbar, so the view is a pure terminal.
       layout = "float",
-      --- `float` layout window options. width/height are fractions of the
-      --- editor area (0 < v <= 1); border is a `nvim_open_win` border value
-      --- ("none" | "single" | "double" | "rounded" | "solid"), or false for
-      --- no border.
       float = { width = 1.0, height = 1.0, border = "none" },
       split = { width = 80, height = 20 },
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
       --- 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is passed verbatim to
-      --- vim.keymap.set (a key sequence / <cmd> RHS or a Lua function), except
-      --- a string naming a built-in terminal action — "switch", "kill",
-      --- "prompt", or "toggle" — which resolves to that action.
-      ---
-      --- Example:
-      ---   keys = {
-      ---     { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
-      ---     { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
-      ---     { "s", "switch", mode = "n", desc = "switch Agent" },
-      ---     { "k", "kill", mode = "n", desc = "kill Agent/Group" },
-      ---     { "p", "prompt", mode = "n", desc = "send a prompt" },
-      ---   },
+      --- vim.keymap.set, except a string naming a built-in terminal action —
+      --- "switch", "prompt", or "toggle" — which resolves to that action.
       keys = {},
     },
   },
@@ -183,9 +149,8 @@ M.dropped_tools = {}
 
 --- Validate a cli.tools table in place: drop invalid entries, recording each
 --- in `dropped`. An entry is valid when its name is non-empty and its value
---- is a table with a non-empty `cmd` array. This is what keeps create()'s
---- Tool-required contract (and the pane border's unconditional @agent-tool)
---- honest.
+--- is a table with a non-empty `cmd` array whose first element is executable
+--- on PATH.
 ---@param tools table<string, vantage.Tool>
 ---@param dropped? table<string, string> records name -> reason for each dropped entry
 ---@return table<string, vantage.Tool> the same table, invalid entries removed
@@ -198,6 +163,8 @@ function M.sanitize_tools(tools, dropped)
       reason = "value is not a table"
     elseif type(tool.cmd) ~= "table" or #tool.cmd == 0 then
       reason = "cmd is missing or empty"
+    elseif vim.fn.executable(tool.cmd[1]) ~= 1 then
+      reason = ("command '%s' not found"):format(tool.cmd[1])
     end
     if reason then
       if dropped then
@@ -209,7 +176,8 @@ function M.sanitize_tools(tools, dropped)
   return tools
 end
 
---- Monotonic stamp for the most-recently-visited window, read by prompt.lua.
+--- Monotonic stamp for the most-recently-visited window, read by the prompt
+--- flow's context resolution.
 local visit_counter = 0
 
 --- (Re)register the WinEnter autocmd that stamps each window with the visit
@@ -235,13 +203,13 @@ function M.setup(opts)
     Util.warn(("dropping invalid cli.tools entry '%s' (%s)"):format(name, reason))
   end
   M.track_window_visits()
-  require("vantage.annotation").setup()
+  require("vantage.frontend.review").setup()
 
   pcall(vim.api.nvim_create_user_command, "Vantage", function(args)
     require("vantage.commands").run(args)
   end, {
     nargs = "*",
-    range = true, -- `:Vantage annotate` uses the range as the annotation span
+    range = true, -- `:Vantage review` uses the range as the review span
     complete = function(arglead, cmdline)
       return require("vantage.commands").complete(arglead, cmdline)
     end,

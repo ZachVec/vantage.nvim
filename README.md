@@ -11,8 +11,7 @@ dsh, …) in tmux and shows them in a single persistent `:terminal`.
 
 ## Install
 
-Install with your favorite package manager. With
-[lazy.nvim](https://github.com/folke/lazy.nvim):
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
@@ -28,13 +27,13 @@ docs.
 ## Usage
 
 ```vim
-:Vantage                                   " show help (no default action)
-:Vantage toggle                            " hide/show the terminal (picks an Agent if none)
-:Vantage detach                            " detach the client (Agents keep running)
-:Vantage annotate                          " annotate a range (visual selection, or current line)
-:Vantage annotate list                     " open the annotation picker (read/edit a note)
-:Vantage annotate clear                    " remove every annotation
-:Vantage status                            " debug: clients + sessions
+:Vantage toggle                    " hide/show the terminal (picks an Agent if none)
+:Vantage detach                    " destroy the terminal (Agents keep running)
+:Vantage review                    " review a range (visual selection, or current line)
+:Vantage review list               " open the review picker (read/edit a note)
+:Vantage review clear              " remove every review
+:Vantage kill                      " kill an Agent or Group
+:Vantage status                    " debug: clients + sessions
 ```
 
 To create an Agent, open the Agent picker from inside the terminal with the
@@ -52,14 +51,14 @@ require("vantage").setup({
   backend = "tmux",          -- pluggable backend driver (only "tmux" today)
   socket  = "vantage",       -- private tmux socket name
   picker  = "native",        -- native | fzf-lua | snacks
-  prompts = {               -- built-in {file}/{line}/{annotations}; add/override yours
+  prompts = {               -- built-in {file}/{line}/{reviews}; add/override yours
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
-    ["{annotations}"] = "{annotations}",
+    ["{reviews}"] = "{reviews}",
   },
-  annotations = {           -- notes on line ranges, sent via {annotations}
-    item = "{lines} {note}",  -- per-annotation template
-    clear_on_send = true,     -- clear after a sent prompt uses {annotations}
+  reviews = {               -- notes on line ranges, sent via {reviews}
+    item = "{lines} {note}",  -- per-review template
+    clear_on_send = true,     -- clear after a sent prompt uses {reviews}
     float = {                 -- note-float window options
       style = "inherit",      -- "inherit" (default) | "minimal"
     },
@@ -82,13 +81,12 @@ winbar, or border. If the terminal's cursor flickers for you, use
 `layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
 fractions of the editor area (0 < v <= 1).
 
-The Agent pane shows a thin tmux top border with the Group, the Agent's
-tool, its working directory — absolute path, `~` for the home prefix — and
-the Group's State counts (running / background / waiting / idle / error,
-non-zero buckets only, shown as Nerd Font icons). It refreshes about once a
-second.
+The Agent pane shows a thin tmux top border with the Group, the Agent's tool,
+its working directory — absolute path, `~` for the home prefix — and the
+Group's State counts (running / background / waiting / idle / error, non-zero
+buckets only, shown as Nerd Font icons). It refreshes about once a second.
 
-`cli.tools` is empty by default — provide every tool yourself, e.g.:
+`cli.tools` is empty by default — provide every tool yourself:
 
 ```lua
 tools = {
@@ -99,20 +97,20 @@ tools = {
 
 `tools.<name>.cmd` is an argv array: each element is shell-quoted before the
 Agent's shell runs it, so arguments keep their boundaries. Nothing is built
-in. A tool entry needs a non-empty name and a non-empty `cmd` array — invalid
-entries are dropped at setup with a warning
-and listed by `:checkhealth vantage`. An Agent's working directory is
-the current window's local cwd (respects `:lcd`/`:tcd`). A tool may also
-carry a `format` function
+in. A tool entry needs a non-empty name, a non-empty `cmd` array, and a first
+element that is executable on PATH — entries that fail any of these are
+dropped at setup with a warning and listed by `:checkhealth vantage`. An
+Agent's working directory is Neovim's global cwd (follows `:cd`;
+`:lcd`/`:tcd` do not affect it). A tool may also carry a `format` function
 (`fun(text): string`), applied to a rendered prompt just before it is sent.
 
 ### Prompt templates
 
 `prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
-and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
-location references and the accumulated Annotations are always available. The
-`{annotations}` prompt is hidden while there are no Annotations. The `prompt`
-key (see Terminal filetype & keymaps) picks one through the pluggable picker's
+and `{reviews}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
+location references and the accumulated Reviews are always available. The
+`{reviews}` prompt is hidden while there are no Reviews. The `prompt` key (see
+Terminal filetype & keymaps) picks one through the pluggable picker's
 plain-select form and pastes it into the focused Agent's input; it never
 auto-submits. Your `prompts` merge additively: a name you set overrides the
 built-in, and names you leave unset are kept. Templates may use five
@@ -125,7 +123,7 @@ the focused Agent's cwd:
 | `{line}`     | `@path/to/file.lua :L42` (cursor line) |
 | `{function}` | `function foo @path/to/file.lua :L42:C3` |
 | `{class}`    | `class Foo @path/to/file.lua :L42:C3` |
-| `{annotations}` | every Annotation, rendered by `annotations.item` |
+| `{reviews}`  | every Review, rendered by `reviews.item` |
 
 `{function}` / `{class}` need nvim-treesitter-textobjects; without it (or
 outside a function/class) the prompt is skipped with a warning — that is why
@@ -140,42 +138,40 @@ prompts = {
 }
 ```
 
-### Annotations
+### Reviews
 
-An Annotation is a note anchored to a line range in a normal file. Add one with
-`:Vantage annotate` (over the visual selection or the current line when there is
-none); `:Vantage annotate list` opens a picker — selecting one jumps to its range
-and opens an editable note float — and `:Vantage annotate clear` removes them all.
-Annotations tint the range's line numbers only — no layout shift, no
-code obscuring; when the number column is off they are not drawn. They live in
+A Review is a note anchored to a line range in a normal file. Add one with
+`:Vantage review` (over the visual selection or the current line when there is
+none); `:Vantage review list` opens a picker — selecting one jumps to its range
+and opens an editable note float — and `:Vantage review clear` removes them all.
+Reviews tint the range's line numbers only — no layout shift, no code
+obscuring; when the number column is off they are not drawn. They live in
 memory only: lost on buffer unload/reload or Neovim exit.
 
 The note float is a normal scratch buffer (normal mode), so editing is ordinary
 Vim — multi-line notes and undo included. By default
-(`annotations.float.style = "inherit"`) its window options follow the window it
-opens from, so your line numbers, cursorline and friends apply and the float
-reads as an editable buffer at a glance; set
-`annotations.float.style = "minimal"` for a clean dialog look with those
-options off. Pressing `<Esc>` commits the note and closes the float; an empty
-note deletes the annotation after a confirmation. The picker is pluggable:
-fzf-lua/snacks preview each note through `annotations.item` and offer an
-in-place `<c-x>` delete; native is selection-only.
+(`reviews.float.style = "inherit"`) its window options follow the window it
+opens from; set `reviews.float.style = "minimal"` for a clean dialog look.
+Pressing `<Esc>` commits the note and closes the float; an empty note deletes
+the review after a confirmation. The picker is pluggable: fzf-lua/snacks
+preview each note through `reviews.item` and offer an in-place `<c-x>` delete;
+native is selection-only.
 
-Send them to the focused Agent through a prompt that uses `{annotations}`:
+Send them to the focused Agent through a prompt that uses `{reviews}`:
 
 ```lua
 require("vantage").setup({
-  prompts = { notes = "My notes:\n{annotations}" },
+  prompts = { notes = "My notes:\n{reviews}" },
 })
 ```
 
-`annotations.item` is the per-annotation template, with fields `{note}`,
-`{lines}` (`@path/to/file.lua :L10-L20`), `{code}` (the selected lines),
-`{file}`, `{start}`, `{end}`. Default is `"{lines} {note}"`; to include the
-code use `item = "{lines} {note}\n{code}"`. With `clear_on_send = true`
-(default), a successful send that used `{annotations}` clears the annotations.
+`reviews.item` is the per-review template, with fields `{note}`, `{lines}`
+(`@path/to/file.lua :L10-L20`), `{code}` (the selected lines), `{file}`,
+`{start}`, `{end}`. Default is `"{lines} {note}"`; to include the code use
+`item = "{lines} {note}\n{code}"`. With `clear_on_send = true` (default), a
+successful send that used `{reviews}` clears the reviews.
 
-### Pickers & prompts
+### Pickers
 
 Agent rows in the Agent picker (the `switch` key, or `:Vantage toggle` with no
 terminal) are sorted by group, working directory, and tool name; when the list
@@ -184,8 +180,8 @@ the top with a `(focused)` marker, and confirming that row does nothing. When
 no Agent is running and no tool is configured, the picker warns instead of
 opening.
 
-The Agent list (the `switch` key) and the kill list (the `kill` key) go
-through a pluggable picker, chosen by `picker`:
+The Agent list (the `switch` key), the kill list (`:Vantage kill`), and the
+review list go through a pluggable picker, chosen by `picker`:
 
 - `"native"` — built-in `vim.ui.select` (default). Respects any global
   `vim.ui.select` override (dressing.nvim, snacks' ui_select, …).
@@ -193,12 +189,9 @@ through a pluggable picker, chosen by `picker`:
 - `"snacks"` — snacks.nvim picker; requires snacks.nvim.
 
 `fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output), and Agent rows offer an in-place `<c-x>` kill: the row's Agent is
-killed, the list refreshes and stays open (so several Agents can be killed in
-one session), closing when nothing remains. The pinned `(focused)` row and the
-Tool rows ignore `<c-x>`; native is selection-only. The Agent list opens
-scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
-(Tool rows always stay, and with nothing focused the whole list shows).
+output). The Agent list opens scoped to the focused Agent's Group by default —
+`<c-g>` toggles it in place (Tool rows always stay, and with nothing focused
+the whole list shows). The review list offers an in-place `<c-x>` delete.
 Creating an Agent (choosing a Group) and the `prompt` key use the same picker
 in a compact plain-select form. Free-text prompts (e.g. the new-Group name)
 use `input()` and are insert-mode by default; Yes/No confirmations use
@@ -218,12 +211,11 @@ string naming a built-in terminal action, which runs that action. `mode` is
 | `rhs`      | action |
 |------------|--------|
 | `"switch"` | re-point the terminal to an Agent (Agent picker) |
-| `"kill"`   | kill an Agent or Group (kill picker) |
 | `"prompt"` | pick a prompt and type it into the focused Agent |
 | `"toggle"` | hide/show the terminal |
 
-`switch`, `kill` and `prompt` are terminal actions only — there is no
-`:Vantage` command for them; bind them here.
+`switch` and `prompt` are terminal actions only — there is no `:Vantage`
+command for them; bind them here.
 
 ```lua
 require("vantage").setup({
@@ -232,9 +224,7 @@ require("vantage").setup({
       keys = {
         { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
         { "q", "toggle", mode = "n", desc = "hide/show the terminal" },
-        { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
         { "s", "switch", mode = "n", desc = "switch Agent" },
-        { "k", "kill", mode = "n", desc = "kill Agent/Group" },
         { "p", "prompt", mode = "n", desc = "send a prompt" },
       },
     },

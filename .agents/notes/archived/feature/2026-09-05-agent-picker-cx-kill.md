@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-09
+
 ## Problem
 
 The Agent picker behind `:Vantage switch` (and `:Vantage toggle`'s open path)

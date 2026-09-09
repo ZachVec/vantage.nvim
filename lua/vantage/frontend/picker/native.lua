@@ -43,14 +43,13 @@ end
 ---@param spec vantage.PickSpec
 ---@param on_choice fun(item: any)
 ---@return boolean empty
-function M.pick_annotation(spec, on_choice)
+function M.pick_review(spec, on_choice)
   return select(spec, on_choice)
 end
 
 --- Pick from a plain list (no preview) on this engine: the live global
 --- `vim.ui.select` — including any override — since native is defined as
---- "follow the environment's renderer". Every plain choice in a flow then
---- shares one renderer family by construction.
+--- "follow the environment's renderer".
 ---@param items any[]
 ---@param opts vantage.PlainSelectOpts
 ---@param on_choice fun(item: any?, index?: integer)

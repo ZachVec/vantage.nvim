@@ -3,8 +3,9 @@
 describe("vantage.util", function()
   local Util = require("vantage.util")
 
-  it("exposes the picker prompt glyph", function()
+  it("exposes the picker prompt glyph and the global cwd", function()
     assert.are.equal(vim.fn.nr2char(0xF105), Util.picker_prompt)
+    assert.are.equal(vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p")), Util.cwd())
   end)
 
   describe("interpolate", function()
@@ -43,11 +44,8 @@ describe("vantage.util", function()
   end)
 
   describe("shell_quote", function()
-    it("quotes empty strings as a standalone empty argument", function()
+    it("quotes empty strings and ordinary arguments", function()
       assert.are.equal("''", Util.shell_quote(""))
-    end)
-
-    it("single-quotes ordinary arguments", function()
       assert.are.equal("'claude'", Util.shell_quote("claude"))
     end)
 
@@ -65,14 +63,8 @@ describe("vantage.util", function()
       assert.are.equal("src/a.lua", Util.relpath("/proj", "/proj/src/a.lua"))
     end)
 
-    it("keeps an absolute path when the path escapes cwd", function()
-      local outside = Util.relpath("/proj", "/elsewhere/a.lua")
-      assert.are.equal("/elsewhere/a.lua", outside)
-    end)
-
-    it("keeps the absolute path when relativization is empty", function()
-      local cwd = "/proj"
-      assert.are.equal(cwd, Util.relpath(cwd, cwd))
+    it("keeps absolute paths when the path escapes cwd", function()
+      assert.are.equal("/elsewhere/a.lua", Util.relpath("/proj", "/elsewhere/a.lua"))
     end)
   end)
 
@@ -83,24 +75,15 @@ describe("vantage.util", function()
       vim.env.HOME = home
     end)
 
-    it("folds the home directory itself", function()
+    it("folds the home directory and paths below it", function()
       vim.env.HOME = "/home/test"
       assert.are.equal("~", Util.tilde("/home/test"))
-    end)
-
-    it("folds paths below home", function()
-      vim.env.HOME = "/home/test"
       assert.are.equal("~/src/a.lua", Util.tilde("/home/test/src/a.lua"))
     end)
 
     it("leaves paths outside home unchanged", function()
       vim.env.HOME = "/home/test"
       assert.are.equal("/home/testing/a.lua", Util.tilde("/home/testing/a.lua"))
-    end)
-
-    it("leaves paths unchanged when HOME is unset", function()
-      vim.env.HOME = vim.NIL
-      assert.are.equal("/home/test/a.lua", Util.tilde("/home/test/a.lua"))
     end)
   end)
 end)

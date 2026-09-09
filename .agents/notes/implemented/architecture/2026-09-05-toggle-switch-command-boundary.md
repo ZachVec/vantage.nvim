@@ -36,7 +36,7 @@ callback rather than forked:
   terminal it re-points through the Backend (`retarget` — a window select
   within the Client's Group, a View relocation into the target Group when the
   Agent lives elsewhere; see the [cross-Group switch
-  note](../bug-fix/2026-09-05-cross-group-switch-relocates-view.md)), sets
+  note](../../archived/bug-fix/2026-09-05-cross-group-switch-relocates-view.md)), sets
   `last_agent`, and re-titles; with none it returns false. `Client.focus`
   keeps its materialize-then-show behavior and is now used only by toggle's
   open path.

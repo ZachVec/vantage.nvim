@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-09
+
 ## Problem
 
 Annotation picker previews and note-float titles used `Select.focused_cwd()`,

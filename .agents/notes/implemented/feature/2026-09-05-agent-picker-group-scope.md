@@ -85,7 +85,7 @@ the transform, and only the pickers that can toggle apply it.
   [picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md)
   now enumerates it. `on_choice`, the `<c-x>` kill contract, and the row
   exclusions of the
-  [agent-picker-cx-kill note](2026-09-05-agent-picker-cx-kill.md) are
+  [agent-picker-cx-kill note](../../archived/feature/2026-09-05-agent-picker-cx-kill.md) are
   unchanged — the scope only hides rows, and a kill re-reads through it.
 - README.md, doc/vantage.nvim.txt, and docs/architecture.md document the
   scope behavior and the `<C-g>` toggle.
