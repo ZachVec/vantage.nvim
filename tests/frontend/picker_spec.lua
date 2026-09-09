@@ -38,6 +38,27 @@ describe("vantage.frontend.picker", function()
     assert.is_true(tostring(err):find("requires 'vantage-no-such-picker'", 1, true) ~= nil)
   end)
 
+  it("accepts a dependency loadable through require even when it is not on runtimepath", function()
+    local dep = "vantage-test-picker-dependency"
+    package.preload[dep] = function()
+      return { loaded = true }
+    end
+    package.loaded[dep] = nil
+    package.loaded["vantage.frontend.picker.native"] = {
+      requires = dep,
+      capabilities = { preview = true, command = true },
+      pick = function()
+        return false
+      end,
+      pick_plain = function() end,
+    }
+    Config.options.picker = "native"
+
+    assert.is_true(pcall(Picker.setup))
+    package.preload[dep] = nil
+    package.loaded[dep] = nil
+  end)
+
   it("fails fast when an implementation violates the PickerImpl contract", function()
     package.loaded["vantage.frontend.picker.native"] = {
       capabilities = { preview = true, command = true },

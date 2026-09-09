@@ -12,15 +12,6 @@ local REGISTRY = {
   snacks = "vantage.frontend.picker.snacks",
 }
 
---- True when the Lua module `mod` is on the runtimepath, without loading it.
----@param mod string
----@return boolean
-local function module_available(mod)
-  local path = mod:gsub("%.", "/")
-  return #vim.api.nvim_get_runtime_file(("lua/%s.lua"):format(path), false) > 0
-    or #vim.api.nvim_get_runtime_file(("lua/%s/init.lua"):format(path), false) > 0
-end
-
 ---@type vantage.PickerImpl?
 local resolved
 
@@ -46,8 +37,11 @@ function M.setup()
   then
     error(("vantage: picker '%s' does not implement vantage.PickerImpl"):format(name), 0)
   end
-  if impl.requires and not module_available(impl.requires) then
-    error(("vantage: picker '%s' requires '%s'"):format(name, impl.requires), 0)
+  if impl.requires then
+    local dep_ok, dep_err = pcall(require, impl.requires)
+    if not dep_ok then
+      error(("vantage: picker '%s' requires '%s' (%s)"):format(name, impl.requires, tostring(dep_err)), 0)
+    end
   end
   resolved = impl
 end

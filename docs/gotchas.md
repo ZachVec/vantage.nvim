@@ -23,6 +23,16 @@ becomes a **visible empty line**. Do NOT append `\n` to the pasted text — the
 old `send-keys -l` needed the LF to move the cursor to the next line; paste
 does not.
 
+## Picker · dependency checks
+
+### Runtimepath is not a reliable dependency check under lazy.nvim
+
+A configured picker plugin may be installed but not yet on `runtimepath` when
+Vantage's `setup()` runs. `nvim_get_runtime_file("lua/fzf-lua/init.lua", …)`
+then returns nothing even though lazy.nvim can load the module on demand.
+Check availability with `pcall(require, module)` instead; this preserves
+fail-fast behavior without misclassifying a lazy-loaded dependency.
+
 ## Picker · fzf-lua
 
 ### `fzf_exec` function contents writes one item per callback

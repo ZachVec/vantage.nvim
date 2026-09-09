@@ -98,11 +98,6 @@ function M.check()
     err(tostring(capabilities))
     return
   end
-  local dep = picker == "fzf-lua" and "fzf-lua" or (picker == "snacks" and "snacks.picker" or nil)
-  if dep and not module_available(dep) then
-    err(("picker '%s' configured but '%s' is not installed"):format(picker, dep))
-    return
-  end
   ok(
     ("picker: %s (preview=%s, command=%s)"):format(
       picker,
