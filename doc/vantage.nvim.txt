@@ -22,6 +22,8 @@ there is no custom TUI.
 The plugin owns the backend: its Lua layer drives a private tmux socket
 directly. The frontend is a pluggable picker (native / fzf-lua / snacks) plus
 the terminal window that is the tmux client.
+Each Neovim instance attaches through its own tmux view, so two instances can
+show different Agents from the same Group without moving each other.
 
 ==============================================================================
 2. REQUIREMENTS                                *vantage.nvim-requirements*

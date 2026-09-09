@@ -1,4 +1,4 @@
-# Agent Note: Layered frontend/backend refactor — Bridge verbs, uniform entries, no View
+# Agent Note: Layered frontend/backend refactor — Bridge verbs, uniform entries
 
 Status: implemented
 
@@ -24,23 +24,26 @@ Backend:
 
 - `backend/bridge.lua` is the bridge: pure-data domain verbs
   (`agents(pid)` → the flat inventory `{ agents, groups, focused }`, `create`, `retarget`,
-  `send`, `capture`, `attach_command`, `kill_agent`, `kill_group`, `status`).
+  `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
+  `status`).
   It knows no UI and holds no state.
 - `backend/driver/` is the pluggable seam: `init.lua` resolves the configured
   driver (whitelist + fallback to tmux), `tmux.lua` is pure tmux mapping with
   the domain-shaped verbs `create`, `snapshot(pid)`, `retarget(pid, agent)`,
-  `attach_command`, `kill_agent`, `kill_group`, `send_keys`, `capture_pane`,
+  `attach`, `kill_view`, `kill_agent`, `kill_group`, `send_keys`, `capture_pane`,
   `status`, `health`. zellij remains a distant seam only; no compatibility
   promise hardens the interface for it.
 
 Domain model:
 
-- **Group** = one plain tmux session; **Agent** = one single-pane window in it,
+- **Group** = one tmux session group; **Agent** = one single-pane window in its
+  Anchor,
   carrying the `@agent-*` options. The attachment is the terminal's tmux
-  client pointing at (Group, Agent). **View, Anchor, session groups, and the
-  client-detached hook are deleted** — a session already persists headless and
-  multiple clients on one session already show independent windows, so the old
-  machinery duplicated tmux's own property.
+  client pointing at (Group, Agent). This note originally deleted View, Anchor,
+  session groups, and the client-detached hook; that premise was false and is
+  superseded by
+  [restore-per-client-views](2026-09-10-restore-per-client-views.md), which
+  restores the session-group model.
 - The server starts on the first `create` (`new-session`, which applies the
   global config exactly once per server start); no verb re-checks it. External
   kills surface as warnings on the next operation; there is no watchdog or
@@ -129,11 +132,15 @@ caller-declared parameter and the restore-mode branching that followed it.
 - The Agent list no longer offers in-place `<c-x>` kill (kill is a command);
   the Review list keeps `<c-x>` deletion through `delete()`.
 - Each nvim instance has at most one terminal, whose client is identified by
-  the terminal job's pid; several instances may attach to one Group showing
-  different Agents.
+  the terminal job's pid. The later
+  [restore-per-client-views](2026-09-10-restore-per-client-views.md) note
+  restores a View session per client so several instances can attach to one
+  Group and show different Agents independently.
 - `:Vantage kill` is a new user command; `switch`/`prompt` remain
   terminal-only, and there is no `:Vantage switch`/`:Vantage prompt`.
 - Tests mirror the layers (`tests/backend`, `tests/frontend`, `tests/commands`).
-- Superseded decisions are archived: Group/Anchor/Agent/View,
-  picker-domain-objects, cross-group switch relocation, the Agent-picker
-  `<c-x>` kill, and annotation-cwd-is-nvim-local.
+- Superseded decisions are archived: picker-domain-objects, cross-group switch
+  relocation, the Agent-picker `<c-x>` kill, and
+  annotation-cwd-is-nvim-local. The Group/Anchor/View removal is itself
+  superseded by
+  [restore-per-client-views](2026-09-10-restore-per-client-views.md).

@@ -239,8 +239,15 @@ function M.toggle()
   end
 
   pick(function(agent)
-    if Terminal.open(Bridge.attach_command(agent)) then
+    local attachment, err = Bridge.attach(agent)
+    if not attachment then
+      Util.warn(err or "failed to create terminal attachment")
+      return
+    end
+    if Terminal.open(attachment.argv) then
       TerminalKeys.apply(Terminal.buffer)
+    else
+      Bridge.kill_view(attachment.view)
     end
   end)
 end

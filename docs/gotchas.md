@@ -6,6 +6,14 @@ anything that interacts with these tools.
 
 ## Backend · tmux · agent CLI
 
+### Clients attached to one session share its current window
+
+`switch-client -c <client> -t <session>:<window>` and `select-window` change the
+session's current window, not a client-local one. Two clients attached to the
+same session therefore follow each other. Per-client independence requires a
+grouped session per client (Vantage's View); see
+[architecture.md](architecture.md#domain-model-over-the-multiplexer).
+
 ### `tmux send-keys -l` collapses newlines in claude
 
 `send-keys -l` sends raw LF; **claude** collapses those newlines onto one line

@@ -30,9 +30,10 @@ configuration singleton.
 
 **Neutral Driver records.** `vantage.Agent` carries an opaque `id` and a
 driver-neutral `seq`; tmux's `@N` is parsed only in `backend/driver/tmux.lua`.
-`attach_command(agent)` replaces `attach_command(group, target)`. The formal
-`vantage.Driver` type names every verb, and a conformance test checks the
-surface.
+`attach(agent)` returns the per-client attachment record; the View restoration
+is owned by
+[restore-per-client-views](2026-09-10-restore-per-client-views.md). The formal
+`vantage.Driver` type names every verb, and a conformance test checks the surface.
 
 **Driver results.** Mutating verbs return `true` or `false, err`; `create`
 returns `Agent` or `nil, err`; queries return `data, nil` or `nil, err`. The Driver never

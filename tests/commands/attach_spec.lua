@@ -92,8 +92,12 @@ describe("vantage.commands.attach", function()
       bridge.created[#bridge.created + 1] = opts
       return { group = opts.group, tool = opts.tool, id = "@9", seq = 9 }, nil
     end
-    function bridge.attach_command(agent)
-      return { "attach", agent.id }
+    function bridge.attach(agent)
+      return { view = "view-1", argv = { "attach", agent.id } }, nil
+    end
+    function bridge.kill_view(view)
+      bridge.killed_view = view
+      return true, nil
     end
     function bridge.retarget(pid, agent)
       bridge.retargeted = { pid = pid, id = agent.id }
@@ -151,6 +155,7 @@ describe("vantage.commands.attach", function()
     bridge.created = {}
     bridge.captured = {}
     bridge.retargeted = nil
+    bridge.killed_view = nil
     captured_spec = nil
     command_capable = true
     picker.auto_select = false

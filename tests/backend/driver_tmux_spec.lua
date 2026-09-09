@@ -57,6 +57,15 @@ describe("vantage.backend.driver.tmux", function()
     })
   end
 
+  local function attach_job(agent)
+    local attachment, err = Backend.attach(agent)
+    assert.are.equal(nil, err)
+    assert.is_not_nil(attachment)
+    local job = vim.fn.jobstart(attachment.argv, { pty = true })
+    assert.is_true(job > 0)
+    return job, vim.fn.jobpid(job), attachment.view
+  end
+
   setup(function()
     if vim.fn.executable("tmux") ~= 1 then
       error("tmux is required for vantage.backend.driver.tmux specs")
@@ -96,7 +105,8 @@ describe("vantage.backend.driver.tmux", function()
       "create",
       "snapshot",
       "retarget",
-      "attach_command",
+      "attach",
+      "kill_view",
       "kill_agent",
       "kill_group",
       "send_keys",
@@ -119,11 +129,11 @@ describe("vantage.backend.driver.tmux", function()
     assert.are.equal("number", type(agent.seq))
 
     assert.are.same(agent, find_agent(agent.id))
-    assert.are.same(
-      { "tmux", "-L", socket, "attach-session", "-t", "g-one:" .. agent.id },
-      Backend.attach_command(agent)
-    )
-    assert.is_true(#Backend.status().sessions >= 1)
+    local attachment, attach_err = Backend.attach(agent)
+    assert.are.equal(nil, attach_err)
+    assert.is_not_nil(attachment)
+    assert.are.same({ "tmux", "-L", socket, "attach-session", "-t", attachment.view }, attachment.argv)
+    assert.is_true(#Backend.status().sessions >= 2)
   end)
 
   it("adds a second agent to an existing group", function()
@@ -136,19 +146,35 @@ describe("vantage.backend.driver.tmux", function()
     assert.is_true(find_agent(first.id) ~= nil)
   end)
 
-  it("derives the focused agent from the terminal job's pid and retargets across groups", function()
-    local first = create("g-focus-a", "codex")
-    local second = create("g-focus-b", "claude")
+  it("keeps two clients in one group on independent views", function()
+    local first = create("g-focus", "codex")
+    local second = create("g-focus", "claude")
+    local job1, pid1 = attach_job(first)
+    local job2, pid2 = attach_job(first)
 
-    local job = vim.fn.jobstart(
-      { "tmux", "-L", socket, "attach-session", "-t", "g-focus-a:" .. first.id },
-      { pty = true }
-    )
-    local pid = vim.fn.jobpid(job)
     assert.is_true(wait_until(function()
-      local snapshot = Backend.snapshot(pid)
+      local snapshot = Backend.snapshot(pid1)
       return snapshot.focused ~= nil and snapshot.focused.id == first.id
     end, 3000))
+    assert.is_true(wait_until(function()
+      local snapshot = Backend.snapshot(pid2)
+      return snapshot.focused ~= nil and snapshot.focused.id == first.id
+    end, 3000))
+
+    assert.are.equal(true, Backend.retarget(pid1, second))
+    assert.is_true(wait_until(function()
+      local one = Backend.snapshot(pid1)
+      local two = Backend.snapshot(pid2)
+      return one.focused ~= nil and one.focused.id == second.id and two.focused ~= nil and two.focused.id == first.id
+    end, 3000))
+    vim.fn.jobstop(job1)
+    vim.fn.jobstop(job2)
+  end)
+
+  it("moves a client to a fresh view when retargeting across groups", function()
+    local first = create("g-cross-a", "codex")
+    local second = create("g-cross-b", "claude")
+    local job, pid = attach_job(first)
 
     assert.are.equal(true, Backend.retarget(pid, second))
     assert.is_true(wait_until(function()

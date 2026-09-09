@@ -13,11 +13,16 @@
 ---@field tool string the cli.tools key that created it (for the format hook)
 ---@field state? string
 
+---@class vantage.Attachment A Terminal's transient View and attach command.
+---@field view string
+---@field argv string[]
+
 ---@class vantage.Driver The multiplexer contract behind the Bridge.
 ---@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
 ---@field snapshot fun(pid?: integer): { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?, string?
 ---@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
----@field attach_command fun(agent: vantage.Agent): string[]
+---@field attach fun(agent: vantage.Agent): vantage.Attachment?, string?
+---@field kill_view fun(view: string): boolean, string?
 ---@field kill_agent fun(agent: vantage.Agent): boolean, string?
 ---@field kill_group fun(group: string): boolean, string?
 ---@field send_keys fun(agent: vantage.Agent, text: string): boolean, string?

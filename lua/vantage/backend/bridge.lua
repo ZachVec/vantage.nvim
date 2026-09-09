@@ -56,11 +56,20 @@ function M.capture(agent)
   return Driver.get().capture_pane(agent)
 end
 
---- The argv the Terminal runs to attach to an Agent.
+--- Create this Terminal's View for an Agent and return its attach command.
 ---@param agent vantage.Agent
----@return string[]
-function M.attach_command(agent)
-  return Driver.get().attach_command(agent)
+---@return vantage.Attachment?
+---@return string?
+function M.attach(agent)
+  return Driver.get().attach(agent)
+end
+
+--- Remove a View created for a Terminal that failed to start.
+---@param view string
+---@return boolean
+---@return string?
+function M.kill_view(view)
+  return Driver.get().kill_view(view)
 end
 
 ---@param agent vantage.Agent

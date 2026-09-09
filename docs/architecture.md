@@ -45,10 +45,11 @@ The plugin drives a private socket (default `vantage`, configurable via
 window options (`@agent-group`, `@agent-cmd`, `@agent-cwd`, `@agent-tool`,
 `@agent-state`). Global server config — default terminal, history limit, focus
 events, no status line, a 1-second status interval, and a top pane border
-whose format shows `Group · Tool · cwd` plus per-Group State counts — is
-applied exactly once, when the first `new-session` starts the server. The
-counts are computed read-only per tick by `scripts/vantage-counts` inside a
-`#()` substitution, deduplicated to one run per Group.
+whose format shows `Group · Tool · cwd` plus per-Group State counts, and the
+`client-detached` View cleanup hook — is applied exactly once, when the first
+`new-session` starts the server. The counts are computed read-only per tick by
+`scripts/vantage-counts` inside a `#()` substitution, deduplicated to one run
+per Group.
 
 The server is started by the first Agent creation and never re-checked
 afterwards: operations assume it lives. A missing server reads as an empty
@@ -56,21 +57,27 @@ inventory; other operation failures return their real error.
 
 ## Domain model over the multiplexer
 
-- A **Group** is one session. It is never created alone: `create` targeting a
-  new Group makes the session; a session persists with no client attached, so
-  Agents survive every Terminal close. When an Agent's last window closes the
-  session dies with it (and the multiplexer server exits with its last
-  session).
+- A **Group** is one tmux session group. Its persistent **Anchor** session
+  owns the Agent windows and survives with no client attached. Each Terminal
+  client attaches to a transient **View** session grouped with the Anchor, so
+  clients sharing a Group have independent current windows. When an Agent's
+  last window closes the Anchor dies with it (and the multiplexer server exits
+  with its last session).
+- An **Anchor** is the Group's persistent session, named after the Group. It
+  is never attached directly by the plugin and is never marked as a View.
+- A **View** is a transient grouped session belonging to one Terminal client.
+  `client-detached` destroys it when its client exits; a cross-Group
+  `retarget` moves the client to a fresh View in the destination Group and
+  destroys the old View.
 - An **Agent** is one window containing exactly one pane, marked with the
   `@agent-*` options. Its shared record carries an opaque `id` (the Driver's
   identity), a driver-neutral `seq` for creation order, Group, command, Cwd,
   Tool, and optional State. tmux's `@N` format is parsed only inside the tmux
   Driver.
-- The **attachment** is the Terminal's client pointed at an Agent. It is not a
-  multiplexer object: opening the Terminal starts the attach command, closing
-  it (or the client exiting) ends the attachment, and `retarget` repoints it.
-  The focused Agent is derived from the live state on every `snapshot`, never
-  stored Neovim-side.
+- The **attachment** is the Terminal's client pointed at a View. Opening the
+  Terminal creates the View and starts the attach command; closing it (or the
+  client exiting) ends the attachment. The focused Agent is derived from the
+  live state on every `snapshot`, never stored Neovim-side.
 
 ## Seams and contracts
 
@@ -82,10 +89,14 @@ whitelist):
   failures roll back the partial Agent.
 - `snapshot(pid?)` → `{ agents, groups, focused? }, nil` or `nil, err` from one
   shell process (two chained multiplexer commands).
-- `retarget(pid, agent)` → `true` or `false, err`; one `switch-client` covers
-  same-Group window changes and cross-Group moves.
-- `attach_command(agent)` → the argv the Terminal runs.
+- `retarget(pid, agent)` → `true` or `false, err`; same-Group switching selects
+  a window in the client's own View, while cross-Group switching creates a
+  fresh View, moves the client, and destroys the old View.
+- `attach(agent)` → `{ view, argv }` or `nil, err`; creates a fresh View for
+  the Terminal and returns its attach argv.
+- `kill_view(view)` → `true` or `false, err`.
 - `kill_agent(agent)` / `kill_group(group)` → `true` or `false, err`.
+  `kill_group` destroys the Anchor and every View.
 - `send_keys(agent, text)` → `true` or `false, err`; temporary buffers are
   cleaned up.
 - `capture_pane(agent, max_lines?)` → `lines, nil` or `nil, err`;
@@ -97,9 +108,10 @@ results through; command flows decide how to report them.
 
 **Bridge** (`backend/bridge.lua`) is the Frontend's only door to the Backend:
 `agents(pid)`, `create`, `retarget(pid, agent)`, `send(agent, text)`,
-`capture(agent)`, `attach_command(agent)`, `kill_agent`, `kill_group`,
-`status`. It holds no state and does no UI; the prompt flow resolves the
-focused Agent and renders templates, then hands the Bridge the final text.
+`capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
+`kill_group`, `status`. It holds no state and does no UI; the prompt flow
+resolves the focused Agent and renders templates, then hands the Bridge the
+final text.
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
 starts the terminal job, `show`/`hide` manage the window without killing the

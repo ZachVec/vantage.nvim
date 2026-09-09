@@ -22,7 +22,7 @@ Adopt a snacks.nvim-style headless suite:
 - The current inventory is `util_spec`, `config_spec`, `init_spec`,
   `commands/{toggle,prompt,kill,attach}_spec`,
   `frontend/{review,picker,terminal,note}_spec`, `backend/bridge_spec`, and
-  `backend/driver_tmux_spec` (63 cases). Unit specs exercise real buffers where
+  `backend/driver_tmux_spec` (64 cases). Unit specs exercise real buffers where
   the behavior is buffer-bound and fake Bridge/Picker/Driver modules where a
   flow only needs the seam's contract.
 - `backend_tmux_spec` runs against a per-process private socket

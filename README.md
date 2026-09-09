@@ -43,6 +43,8 @@ listed after the Agent rows), then choose a Group or type a new name.
 
 Vantage shows Agents in a single `:terminal`. Closing that terminal leaves your
 Agents running — they keep going in the background until killed.
+Each Neovim instance attaches through its own tmux view, so two instances can
+show different Agents from the same Group without moving each other.
 
 ## Configuration
 

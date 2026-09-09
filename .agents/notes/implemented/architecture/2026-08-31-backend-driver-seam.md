@@ -8,7 +8,7 @@ The multiplexer choice (tmux) should not be welded into every call site, or a fu
 
 ## Decision
 
-The Backend is a thin interface: `lua/vantage/backend/driver/init.lua` resolves the driver through a `REGISTRY` whitelist, with `setup()` failing fast on an unknown or unavailable implementation. `backend/bridge.lua` exposes the domain surface (`agents`, `create`, `retarget`, `send`, `capture`, `attach_command`, `kill_agent`, `kill_group`, `status`) and passes Driver results/errors through. `tmux` is the only driver today and owns all multiplexer mapping. Callers never touch tmux directly. The Backend never infers context: cwd, group, and the opaque Agent id are passed in explicitly.
+The Backend is a thin interface: `lua/vantage/backend/driver/init.lua` resolves the driver through a `REGISTRY` whitelist, with `setup()` failing fast on an unknown or unavailable implementation. `backend/bridge.lua` exposes the domain surface (`agents`, `create`, `retarget`, `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`, `status`) and passes Driver results/errors through. `tmux` is the only driver today and owns all multiplexer mapping. Callers never touch tmux directly. The Backend never infers context: cwd, group, and the opaque Agent id are passed in explicitly.
 
 ## Alternatives considered
 

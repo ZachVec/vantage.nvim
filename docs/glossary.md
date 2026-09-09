@@ -4,8 +4,18 @@ One home per domain term. Code, docs, and Agent Notes use these terms exactly an
 
 ## Group
 
-A durable container of collaborating Agents, derived from them: it exists only because Agents are placed in it, and is never created or attached independently. Creating an Agent in a non-existent Group creates the Group. A Group survives with nothing attached to it, and ends only when its last Agent dies or it is killed.
+A durable container of collaborating Agents, represented by one tmux session group: a persistent Anchor owns the Agent windows and transient Views provide each Terminal client an independent current window. Creating an Agent in a non-existent Group creates its Anchor. A Group survives with nothing attached to it, and ends only when its last Agent dies or it is killed.
 _Avoid_: workspace, topic, 主题
+
+## Anchor
+
+The persistent session that owns a Group's Agent windows. It is named after the Group, is never attached directly by the plugin, and survives with no client attached so Agents remain headless.
+_Avoid_: master session, base session
+
+## View
+
+A transient tmux session grouped with an Anchor and attached by exactly one Terminal client. A View's current window is independent from every other client's View; it is destroyed when its client detaches or moves to another Group.
+_Avoid_: client session, workspace
 
 ## Agent
 
@@ -29,12 +39,12 @@ _Avoid_: api, server
 
 ## Bridge
 
-The Backend's public surface that the Frontend consumes: domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach_command`, `kill_agent`, `kill_group`, `status`) and the entity lists built above them. It holds no state, knows no UI, and passes Driver results/errors through; every multiplexer detail is left to the Driver.
+The Backend's public surface that the Frontend consumes: domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`, `status`) and the entity lists built above them. It holds no state, knows no UI, and passes Driver results/errors through; every multiplexer detail is left to the Driver.
 _Avoid_: service, orchestrator
 
 ## Driver
 
-A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
+A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
 _Avoid_: adapter
 
 ## Frontend
@@ -44,7 +54,7 @@ _Avoid_: client, ui
 
 ## Terminal
 
-The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes, and hiding it keeps the attachment alive.
+The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command for a per-client View produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes and its View is destroyed, and hiding it keeps the attachment alive.
 _Avoid_: client, screen, window
 
 ## Picker

@@ -1,14 +1,21 @@
 --- tmux driver: pure multiplexer mapping over a private socket.
 ---
 --- Domain model:
----   Group  = one tmux session (persistent, never created alone).
----   Agent  = one single-pane window in it, marked with @agent-cmd and friends.
----   The attachment is the terminal's client, identified by the terminal job's
----   pid; there are no session groups, anchor sessions, or per-view sessions.
+---   Group  = one tmux session group: a persistent Anchor owns the Agents.
+---   Agent  = one single-pane window in the Anchor, marked with @agent-cmd.
+---   View   = one transient grouped session per Terminal client; its current
+---            window is independent from every other client's View.
 local Config = require("vantage.config")
 local Util = require("vantage.util")
 
 local M = {}
+
+--- Destroy a View when its client detaches. The Anchor is never marked
+--- @vantage-view, so it survives and keeps Agents alive headless. The kill
+--- must run in a separate tmux process: a direct kill from the hook context
+--- does not take effect.
+local CLIENT_DETACHED_HOOK =
+  [[run-shell "if [ \"#{@vantage-view}\" = \"1\" ]; then tmux -S \"#{socket_path}\" kill-session -t \"#{session_name}\"; fi"]]
 
 local function socket()
   return Config.options.socket
@@ -99,30 +106,139 @@ end
 ---@return string?
 local function apply_global_config()
   local settings = {
-    { "default-terminal", "tmux-256color" },
-    { "history-limit", "20000" },
-    { "focus-events", "on" },
+    { "set-hook", "-g", "client-detached", CLIENT_DETACHED_HOOK },
+    { "set", "-g", "default-terminal", "tmux-256color" },
+    { "set", "-g", "history-limit", "20000" },
+    { "set", "-g", "focus-events", "on" },
   }
   -- No tmux status line: the terminal is the raw agent prompt.
-  settings[#settings + 1] = { "status", "off" }
+  settings[#settings + 1] = { "set", "-g", "status", "off" }
   -- Agent info in the pane's top border: Group · Tool · cwd · per-Group State
   -- counts. The counts are computed read-only per status tick by
   -- scripts/vantage-counts inside a #() substitution — never stored; the
   -- command string embeds the expanded #{@agent-group}, so tmux dedupes it to
   -- one small process per Group per tick.
-  settings[#settings + 1] = { "status-interval", "1" }
-  settings[#settings + 1] = { "pane-border-status", "top" }
+  settings[#settings + 1] = { "set", "-g", "status-interval", "1" }
+  settings[#settings + 1] = { "set", "-g", "pane-border-status", "top" }
   local counts = ('#("%s/vantage-counts" -L %s #{@agent-group})'):format(scripts_dir(), socket())
   local border_format = (" #{@agent-group} · #{@agent-tool} · #{@agent-cwd-tilde}%s "):format(counts)
-  settings[#settings + 1] = { "pane-border-format", border_format }
+  settings[#settings + 1] = { "set", "-g", "pane-border-format", border_format }
 
   for _, setting in ipairs(settings) do
-    local result = exec_result("set", "-g", setting[1], setting[2])
+    local result = exec_result(setting[1], setting[2], setting[3], setting[4])
     if result.code ~= 0 then
-      return false, fail_message(("failed to set tmux option '%s'"):format(setting[1]), result)
+      return false, fail_message(("failed to apply tmux setting '%s'"):format(setting[1]), result)
     end
   end
   return true, nil
+end
+
+--- Sessions belonging to a Group: the Anchor plus its Views.
+---@param group string
+---@return string[]?
+---@return string?
+local function group_sessions(group)
+  local filter = "#{==:#{?#{session_group},#{session_group},#{session_name}}," .. group .. "}"
+  local sessions, err = exec_lines("list-sessions", "-F", "#{session_name}", "-f", filter)
+  if err then
+    if missing_server(err) then
+      return {}, nil
+    end
+    return nil, err
+  end
+  return sessions, nil
+end
+
+--- The session group of a session, falling back to its own name for an Anchor.
+---@param session string
+---@return string?
+---@return string?
+local function session_group(session)
+  local result = exec_result("display", "-p", "-t", session, "#{?#{session_group},#{session_group},#{session_name}}")
+  if result.code ~= 0 then
+    return nil, fail_message(("can't read session group for '%s'"):format(session), result)
+  end
+  return vim.trim(result.stdout), nil
+end
+
+--- True when a session is a Vantage View.
+---@param session string
+---@return boolean
+---@return string?
+local function is_view(session)
+  local result = exec_result("display", "-p", "-t", session, "#{@vantage-view}")
+  if result.code ~= 0 then
+    return false, fail_message(("can't inspect session '%s'"):format(session), result)
+  end
+  return vim.trim(result.stdout) == "1", nil
+end
+
+--- Create a fresh View in a Group and point it at an Agent window.
+---@param group string
+---@param target string Agent window id (@N)
+---@return string?
+---@return string?
+local function create_view(group, target)
+  if exec("has-session", "-t", group) ~= 0 then
+    return nil, ("no such group '%s'"):format(group)
+  end
+  local result = exec_result("new-session", "-d", "-P", "-F", "#{session_name}", "-t", group)
+  if result.code ~= 0 then
+    return nil, fail_message(("failed to create a view for group '%s'"):format(group), result)
+  end
+  local view = vim.trim(result.stdout)
+  if view == "" then
+    return nil, ("failed to create a view for group '%s': tmux returned an empty session name"):format(group)
+  end
+
+  local mark = exec_result("set-option", "-t", view, "@vantage-view", "1")
+  if mark.code ~= 0 then
+    exec("kill-session", "-t", view)
+    return nil, fail_message(("failed to mark view '%s'"):format(view), mark)
+  end
+  local select = exec_result("select-window", "-t", view .. ":" .. target)
+  if select.code ~= 0 then
+    exec("kill-session", "-t", view)
+    return nil, fail_message(("failed to point view '%s' at %s"):format(view, target), select)
+  end
+  return view, nil
+end
+
+--- Find the client attached to the terminal job whose pid is `pid`.
+---@param pid integer
+---@return { name: string, session: string }?
+---@return string?
+local function client_info(pid)
+  local lines, err = exec_lines("list-clients", "-F", "#{client_pid}\t#{client_name}\t#{session_name}")
+  if err then
+    return nil, err
+  end
+  for _, line in ipairs(lines) do
+    local client_pid, name, session = line:match("^(%d+)\t([^\t]*)\t([^\t]*)$")
+    if client_pid and tonumber(client_pid) == pid then
+      return { name = name, session = session }, nil
+    end
+  end
+  return nil, nil
+end
+
+--- Move a client into a fresh View in the target Group.
+---@param client { name: string, session: string }
+---@param group string
+---@param target string Agent window id (@N)
+---@return string?
+---@return string?
+local function move_client_to_view(client, group, target)
+  local view, err = create_view(group, target)
+  if not view then
+    return nil, err
+  end
+  local switch = exec_result("switch-client", "-c", client.name, "-t", view)
+  if switch.code ~= 0 then
+    exec("kill-session", "-t", view)
+    return nil, fail_message(("can't move client to group '%s'"):format(group), switch)
+  end
+  return view, nil
 end
 
 --- The numeric creation order carried by a tmux window id. This is the only
@@ -312,41 +428,77 @@ function M.snapshot(pid)
   }, nil
 end
 
---- The client attached to the terminal whose job has `pid`, by name.
----@param pid integer
----@return string client name, or "" when none
----@return string?
-local function client_name(pid)
-  local lines, err = exec_lines("list-clients", "-F", "#{client_pid}\t#{client_name}")
-  if err then
-    return "", err
-  end
-  for _, line in ipairs(lines) do
-    local client_pid, name = line:match("^(%d+)\t(.*)$")
-    if client_pid and tonumber(client_pid) == pid then
-      return name, nil
-    end
-  end
-  return "", nil
-end
-
---- Re-point the terminal's client to an Agent: one switch-client, covering a
---- same-Group window change and a cross-Group move alike.
+--- Re-point a client to an Agent without changing any other client's View.
 ---@param pid integer the terminal job's pid (its client)
 ---@param agent vantage.Agent
 ---@return boolean
 ---@return string?
 function M.retarget(pid, agent)
-  local name, client_err = client_name(pid)
+  local client, client_err = client_info(pid)
   if client_err then
     return false, client_err
   end
-  if name == "" then
+  if not client then
     return false, ("no client attached with pid %d"):format(pid)
   end
-  local result = exec_result("switch-client", "-c", name, "-t", agent.group .. ":" .. agent.id)
+
+  local current_group, group_err = session_group(client.session)
+  if group_err then
+    return false, group_err
+  end
+  local old_is_view = is_view(client.session)
+
+  if current_group == agent.group and old_is_view then
+    local result = exec_result("select-window", "-t", client.session .. ":" .. agent.id)
+    if result.code ~= 0 then
+      return false, fail_message(("can't switch to %s:%s"):format(client.session, agent.id), result)
+    end
+    return true, nil
+  end
+
+  local _, move_err = move_client_to_view(client, agent.group, agent.id)
+  if move_err then
+    return false, move_err
+  end
+  if old_is_view then
+    local cleanup = exec_result("kill-session", "-t", client.session)
+    if cleanup.code ~= 0 then
+      return false, fail_message(("switched but failed to clean old view '%s'"):format(client.session), cleanup)
+    end
+  end
+  return true, nil
+end
+
+--- Create a fresh View for this Terminal and return its attach command.
+---@param agent vantage.Agent
+---@return { view: string, argv: string[] }?
+---@return string?
+function M.attach(agent)
+  local view, err = create_view(agent.group, agent.id)
+  if not view then
+    return nil, err
+  end
+  return {
+    view = view,
+    argv = { "tmux", "-L", socket(), "attach-session", "-t", view },
+  }, nil
+end
+
+--- Remove a View created for a Terminal that failed to start.
+---@param view string
+---@return boolean
+---@return string?
+function M.kill_view(view)
+  local view_ok, inspect_err = is_view(view)
+  if inspect_err then
+    return false, inspect_err
+  end
+  if not view_ok then
+    return false, ("session '%s' is not a view"):format(view)
+  end
+  local result = exec_result("kill-session", "-t", view)
   if result.code ~= 0 then
-    return false, fail_message(("can't switch to %s:%s"):format(agent.group, agent.id), result)
+    return false, fail_message(("can't kill view '%s'"):format(view), result)
   end
   return true, nil
 end
@@ -363,14 +515,32 @@ function M.kill_agent(agent)
   return true, nil
 end
 
---- Kill an entire Group session.
+--- Kill an entire Group: its Anchor and every View.
 ---@param group string
 ---@return boolean
 ---@return string?
 function M.kill_group(group)
-  local result = exec_result("kill-session", "-t", group)
-  if result.code ~= 0 then
-    return false, fail_message(("can't kill group '%s'"):format(group), result)
+  local sessions, err = group_sessions(group)
+  if not sessions then
+    return false, err or ("failed to list group '%s'"):format(group)
+  end
+  if #sessions == 0 then
+    return false, ("no such group '%s'"):format(group)
+  end
+  table.sort(sessions, function(left, right)
+    if left == group then
+      return false
+    end
+    if right == group then
+      return true
+    end
+    return left < right
+  end)
+  for _, session in ipairs(sessions) do
+    local result = exec_result("kill-session", "-t", session)
+    if result.code ~= 0 then
+      return false, fail_message(("can't kill group '%s'"):format(group), result)
+    end
   end
   return true, nil
 end
@@ -421,21 +591,14 @@ function M.capture_pane(agent, max_lines)
   return lines, nil
 end
 
---- The command to attach a terminal client to an Agent, run as a `term` job by
---- the Terminal. Lives here so the Frontend never hardcodes tmux.
----@param agent vantage.Agent
----@return string[]
-function M.attach_command(agent)
-  return { "tmux", "-L", socket(), "attach-session", "-t", agent.group .. ":" .. agent.id }
-end
-
 --- Thin debug view of clients + sessions.
 ---@return { clients: string[], sessions: string[] }?
 ---@return string?
 function M.status()
   local clients, clients_err =
     exec_lines("list-clients", "-F", "#{client_name}\t#{client_pid}\t#{session_name}\t#{window_id}")
-  local sessions, sessions_err = exec_lines("list-sessions", "-F", "#{session_name}")
+  local sessions, sessions_err =
+    exec_lines("list-sessions", "-F", "#{session_name}\tgroup=#{session_group}\tview=#{@vantage-view}")
   local err = clients_err or sessions_err
   if err and missing_server(err) then
     err = nil
