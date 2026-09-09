@@ -112,9 +112,8 @@ Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
 window when that float is already gone, so closing the picker floats from a
 floating Terminal lands the focus on the editor behind it — the handler
 re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The
-preview-capable picks (`pick_agent`, `pick_kill`, `pick_review`) pass an
-`on_close` handler; `pick_plain` (the Agent-creation Group step and
+the terminal mode re-entry follows. The preview-capable `Picker.pick` path
+passes an `on_close` handler; `Picker.pick_plain` (the Agent-creation Group step and
 `:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,
 because snacks' own `ui_select` shim owns `on_close` there — and because the
 new-Group name prompt (a cmdline `input()` scheduled from inside the choice

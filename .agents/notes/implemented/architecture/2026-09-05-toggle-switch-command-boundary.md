@@ -28,18 +28,10 @@ The single Client has two independent concerns:
 The tail action after a pick is the only difference, so it is injected as a
 callback rather than forked:
 
-- `commands/agent.lua` has one `pick_or_new(after)` and one
-  `create_with_tool(tool_name, after)`, each threading `after` through to
-  `do_create`. `Client.focus` (materialize + show) is toggle's `after`;
-  `Client.retarget` (re-point, no show) is the switch key's.
-- `Client.retarget(agent)` is the new re-point-only primitive: with a live
-  terminal it re-points through the Backend (`retarget` — a window select
-  within the Client's Group, a View relocation into the target Group when the
-  Agent lives elsewhere; see the [cross-Group switch
-  note](../../archived/bug-fix/2026-09-05-cross-group-switch-relocates-view.md)), sets
-  `last_agent`, and re-titles; with none it returns false. `Client.focus`
-  keeps its materialize-then-show behavior and is now used only by toggle's
-  open path.
+- `commands/attach.lua` owns one shared pick flow and threads the
+  caller's tail through after creation. Its `toggle` opens the Terminal on the
+  chosen Agent; its `switch` calls `Bridge.retarget(pid, agent)` and never
+  shows or hides it.
 - The Agent-creation wizard (`create_wizard`) is deleted: creation lives only
   in the Tool rows of the Agent picker, whose post-create tail action is the
   same injected `after`.
@@ -62,8 +54,8 @@ terminal is materialized.
 ### Why not fork `pick_or_new` into two per-command copies?
 
 The only difference is the tail action. One function parameterized by an
-`after` callback (`Client.focus` vs `Client.retarget`) removes the duplication;
-`create_with_tool` takes the same callback for the same reason.
+`after` callback (open Terminal vs retarget) removes the duplication; Tool-row
+creation takes the same callback for the same reason.
 
 ## Consequences
 

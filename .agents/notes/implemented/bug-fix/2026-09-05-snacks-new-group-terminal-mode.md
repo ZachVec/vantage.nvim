@@ -20,7 +20,7 @@ same handler also re-asserts the invoked-from window's focus — see the
 [float client focus note](2026-09-05-float-terminal-switch-loses-focus.md)).
 `pick_plain` (the Group step) wraps its `on_choice` for the re-entry; the
 wrapper ran the choice handler **before** queueing the check. The new-Group
-handler (`ask_new_group_name` in `commands/agent.lua`) schedules the Group
+handler (`ask_group` in `commands/attach.lua`) schedules the Group
 name prompt — a `vim.fn.input()` cmdline — from inside that handler, so the
 check ran while the cmdline was open: the scheduler keeps running across the
 cmdline, the check saw mode `c` (cmdline), skipped `startinsert`, and once
@@ -44,8 +44,8 @@ before any choice-handler work, and the no-Groups path, which has relied on
 the same pending-insert-across-cmdline semantics since the picker re-entry
 landed.
 
-Scope is confined to snacks' plain wrapper: `pick_agent`/`pick_kill`/
-`pick_annotation` keep their `on_close` handler, fzf-lua and native are
+Scope is confined to snacks' plain wrapper: preview-capable `Picker.pick`
+keeps its `on_close` handler, fzf-lua and native are
 untouched (only the snacks backend shows the defect — the other engines leave
 the terminal in terminal mode across their own closes), and `:Vantage
 prompt`'s plain pick changes ordering only (its handler sends keys to tmux
@@ -56,9 +56,9 @@ and is mode-neutral).
 ### Why not restore after the cmdline at the command layer?
 
 `ask_new_group_name`'s callback could re-enter terminal mode once the prompt
-closes (`from_terminal` + `startinsert` when `nt`). Deterministic,
+closes (detected terminal window + `startinsert` when `nt`). Deterministic,
 but the re-entry is the snacks backend's compensation for its own close
-semantics; putting a copy in `commands/agent.lua` would cross the Picker seam
+semantics; putting a copy in `commands/attach.lua` would cross the Picker seam
 for one engine's defect, and the shared helper it would need is exactly the
 kind of engine knowledge the seam exists to keep out of the command layer.
 

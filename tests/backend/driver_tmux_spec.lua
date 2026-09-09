@@ -29,7 +29,8 @@ describe("vantage.backend.driver.tmux", function()
   end
 
   local function capture_contains(agent, needle)
-    for _, line in ipairs(Backend.capture_pane(agent, 200)) do
+    local lines = Backend.capture_pane(agent, 200)
+    for _, line in ipairs(lines) do
       if line:find(needle, 1, true) then
         return true
       end
@@ -37,9 +38,10 @@ describe("vantage.backend.driver.tmux", function()
     return false
   end
 
-  local function find_agent(target)
-    for _, agent in ipairs(Backend.snapshot().agents) do
-      if agent.target == target then
+  local function find_agent(id)
+    local snapshot = Backend.snapshot()
+    for _, agent in ipairs(snapshot.agents) do
+      if agent.id == id then
         return agent
       end
     end
@@ -64,7 +66,9 @@ describe("vantage.backend.driver.tmux", function()
     Util = require("vantage.util")
     socket = "vantage-test-" .. vim.fn.getpid()
     Config.options.socket = socket
-    Backend = require("vantage.backend.driver").get()
+    local Driver = require("vantage.backend.driver")
+    Driver.setup()
+    Backend = Driver.get()
     reset_server()
   end)
 
@@ -78,23 +82,46 @@ describe("vantage.backend.driver.tmux", function()
   end)
 
   it("reports an empty snapshot before the first agent is created", function()
-    assert.are.same({ agents = {}, groups = {}, focused = nil }, Backend.snapshot())
-    assert.are.same({ clients = {}, sessions = {} }, Backend.status())
+    local snapshot, snapshot_err = Backend.snapshot()
+    local status_info, status_err = Backend.status()
+    assert.are.equal(nil, snapshot_err)
+    assert.are.equal(nil, status_err)
+    assert.are.same({ agents = {}, groups = {}, focused = nil }, snapshot)
+    assert.are.same({ clients = {}, sessions = {} }, status_info)
     assert.are.equal("tmux", vim.split(Backend.health()[1].message, " ", { plain = true })[1])
   end)
 
+  it("implements the vantage.Driver surface", function()
+    for _, name in ipairs({
+      "create",
+      "snapshot",
+      "retarget",
+      "attach_command",
+      "kill_agent",
+      "kill_group",
+      "send_keys",
+      "capture_pane",
+      "status",
+      "health",
+    }) do
+      assert.are.equal("function", type(Backend[name]), name)
+    end
+  end)
+
   it("creates an agent in a new group with the domain metadata", function()
-    local agent = create("g-one", "codex")
+    local agent, err = create("g-one", "codex")
+    assert.are.equal(nil, err)
     assert.are.equal("g-one", agent.group)
     assert.are.equal("codex", agent.tool)
     assert.are.equal("/tmp", agent.cwd)
     assert.are.equal("idle", agent.state)
-    assert.is_true(agent.target:match("^@%d+$") ~= nil)
+    assert.is_true(agent.id:match("^@%d+$") ~= nil)
+    assert.are.equal("number", type(agent.seq))
 
-    assert.are.same(agent, find_agent(agent.target))
+    assert.are.same(agent, find_agent(agent.id))
     assert.are.same(
-      { "tmux", "-L", socket, "attach-session", "-t", "g-one:" .. agent.target },
-      Backend.attach_command("g-one", agent.target)
+      { "tmux", "-L", socket, "attach-session", "-t", "g-one:" .. agent.id },
+      Backend.attach_command(agent)
     )
     assert.is_true(#Backend.status().sessions >= 1)
   end)
@@ -103,9 +130,10 @@ describe("vantage.backend.driver.tmux", function()
     local first = create("g-shared", "codex")
     local second = create("g-shared", "claude", "exec sleep 200")
 
-    assert.are.equal(2, #Backend.snapshot().agents)
-    assert.are.same(second, find_agent(second.target))
-    assert.is_true(find_agent(first.target) ~= nil)
+    local snapshot = Backend.snapshot()
+    assert.are.equal(2, #snapshot.agents)
+    assert.are.same(second, find_agent(second.id))
+    assert.is_true(find_agent(first.id) ~= nil)
   end)
 
   it("derives the focused agent from the terminal job's pid and retargets across groups", function()
@@ -113,24 +141,28 @@ describe("vantage.backend.driver.tmux", function()
     local second = create("g-focus-b", "claude")
 
     local job = vim.fn.jobstart(
-      { "tmux", "-L", socket, "attach-session", "-t", "g-focus-a:" .. first.target },
+      { "tmux", "-L", socket, "attach-session", "-t", "g-focus-a:" .. first.id },
       { pty = true }
     )
     local pid = vim.fn.jobpid(job)
     assert.is_true(wait_until(function()
-      return Backend.snapshot(pid).focused ~= nil and Backend.snapshot(pid).focused.target == first.target
+      local snapshot = Backend.snapshot(pid)
+      return snapshot.focused ~= nil and snapshot.focused.id == first.id
     end, 3000))
 
     assert.are.equal(true, Backend.retarget(pid, second))
     assert.is_true(wait_until(function()
-      return Backend.snapshot(pid).focused ~= nil and Backend.snapshot(pid).focused.target == second.target
+      local snapshot = Backend.snapshot(pid)
+      return snapshot.focused ~= nil and snapshot.focused.id == second.id
     end, 3000))
     vim.fn.jobstop(job)
   end)
 
   it("warns and fails retarget when no client has the pid", function()
     local agent = create("g-noclient", "codex")
-    assert.are.equal(false, Backend.retarget(123456789, agent))
+    local ok, err = Backend.retarget(123456789, agent)
+    assert.are.equal(false, ok)
+    assert.is_true(err:find("no client attached", 1, true) ~= nil)
   end)
 
   it("captures recent pane output", function()
@@ -147,7 +179,7 @@ describe("vantage.backend.driver.tmux", function()
     local agent = create("g-cat", "codex", "stty raw -echo; exec cat")
     vim.wait(300)
 
-    Backend.send_keys(agent, "hello world")
+    assert.are.equal(true, Backend.send_keys(agent, "hello world"))
     assert.are.equal(
       true,
       wait_until(function()
@@ -160,15 +192,15 @@ describe("vantage.backend.driver.tmux", function()
     local first = create("g-kill-agent", "codex")
     local second = create("g-kill-agent", "codex")
 
-    Backend.kill_agent(first)
-    assert.are.equal(nil, find_agent(first.target))
-    assert.are.same(second, find_agent(second.target))
+    assert.are.equal(true, Backend.kill_agent(first))
+    assert.are.equal(nil, find_agent(first.id))
+    assert.are.same(second, find_agent(second.id))
   end)
 
   it("kills an entire group", function()
     create("g-kill-group", "codex")
 
-    Backend.kill_group("g-kill-group")
+    assert.are.equal(true, Backend.kill_group("g-kill-group"))
     assert.are.same({}, Backend.snapshot().agents)
   end)
 end)

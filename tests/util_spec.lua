@@ -31,18 +31,6 @@ describe("vantage.util", function()
     end)
   end)
 
-  describe("agent_window_index", function()
-    it("parses tmux window targets numerically", function()
-      assert.are.equal(2, Util.agent_window_index("@2"))
-      assert.are.equal(10, Util.agent_window_index("@10"))
-    end)
-
-    it("degrades malformed targets to zero", function()
-      assert.are.equal(0, Util.agent_window_index("@bad"))
-      assert.are.equal(0, Util.agent_window_index(""))
-    end)
-  end)
-
   describe("shell_quote", function()
     it("quotes empty strings and ordinary arguments", function()
       assert.are.equal("''", Util.shell_quote(""))

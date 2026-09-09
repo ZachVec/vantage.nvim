@@ -3,6 +3,9 @@
 --- must close the picker itself.
 local M = {}
 
+---@type string
+M.requires = "snacks.picker"
+
 --- Preview-pane window options for every preview-capable pick. Snacks renders
 --- its picker preview window with the number column on by default; that gutter
 --- reads as a code view, wrong for a captured terminal pane or a rendered
@@ -21,12 +24,6 @@ local NO_PREVIEW_LINENR = { number = false, relativenumber = false }
 local function pick(opts)
   return require("snacks.picker").pick(opts)
 end
-
----@class vantage.SnacksRenderOpts Internal renderer options for the snacks picker.
----@field dynamic boolean
----@field on_choice fun(item: any)
----@field delete_action? string
----@field group_action? string
 
 --- Preview the current item's content (pane lines or rendered review)
 --- through the item's `preview()`; nil means "nothing to preview".
@@ -80,29 +77,29 @@ local function restore_terminal_mode(terminal_win)
   end)
 end
 
---- The shared snacks renderer for the three preview-capable picks.
+---@type vantage.PickerCapabilities
+M.capabilities = {
+  preview = true,
+  command = true,
+}
+
+--- Render a preview-capable pick and bind the flow's neutral commands to both
+--- the snacks input and list surfaces.
 ---@param spec vantage.PickSpec
----@param opts vantage.SnacksRenderOpts
+---@param opts vantage.PickOpts
 ---@return boolean empty
-local function render(spec, opts)
-  local group_on = opts.group_action ~= nil and spec.group ~= nil
+function M.pick(spec, opts)
   local terminal_win = terminal_window()
 
-  local function read()
-    local all = spec.items_provider()
-    if group_on then
-      return spec.group(all)
-    end
-    return all
-  end
-
-  local list = read()
+  local list = spec.items_provider()
   if #list == 0 then
     return true
   end
 
-  local function refresh(picker)
-    list = read()
+  local function refresh(picker, reread)
+    if reread then
+      list = spec.items_provider()
+    end
     if #list == 0 then
       picker:close()
     else
@@ -126,83 +123,37 @@ local function render(spec, opts)
         end)
       end
     end,
+    finder = function()
+      return list
+    end,
   }
 
-  if opts.dynamic then
-    pick_opts.finder = function()
-      return list
-    end
-  else
-    pick_opts.items = list
-  end
-
   local actions = {}
-  if opts.delete_action then
-    actions[opts.delete_action] = function(picker, item)
-      if item and item:delete() then
-        refresh(picker)
+  local win = { preview = { wo = NO_PREVIEW_LINENR } }
+  for index, command in ipairs(opts.commands or {}) do
+    local action = ("vantage_command_%d"):format(index)
+    actions[action] = function(picker, item)
+      local changed = command[2]({
+        item = item,
+        items = list,
+      })
+      if changed then
+        refresh(picker, true)
       end
     end
-  end
-  if opts.group_action then
-    actions[opts.group_action] = function(picker)
-      group_on = not group_on
-      refresh(picker)
-    end
+    win.input = win.input or { keys = {} }
+    win.list = win.list or { keys = {} }
+    win.input.keys[command[1]] = action
+    win.list.keys[command[1]] = action
   end
   if next(actions) ~= nil then
     pick_opts.actions = actions
   end
 
-  local win = { preview = { wo = NO_PREVIEW_LINENR } }
-  if opts.delete_action or opts.group_action then
-    win.input = { keys = {} }
-    win.list = { keys = {} }
-  end
-  if opts.delete_action then
-    win.input.keys["<C-x>"] = { opts.delete_action, mode = { "n", "i" } }
-    win.list.keys["<C-x>"] = opts.delete_action
-  end
-  if opts.group_action then
-    win.input.keys["<C-g>"] = { opts.group_action, mode = { "n", "i" } }
-    win.list.keys["<C-g>"] = opts.group_action
-  end
   pick_opts.win = win
 
   pick(pick_opts)
   return false
-end
-
----@param spec vantage.PickSpec
----@param on_choice fun(item: any)
----@return boolean empty
-function M.pick_agent(spec, on_choice)
-  return render(spec, {
-    dynamic = true,
-    on_choice = on_choice,
-    group_action = "agent_group_toggle",
-  })
-end
-
----@param spec vantage.PickSpec
----@param on_choice fun(item: any)
----@return boolean empty
-function M.pick_kill(spec, on_choice)
-  return render(spec, {
-    dynamic = false,
-    on_choice = on_choice,
-  })
-end
-
----@param spec vantage.PickSpec
----@param on_choice fun(item: any)
----@return boolean empty
-function M.pick_review(spec, on_choice)
-  return render(spec, {
-    dynamic = true,
-    on_choice = on_choice,
-    delete_action = "review_delete",
-  })
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select

@@ -85,7 +85,7 @@ if geometry follows.
 - New public config key `annotations.float.style` ("inherit" default |
   "minimal"); defaults, LuaLS classes, README, and `doc/vantage.nvim.txt` are
   updated in this change.
-- Only `ui/note.lua` (`Note.open`), `commands/annotation.lua`, and `config.lua`
+- Only `frontend/note.lua` (`Note.open`), `commands/review.lua`, and `config.lua`
   change in code; the
   picker previews and the range tint in the source window are unaffected.
 - The float is a fresh scratch buffer, so buffer-local look (filetype

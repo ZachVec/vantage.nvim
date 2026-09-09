@@ -28,9 +28,9 @@ invoked from*, it restored the default first window.
 
 The snacks close compensation (`restore_terminal_mode` in
 `lua/vantage/picker/snacks.lua`) now also re-asserts window focus. At pick
-start, when `from_terminal` is set, the implementation captures
+start, when the current window is the Vantage Terminal, the implementation captures
 `vim.api.nvim_get_current_win()` — at that moment the current window *is* the
-Client window, since `from_terminal` means the pick runs inside the terminal — and
+Terminal window, since filetype detection means the pick runs inside it — and
 passes it into the same scheduled close handler. In the scheduled handler the
 terminal window is re-focused with `nvim_set_current_win` when it is still
 valid and not already current, *before* the existing terminal-mode re-entry

@@ -5,12 +5,25 @@
 ---@field format? fun(text: string): string per-Agent text transform before sending a prompt
 
 ---@class vantage.Agent A running coding-agent process.
+---@field id string opaque Driver identity
+---@field seq integer driver-neutral creation order
 ---@field group string
----@field target string multiplexer window id (@N for tmux)
 ---@field cmd string
 ---@field cwd string
 ---@field tool string the cli.tools key that created it (for the format hook)
 ---@field state? string
+
+---@class vantage.Driver The multiplexer contract behind the Bridge.
+---@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
+---@field snapshot fun(pid?: integer): { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?, string?
+---@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
+---@field attach_command fun(agent: vantage.Agent): string[]
+---@field kill_agent fun(agent: vantage.Agent): boolean, string?
+---@field kill_group fun(group: string): boolean, string?
+---@field send_keys fun(agent: vantage.Agent, text: string): boolean, string?
+---@field capture_pane fun(agent: vantage.Agent, max_lines?: integer): string[]?, string?
+---@field status fun(): { clients: string[], sessions: string[] }?, string?
+---@field health fun(): { status: "ok"|"warn"|"err", message: string, fatal?: boolean }[]
 
 ---@class vantage.Win Terminal window options.
 ---@field layout string full | left | top | bottom | right | float
@@ -45,29 +58,42 @@
 
 ---@class vantage.PickSpec The selection contract passed to a picker
 --- implementation. Each field is an input to the picker: the items to render
---- (`items_provider`), the prompt glyph (`prompt`), and an optional live group
---- filter (`group`, the picker's `<c-g>` toggle). Rows expose `format()` /
---- `preview()`, and a flow-enabled in-place `<c-x>` calls `delete()`; the
---- chosen row is delivered through the positional `on_choice`, and the picker
---- returns a boolean `empty`.
+--- (`items_provider`) and the prompt glyph (`prompt`). Rows expose
+--- `format()` / `preview()`; commands are supplied through `PickOpts`.
 ---@field prompt string
 ---@field items_provider fun(): table[]
----@field group? fun(items: table[]): table[] the flow's live group filter:
----   applied to freshly read items while the picker's group toggle is on (the
----   default when `group` exists), re-invoked after every re-read.
+
+---@class vantage.PickerCommandCtx
+---@field item any
+---@field items any[]
+
+---@class vantage.PickerCommand A keymap-shaped picker command:
+--- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
+--- when the item list may have changed.
+---@field [1] string lhs
+---@field [2] fun(ctx: vantage.PickerCommandCtx): boolean
+---@field desc? string
+
+---@class vantage.PickOpts
+---@field on_choice fun(item: any)
+---@field commands? vantage.PickerCommand[]
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
 --- (`pick_plain`), mirroring `vim.ui.select`'s opts.
 ---@field prompt? string
 ---@field format_item? fun(item: any): string
 
+---@class vantage.PickerCapabilities
+---@field preview boolean
+---@field command boolean
+
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
 --- snacks) rendering every Vantage selection on its own engine. The command
 --- flows assemble a PickSpec per flow; the implementations stay
 --- presentation-only and depend on nothing but their engine.
----@field pick_agent fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
----@field pick_kill fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
----@field pick_review fun(spec: vantage.PickSpec, on_choice: fun(item: any)): boolean
+---@field requires? string optional runtime module dependency
+---@field capabilities vantage.PickerCapabilities
+---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}
@@ -142,7 +168,17 @@ local defaults = {
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
---- Invalid cli.tools entries dropped by the last setup() run (name -> reason),
+--- Prompt placeholder vocabulary shared by the Prompt flow and health.
+---@type table<string, boolean>
+M.PROMPT_PLACEHOLDERS = {
+  file = true,
+  line = true,
+  ["function"] = true,
+  ["class"] = true,
+  reviews = true,
+}
+
+--- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),
 --- surfaced by :checkhealth.
 ---@type table<string, string>
 M.dropped_tools = {}
@@ -176,25 +212,8 @@ function M.sanitize_tools(tools, dropped)
   return tools
 end
 
---- Monotonic stamp for the most-recently-visited window, read by the prompt
---- flow's context resolution.
-local visit_counter = 0
-
---- (Re)register the WinEnter autocmd that stamps each window with the visit
---- counter, so Prompt context resolves against the last non-terminal window.
-function M.track_window_visits()
-  vim.api.nvim_create_augroup("VantageWinVisit", { clear = true })
-  vim.api.nvim_create_autocmd("WinEnter", {
-    group = "VantageWinVisit",
-    callback = function()
-      visit_counter = visit_counter + 1
-      vim.w[vim.api.nvim_get_current_win()].vantage_visit = visit_counter
-    end,
-  })
-end
-
 ---@param opts? vantage.Config
-function M.setup(opts)
+function M.apply(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   local dropped = {}
   M.sanitize_tools(M.options.cli.tools, dropped)
@@ -202,19 +221,6 @@ function M.setup(opts)
   for name, reason in pairs(dropped) do
     Util.warn(("dropping invalid cli.tools entry '%s' (%s)"):format(name, reason))
   end
-  M.track_window_visits()
-  require("vantage.frontend.review").setup()
-
-  pcall(vim.api.nvim_create_user_command, "Vantage", function(args)
-    require("vantage.commands").run(args)
-  end, {
-    nargs = "*",
-    range = true, -- `:Vantage review` uses the range as the review span
-    complete = function(arglead, cmdline)
-      return require("vantage.commands").complete(arglead, cmdline)
-    end,
-    desc = "Vantage coding-agent manager",
-  })
 end
 
 return M

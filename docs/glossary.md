@@ -14,7 +14,7 @@ _Avoid_: worker
 
 ## Cwd
 
-The working directory an Agent runs in. Resolved by the Frontend from the global Neovim working directory (it follows `:cd`, not `:lcd`/`:tcd`) and passed to the Backend explicitly; the Backend never infers it.
+The working directory an Agent runs in. Resolved by the command flow from the global Neovim working directory (it follows `:cd`, not `:lcd`/`:tcd`) and passed to the Backend explicitly; the Backend never infers it.
 _Avoid_: repo, directory
 
 ## State
@@ -24,22 +24,22 @@ _Avoid_: status
 
 ## Backend
 
-The plugin's Lua domain layer that owns all state and domain logic and drives a terminal multiplexer. It is a Bridge over a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
+The plugin's Lua domain layer that owns Agent state and lifecycle logic and drives a terminal multiplexer. It is a Bridge over a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
 _Avoid_: api, server
 
 ## Bridge
 
-The Backend's public surface that the Frontend consumes: pure-data domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach_command`, `kill_agent`, `kill_group`, `status`) and the entity lists built above it. It holds no state and knows no UI; every multiplexer detail is left to the Driver.
+The Backend's public surface that the Frontend consumes: domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach_command`, `kill_agent`, `kill_group`, `status`) and the entity lists built above them. It holds no state, knows no UI, and passes Driver results/errors through; every multiplexer detail is left to the Driver.
 _Avoid_: service, orchestrator
 
 ## Driver
 
-A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface and outputs neutral records, and every tool-specific command syntax lives inside it.
+A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
 _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus the entry builders, the Review storage, and the note float. The Frontend imports the Backend through the Bridge; the Backend never imports the Frontend.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend through the Bridge; the Backend never imports the Frontend.
 _Avoid_: client, ui
 
 ## Terminal
@@ -49,8 +49,13 @@ _Avoid_: client, screen, window
 
 ## Picker
 
-The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, and the Prompt choice — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. Implementations render plain choices with their own engine so a flow never mixes renderer families. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
+The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, and the Prompt choice — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)` and `pick_plain(...)`; implementations declare exactly two capabilities, `preview` and `command`, and degrade optional capabilities explicitly. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
+
+## Picker command
+
+A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope actions are ordinary Picker commands; the Picker knows no flow semantics.
+_Avoid_: action, keybinding
 
 ## Tool
 

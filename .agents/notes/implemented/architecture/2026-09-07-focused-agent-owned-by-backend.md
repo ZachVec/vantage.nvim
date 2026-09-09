@@ -4,47 +4,41 @@ Status: implemented
 
 ## Problem
 
-`client.lua` stored `last_agent` and exposed `last_agent_alive()`. The Client
-is a frontend object; remembering which Agent its View is showing duplicates
-state that tmux already owns as the View's active window. Keeping that copy
-made Client responsible for domain truth and could drift after external tmux
-changes or a View relocation.
+The old Frontend Client stored `last_agent` and exposed `last_agent_alive()`.
+That duplicated state tmux already owns: the attached client's active window.
+The copy could drift after an external tmux change or a retarget.
 
 ## Decision
 
-The Backend now exposes `focused_agent(view)`, which derives the displayed
-Agent from the View's active tmux window and the live Agent inventory.
-`client.lua` no longer stores `last_agent`; `Client.focused_agent()` delegates
-to `Backend.focused_agent(M.view)` and returns nil when there is no View.
+`Bridge.agents(pid)` returns one live snapshot: the Agent inventory plus the
+Agent currently shown by the client whose terminal job has `pid`. The focused
+Agent is derived on every read from `list-clients` and the live inventory; the
+Frontend stores no domain focus state.
 
-`Backend.snapshot(view?)` now also returns the focused Agent when a View is
-provided, so the Agent picker can read the inventory and focused Agent in one
-`list()` call instead of `list()` followed by `focused_agent()`.
-
-Callers (`select.lua`, `commands/prompt.lua`) ask
-`Client.focused_agent()` instead of `Client.last_agent_alive()`.
+`commands/attach.lua` uses `Bridge.agents(pid)` for the pinned focused
+row and the group-scope command; `commands/prompt.lua` uses the same snapshot
+to resolve its target. No separate `focused_agent()` verb exists.
 
 ## Alternatives considered
 
-### Why not keep `last_agent` and refresh it after every Backend call?
+### Why not keep `last_agent` and refresh it after every operation?
 
-That keeps a second source of truth that must be updated in every focus,
-retarget, attach, detach, and external-change path. Deriving from the View
-has one source of truth: tmux.
+That keeps a second source of truth that must be updated on every focus,
+retarget, detach, and external change. Deriving from tmux has one source.
 
-### Why not have callers reach `Backend.focused_agent()` directly?
+### Why not expose a separate `focused_agent()` verb?
 
-Callers would then need to know the Client's current View name. The Client
-already owns that identifier, so a thin `Client.focused_agent()` delegation
-keeps the boundary clear.
+The picker and prompt flows need the inventory and focused Agent together.
+Returning both from one `snapshot(pid)` avoids a second synchronous tmux
+inventory read and keeps the query contract small.
 
 ## Consequences
 
-- Client state shrinks by one field and one inventory scan.
-- Focused Agent is computed live from the View, so external tmux state and
-  cross-Group View relocations cannot leave a stale Client-side copy.
-- `Backend.focused_agent` is part of the Backend seam and available to future
-  drivers.
-- The Agent picker uses `Backend.snapshot(Client.view)` for its inventory and
-  focused pin, reducing duplicate synchronous inventory reads.
-- Backend tests cover deriving the focused Agent before and after retarget.
+- `frontend/terminal.lua` stores only terminal job/buffer/window state, never
+  the focused Agent.
+- A stale Client-side focus copy is impossible; external tmux changes are
+  reflected on the next snapshot.
+- Driver integration tests derive the focused Agent before and after
+  retarget.
+- The current Driver/Picker result contract is owned by
+  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).

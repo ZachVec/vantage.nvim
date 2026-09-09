@@ -75,6 +75,10 @@ require("vantage").setup({
 })
 ```
 
+`backend` and `picker` are validated during `setup()`. An unknown name, an
+unavailable implementation, or a missing picker dependency raises an error
+instead of silently falling back.
+
 The default `layout = "float"` opens the terminal as a borderless floating
 window at the full editor size — a pure terminal view, with no statusline,
 winbar, or border. If the terminal's cursor flickers for you, use

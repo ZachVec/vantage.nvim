@@ -2,11 +2,11 @@
 --- lives in its own module under `vantage.commands`; this file only maps
 --- subcommand names to functions and owns the one-line commands (detach,
 --- status).
+local Attach = require("vantage.commands.attach")
 local Bridge = require("vantage.backend.bridge")
 local Kill = require("vantage.commands.kill")
 local Review = require("vantage.commands.review")
 local Terminal = require("vantage.frontend.terminal")
-local Toggle = require("vantage.commands.toggle")
 local Util = require("vantage.util")
 
 local M = {}
@@ -29,7 +29,11 @@ local function usage()
 end
 
 local function status()
-  local status_info = Bridge.status()
+  local status_info, err = Bridge.status()
+  if status_info == nil then
+    Util.warn(err or "failed to read status")
+    return
+  end
   local lines = { "sessions:" }
   for _, line in ipairs(status_info.sessions) do
     lines[#lines + 1] = "  " .. line
@@ -52,7 +56,7 @@ function M.run(args)
   if subcommand == nil then
     usage()
   elseif subcommand == "toggle" then
-    Toggle.run()
+    Attach.toggle()
   elseif subcommand == "detach" then
     Terminal.destroy()
   elseif subcommand == "review" then
@@ -84,8 +88,5 @@ function M.complete(arglead, cmdline)
   end
   return {}
 end
-
---- Resolved by the `toggle` terminal keymap token (see vantage.commands.keys).
-M.toggle = Toggle.run
 
 return M

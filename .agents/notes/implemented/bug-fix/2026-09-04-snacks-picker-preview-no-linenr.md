@@ -19,7 +19,7 @@ line numbers refer to anything.
 `picker/snacks.lua` passes preview-window window options with every
 preview-capable pick: a shared `NO_PREVIEW_LINENR = { number = false,
 relativenumber = false }` rides as `win = { preview = { wo = … } }` on
-`pick_agent`, `pick_kill`, and `pick_annotation`. Snacks merges pick-level
+the preview-capable `Picker.pick` path. Snacks merges pick-level
 opts last (defaults → user config → source → call opts), so Vantage's picks
 resolve their preview window with the gutter off regardless of the user's
 global snacks `win.preview` config. `relativenumber` is pinned only because

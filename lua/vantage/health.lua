@@ -17,7 +17,7 @@ end
 --- Validate configured prompt placeholders (name -> template).
 local function check_prompts()
   local prompts = require("vantage.config").options.prompts or {}
-  local known = require("vantage.commands.prompt").PLACEHOLDERS
+  local known = require("vantage.config").PROMPT_PLACEHOLDERS
   local unknown = {}
   local uses_symbol = false
   for _, template in pairs(prompts) do
@@ -73,7 +73,13 @@ function M.check()
     return
   end
 
-  for _, check in ipairs(require("vantage.backend.driver").get().health()) do
+  local driver_ok, driver = pcall(require("vantage.backend.driver").get)
+  if not driver_ok then
+    err(tostring(driver))
+    return
+  end
+
+  for _, check in ipairs(driver.health()) do
     if check.status == "ok" then
       ok(check.message)
     elseif check.status == "warn" then
@@ -87,18 +93,23 @@ function M.check()
   end
 
   local picker = require("vantage.config").options.picker
-  if picker == "native" then
-    ok("picker: native (built-in vim.ui.select)")
-  else
-    local dep = picker == "fzf-lua" and "fzf-lua" or (picker == "snacks" and "snacks.picker" or nil)
-    if not dep then
-      warn(("picker '%s' is unknown — falling back to native"):format(tostring(picker)))
-    elseif module_available(dep) then
-      ok(("picker: %s"):format(picker))
-    else
-      err(("picker '%s' configured but '%s' is not installed"):format(picker, dep))
-    end
+  local picker_ok, capabilities = pcall(require("vantage.frontend.picker").capabilities)
+  if not picker_ok then
+    err(tostring(capabilities))
+    return
   end
+  local dep = picker == "fzf-lua" and "fzf-lua" or (picker == "snacks" and "snacks.picker" or nil)
+  if dep and not module_available(dep) then
+    err(("picker '%s' configured but '%s' is not installed"):format(picker, dep))
+    return
+  end
+  ok(
+    ("picker: %s (preview=%s, command=%s)"):format(
+      picker,
+      capabilities.preview and "yes" or "no",
+      capabilities.command and "yes" or "no"
+    )
+  )
 
   check_tools()
   check_prompts()

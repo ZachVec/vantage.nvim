@@ -18,14 +18,14 @@ reference into the Agent — should work out of the box, without setup.
 prompts = {
   ["{file}"] = "{file}",
   ["{line}"] = "{line}",
-  ["{annotations}"] = "{annotations}",
+  ["{reviews}"] = "{reviews}",
 }
 ```
 
 Each is named by its own placeholder and expands to nothing but that
-placeholder, so the raw location references and the accumulated Annotations are
-always available. The `{annotations}` prompt is hidden from `:Vantage prompt`
-while there are no Annotations, so a zero-config install with none sees only
+placeholder, so the raw location references and the accumulated Reviews are
+always available. The `{reviews}` prompt is hidden from `:Vantage prompt`
+while there are no Reviews, so a zero-config install with none sees only
 `{file}` and `{line}`. Composed prompts (`review`, `fix`, `explain`, …) are
 deliberately not built in — they are opinionated prose and belong in the user's
 `setup`. User `prompts` merge additively (the existing

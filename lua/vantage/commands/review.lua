@@ -107,9 +107,20 @@ end
 
 --- Open the review picker; selecting a review opens its note float.
 local function review_list()
-  local empty = Picker.get().pick_review(spec(), function(entry)
-    open_note(entry.review)
-  end)
+  local empty = Picker.pick(spec(), {
+    on_choice = function(entry)
+      open_note(entry.review)
+    end,
+    commands = {
+      {
+        "<C-x>",
+        function(ctx)
+          return ctx.item ~= nil and ctx.item:delete()
+        end,
+        desc = "delete review",
+      },
+    },
+  })
   if empty then
     Util.warn("no reviews — add one with :Vantage review")
   end

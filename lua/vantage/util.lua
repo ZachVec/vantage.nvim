@@ -68,15 +68,6 @@ function M.shell_join(args)
   return table.concat(out, " ")
 end
 
---- The numeric index of a tmux window target (`@N`), or 0 when the target is
---- malformed. Kept here so the Backend and Frontend share one degradation
---- rule instead of parsing `@N` in two places.
----@param target string tmux window id (@N)
----@return integer
-function M.agent_window_index(target)
-  return tonumber(target:match("^@(%d+)$")) or 0
-end
-
 --- Normalized global cwd (follows :cd, ignores :lcd / :tcd).
 ---@return string
 function M.cwd()

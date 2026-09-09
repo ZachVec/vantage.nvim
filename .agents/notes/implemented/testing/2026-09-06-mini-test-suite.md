@@ -19,11 +19,12 @@ Adopt a snacks.nvim-style headless suite:
   `nvim --headless -l tests/minit.lua --minitest`.
 - Specs use mini.test's busted-style `describe`/`it` with `luassert`
   assertions, mirroring snacks.nvim's test layout.
-- The initial inventory is `util_spec`, `config_spec`, `keys_spec`,
-  `prompt_spec`, `annotation_spec`, `select_spec`, and `backend_tmux_spec`
-  (50 cases). Unit specs exercise real buffers where the behavior is
-  buffer-bound and fake Backend/Client modules where a flow only needs the
-  seam's contract.
+- The current inventory is `util_spec`, `config_spec`, `init_spec`,
+  `commands/{toggle,prompt,kill,attach}_spec`,
+  `frontend/{review,picker,terminal,note}_spec`, `backend/bridge_spec`, and
+  `backend/driver_tmux_spec` (62 cases). Unit specs exercise real buffers where
+  the behavior is buffer-bound and fake Bridge/Picker/Driver modules where a
+  flow only needs the seam's contract.
 - `backend_tmux_spec` runs against a per-process private socket
   (`vantage-test-<pid>`), kills stale state before each case, and kills the
   server in teardown. It never touches the user's default `vantage` socket.

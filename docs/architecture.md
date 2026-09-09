@@ -4,25 +4,39 @@ A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backe
 
 Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
 
-## Three layers, one-way dependencies
+## Composition root and one-way dependencies
 
 ```
 lua/vantage/
-├── init.lua / config.lua / util.lua / health.lua   shared
+├── init.lua            composition root: apply config, resolve, install
+├── config.lua / util.lua   shared configuration + helpers
+├── health.lua          diagnostics adapter
 ├── backend/            bridge.lua + driver/ (init registry, tmux)
-├── frontend/           terminal, entries, picker/, review, note
-└── commands/           init (dispatch), switch, toggle, kill, review, prompt, keys
+├── frontend/           terminal, display, note, review, picker/
+└── commands/           dispatch + actions, terminal_keys, attach, flows
 ```
 
-- `commands/` orchestrates flows and imports `frontend/` and `backend/`.
+- `init.lua` is the composition root. `setup()` applies configuration, resolves
+  the configured Driver and Picker, then installs Prompt/Review hooks and the
+  `:Vantage` command.
+- `commands/` orchestrates flows and imports `frontend/`, `backend/`, and
+  shared modules.
 - `frontend/` imports `backend/` (through the Bridge) and its own pieces.
-- `backend/` imports only `config` and `util`.
+- `backend/` imports only shared modules.
+- `health.lua` is a diagnostics adapter: it may inspect Backend and Frontend,
+  but never the command layer.
+- `make check` runs `scripts/verify-architecture.lua`, which rejects reverse
+  module dependencies.
 
-The flow layer owns every user action; no picker row carries one. Each command
-defines its own row classes behind one local protocol per flow: the switch
-flow's rows resolve (`target(done)`), the kill flow's rows delete
-(`delete()`), and the review flow's rows open notes — every row still renders
-through `format()` / `preview()`.
+Configuration is fail-fast. An unknown backend/picker name, an unavailable
+implementation, or a missing picker dependency raises during `setup()`; no
+fallback implementation is installed. Driver/Picker are resolved once and
+cached; `get()` before `setup()` is a programming error. `health.lua` catches
+that error and reports it.
+
+`Config.options` remains the global configuration singleton. `Config.apply()`
+owns defaults, merging, and `cli.tools` validation; runtime lifecycle belongs
+to the composition root.
 
 ## The multiplexer substrate
 
@@ -37,9 +51,8 @@ counts are computed read-only per tick by `scripts/vantage-counts` inside a
 `#()` substitution, deduplicated to one run per Group.
 
 The server is started by the first Agent creation and never re-checked
-afterwards: operations assume it lives, and an external kill surfaces as a
-warning on the next operation. There is no watchdog and no reconciliation;
-the next creation starts a fresh server and re-applies the config.
+afterwards: operations assume it lives. A missing server reads as an empty
+inventory; other operation failures return their real error.
 
 ## Domain model over the multiplexer
 
@@ -49,54 +62,71 @@ the next creation starts a fresh server and re-applies the config.
   session dies with it (and the multiplexer server exits with its last
   session).
 - An **Agent** is one window containing exactly one pane, marked with the
-  `@agent-*` options. There are no session groups, no anchor session, and no
-  per-view session: several clients can attach to one session and each show a
-  different window, which is all the old View machinery provided.
-- The **attachment** is the Terminal's client pointed at (Group, Agent). It is
-  not a multiplexer object: opening the Terminal starts the attach command,
-  closing it (or the client exiting) ends the attachment, and `retarget`
-  repoints it. The focused Agent is derived from the live state on every
-  `snapshot`, never stored Neovim-side.
+  `@agent-*` options. Its shared record carries an opaque `id` (the Driver's
+  identity), a driver-neutral `seq` for creation order, Group, command, Cwd,
+  Tool, and optional State. tmux's `@N` format is parsed only inside the tmux
+  Driver.
+- The **attachment** is the Terminal's client pointed at an Agent. It is not a
+  multiplexer object: opening the Terminal starts the attach command, closing
+  it (or the client exiting) ends the attachment, and `retarget` repoints it.
+  The focused Agent is derived from the live state on every `snapshot`, never
+  stored Neovim-side.
 
 ## Seams and contracts
 
-**Driver** (resolved by `backend/driver/init.lua` from `setup { backend = … }`):
+**Driver** (`backend/driver/init.lua` resolves the configured module from a
+whitelist):
 
-- `create({ group, cmd, cwd, tool })` → Agent record (creating the Group, and
-  on the first creation the server and its config);
-- `snapshot(pid?)` → `{ agents, focused? }` from one shell process (two
-  chained multiplexer commands);
-- `retarget(pid, agent)` → one `switch-client`, covering same-Group window
-  changes and cross-Group moves;
-- `attach_command(group, agent)` → the argv the Terminal runs;
-- `kill_agent(agent)` / `kill_group(group)`;
-- `send_keys(agent, text)`, `capture_pane(agent, max_lines?)`,
-  `status()`, `health()`.
+- `create({ group, cmd, cwd, tool })` → `Agent, nil` or `nil, err`; creating
+  the Group (and on the first creation the server and its config). Metadata
+  failures roll back the partial Agent.
+- `snapshot(pid?)` → `{ agents, groups, focused? }, nil` or `nil, err` from one
+  shell process (two chained multiplexer commands).
+- `retarget(pid, agent)` → `true` or `false, err`; one `switch-client` covers
+  same-Group window changes and cross-Group moves.
+- `attach_command(agent)` → the argv the Terminal runs.
+- `kill_agent(agent)` / `kill_group(group)` → `true` or `false, err`.
+- `send_keys(agent, text)` → `true` or `false, err`; temporary buffers are
+  cleaned up.
+- `capture_pane(agent, max_lines?)` → `lines, nil` or `nil, err`;
+  `status()` → `{ clients, sessions }, nil` or `nil, err`;
+  `health()` → health-check records.
+
+The Driver returns errors and never notifies the user. The Bridge passes
+results through; command flows decide how to report them.
 
 **Bridge** (`backend/bridge.lua`) is the Frontend's only door to the Backend:
-`agents(pid)` (the flat inventory — Agents in creation order, derived Groups,
-and the focused Agent), `create`, `retarget(pid, agent)`, `send(agent, text)`,
-`capture(agent)`, `attach_command`, `kill_agent`, `kill_group`, `status`. It
-holds no state and does no UI; the prompt flow resolves the focused Agent and
-renders templates, then hands the Bridge the final text.
+`agents(pid)`, `create`, `retarget(pid, agent)`, `send(agent, text)`,
+`capture(agent)`, `attach_command(agent)`, `kill_agent`, `kill_group`,
+`status`. It holds no state and does no UI; the prompt flow resolves the
+focused Agent and renders templates, then hands the Bridge the final text.
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
-starts the terminal job and returns its pid, `show`/`hide` manage the window
-without killing the job, `destroy` stops the job and deletes the buffer, and a
-`TermClose` autocmd does the same whenever the client exits. One Terminal per
-Neovim instance.
+starts the terminal job, `show`/`hide` manage the window without killing the
+job, `destroy` stops the job and deletes the buffer, and a `TermClose` autocmd
+does the same whenever the client exits. One Terminal per Neovim instance.
 
-**Picker** (`frontend/picker/`) implementations are pure renderers over a
-`PickSpec` (`prompt`, `items_provider`, optional `group` scope filter). They
-read `format()`/`preview()`, deliver the chosen row through `on_choice`, and
-bind an in-place `delete()`/`<c-g>` toggle only where the flow asks for it.
-The `from_terminal` flag is gone: an implementation detects the terminal
-window by its filetype when the pick opens. Pane previews and Review previews
-are computed by the entry builders (through `Bridge.capture` and Review
-rendering), so renderers never touch the Backend.
+**Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
+Commands call `Picker.pick(spec, opts)` or `Picker.pick_plain(...)`; `get()` is
+internal. A picker declares exactly two capabilities:
+
+- `preview` — it can render `item:preview()`.
+- `command` — it can bind the flow's picker commands.
+
+`opts.commands` is a list of keymap-shaped descriptors
+`{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
+`true` when the item list may have changed. A true result re-reads
+`items_provider` and refreshes (or closes on an empty result). Commands are
+global to the picker UI; the facade rejects duplicate `lhs` values and drops
+commands for a picker without the `command` capability. Group scoping is an
+ordinary command, not a Picker concept.
 
 ## Flows and the command surface
 
+- `commands/attach.lua` owns `toggle`/`switch` plus their shared
+  Agent/Tool rows, Group choice, creation handoff, and `<c-g>` scope command.
+- `commands/terminal_keys.lua` installs `cli.win.keys`; `commands/actions.lua`
+  maps built-in tokens (`toggle`, `switch`, `prompt`) to command functions.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
   (Tool rows create one) and open the Terminal on it.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
@@ -104,12 +134,8 @@ rendering), so renderers never touch the Backend.
 - `:Vantage status` shows the Driver's session/client summary.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
-- `:Vantage kill` picks an Agent or Group and kills it (no in-picker `<c-x>`
-  in the Agent list — kill is a command; the Review list keeps its in-place
-  delete).
-- Terminal tokens via `cli.win.keys`: `switch`, `prompt`, `toggle` — resolved
-  by `commands/toggle.lua`; `switch` and `prompt` exist only inside the
-  Terminal.
+- `:Vantage kill` picks an Agent or Group and kills it.
+- Terminal tokens via `cli.win.keys`: `switch`, `prompt`, `toggle`.
 
 Creating an Agent from a Tool row resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the
@@ -119,6 +145,6 @@ Terminal's client by the terminal job's pid.
 
 Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
 registry) and render through `setup { reviews = { item = … } }`; the Prompt
-vocabulary (`{file}`, `{line}`, `{function}`, `{class}`, `{reviews}`) is owned
-by the prompt flow module, which health-checked against at startup. Prompt
-text is pasted with bracketed paste and never auto-submits.
+vocabulary (`{file}`, `{line}`, `{function}`, `{class}`, `{reviews}`) lives in
+`config.lua` as a shared contract, health-checked at startup. Prompt text is
+pasted with bracketed paste and never auto-submits.

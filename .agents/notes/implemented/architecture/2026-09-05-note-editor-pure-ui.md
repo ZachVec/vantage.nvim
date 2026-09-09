@@ -4,20 +4,20 @@ Status: implemented
 
 ## Problem
 
-The annotation note editor (`open_note_float`, ~80 lines) lived in
-`commands/annotation.lua` and coupled UI to domain: it read `annotations.keys`
+The Review note editor (`open_note_float`, ~80 lines) lived in
+`commands/review.lua` and coupled UI to domain: it read `annotations.keys`
 and `annotations.float.style` from config, and hardcoded the "Delete
-annotation?" confirmation and the empty-note-deletes policy. It was also
+review?" confirmation and the empty-note-deletes policy. It was also
 over-keyed — `keys.exit` committed-and-closed, `keys.delete` deleted — with a
 user-configurable `keys` that earned its complexity.
 
 ## Decision
 
-- New pure-UI module `vantage/ui/note.lua` (`Note.open(opts)`), depending on
+- New pure-UI module `vantage.frontend.note` (`Note.open(opts)`), depending on
   nothing but the Neovim runtime. Its single action is Esc → read buffer →
   close → `on_commit(text)` (save on exit): no delete key, no confirmation, no
   empty-note policy — the caller owns every policy.
-- `commands/annotation.lua` wires the editor: it passes `style`
+- `commands/review.lua` wires the editor: it passes `style`
   (`annotations.float.style == "minimal" and "minimal" or nil`), footer, and
   callbacks. Its `on_commit` treats an empty note as delete (after a built-in
   confirm) for `annotate list`, and as discard for `annotate`.
@@ -34,15 +34,15 @@ one action and one callback.
 
 ### Why not keep the delete/empty policy inside the editor?
 
-Those are annotation domain rules (empty annotation = delete), not editor
+Those are Review domain rules (empty Review = delete), not editor
 mechanics; keeping them in the UI would couple the generic editor to the
-annotation domain.
+Review domain.
 
-### Why `ui/` rather than an `annotation/` directory?
+### Why `frontend/` rather than a Review directory?
 
-The editor is a generic buffer editor — its annotation-specificity is entirely
-in the callbacks — so it belongs in the UI layer beside `client.lua` and
-`picker/`. An `annotation/` directory would mix the domain (extmarks/registry)
+The editor is a generic buffer editor — its Review-specificity is entirely in
+the callbacks — so it belongs in the Frontend beside `frontend/terminal.lua`
+and `picker/`. A Review directory would mix the domain (extmarks/registry)
 with UI.
 
 ## Consequences

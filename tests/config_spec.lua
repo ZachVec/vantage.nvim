@@ -34,11 +34,11 @@ describe("vantage.config", function()
     assert.are.equal("command 'vantage-no-such-tool-xyz' not found", dropped.missing_cmd)
   end)
 
-  it("setup applies defaults with no options", function()
+  it("apply applies defaults with no options", function()
     local util = require("vantage.util")
     local original_warn = util.warn
     util.warn = function() end
-    Config.setup({})
+    Config.apply({})
     util.warn = original_warn
 
     assert.are.equal("tmux", Config.options.backend)
@@ -49,13 +49,15 @@ describe("vantage.config", function()
     assert.are.same({ "{file}", "{line}", "{reviews}" }, prompt_names)
     assert.are.same({}, Config.options.cli.tools)
     assert.are.equal("{lines} {note}", Config.options.reviews.item)
+    assert.are.equal(true, Config.PROMPT_PLACEHOLDERS.file)
+    assert.are.equal(true, Config.PROMPT_PLACEHOLDERS.reviews)
   end)
 
   it("merges user options over defaults and records dropped tools", function()
     local util = require("vantage.util")
     local original_warn = util.warn
     util.warn = function() end
-    Config.setup({
+    Config.apply({
       picker = "snacks",
       socket = "custom",
       prompts = { review = "Review {file}" },

@@ -15,16 +15,16 @@ explicit ordering and a pinned, inert current-Agent row.
 
 ## Decision
 
-`agent_items()` in `lua/vantage/select.lua` (assembled by `agent_spec()`) builds
-the rows and is the single ordering point every engine renders as given
-(engines only reorder by fuzzy relevance while a query is typed):
+`commands/attach.lua` builds the rows and is the single ordering point
+every engine renders as given (engines only reorder by fuzzy relevance while
+a query is typed):
 
-- **Focused-Agent pin.** When the caller declares the pick runs inside the
-  terminal (`from_terminal = true` — `switch`, which is terminal-only), the
-  Agent that terminal shows (`Client.last_agent_alive()`) is pinned first,
+- **Focused-Agent pin.** When the caller supplies the Terminal's job pid
+  (`switch`, which is terminal-only), the Agent that terminal shows
+  (`Bridge.agents(pid).focused`) is pinned first,
   exempt from the ordering.
   Its row text gains a ` (focused)` suffix. Confirming it does nothing:
-  `commands/agent.lua`'s `pick_or_new` filters on the item's `focused` field and
+  `commands/attach.lua` filters on the item's `focused` field and
   returns. The snacks engine restores terminal mode on the client terminal
   after any picker close back onto it — Esc cancels and the no-op confirm
   alike — because snacks pickers close into Normal (see
@@ -39,20 +39,20 @@ the rows and is the single ordering point every engine renders as given
 - **Agent ordering.** Remaining Agent rows sort ascending by group, absolute
   cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
   nil fallback — the same key the row text shows); exact ties break by
-  numeric window id (`@N`, creation order). Sorting compares stored fields,
+  driver-neutral `seq` (creation order). Sorting compares stored fields,
   never the display string, so `~` folding never leaks into order.
 - **Tool rows replace the sentinel.** The `+ new agent` sentinel is gone.
   The list ends with one row per configured `cli.tools` key, `table.sort`ed.
   Agent rows lead with `nf-fa-toggle_on` (`\uf205`, Nerd Fonts) — a running
   Agent is "on"; Tool rows lead with `nf-fa-toggle_off` (`\uf204`). Confirming
-  a Tool row calls `commands/agent.lua`'s extracted
+  a Tool row calls `commands/attach.lua`'s
   `create_with_tool`, which asks only for a Group (or a new Group's name), then
   creates the Agent in the current buffer's cwd and runs the caller's tail
   action. Tools are never
   deduplicated against running Agents — parallel Agents of one Tool stay
   possible.
-- **Empty is the engines' problem.** `agent_items()` always returns the list
-  (possibly empty) and no longer warns; each picker's `pick_agent` warns
+- **Empty is the flow's problem.** `items_provider` always returns the list
+  (possibly empty) and does not warn; the `attach` pick flow warns
   `no agents and no tools configured (cli.tools)` and returns when the list
   is empty (no Agents running and no Tools configured). Zero Agents with
   Tools configured opens the picker listing only Tool rows.
@@ -60,7 +60,7 @@ the rows and is the single ordering point every engine renders as given
   no `(focused)` marker). The shared choice type widens from
   `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
   focused? }` across `config.lua`, the three picker implementations, and
-  `select.lua`.
+  `commands/attach.lua`.
 
 The Agent row string itself is the
 [entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
@@ -104,7 +104,7 @@ portable. Parenthesized suffix matches the row grammar (`… · ~/cwd
 The builder no longer owns the distinction between "no Agents" and "no
 Agents and no Tools" — with Tool rows, zero Agents is a legitimate,
 openable list. The caller-facing warning moves to where the empty case is
-handled (`pick_agent` in each engine), keeping the builder a pure projection
+handled (`Picker.pick`), keeping the builder a pure projection
 of state.
 
 ### Why break ties by window id and not by name?
@@ -125,9 +125,8 @@ creation, unique, and already the storage key.
   channels; the entry-format note's consequences are corrected in place for
   the glyph-prefixed Agent rows (the kill list keeps the plain shared
   string).
-- `pick_agent` callbacks now receive `kind = "tool"` rows and
-  `focused = true` rows; anything else consuming agent items (none today)
-  must route both new shapes.
+- `Picker.pick` callbacks receive the flow's row objects; `attach`
+  handles Tool rows and the focused no-op row.
 - The empty-list handling later moved out of the engines into the caller,
   keyed on the picker's boolean `empty` return — see [the
   picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).

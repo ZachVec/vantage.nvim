@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-10
+
 ## Problem
 
 `backend/init.lua`'s `M.get()` was `require("vantage.backend." ..

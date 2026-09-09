@@ -29,7 +29,7 @@ height = 1.0, border = "none" }` extends the pre-removal option surface:
 `width`/`height` are fractions of the editor area (0 < v <= 1), the window is
 centered (`relative = "editor"`), clamps to at least 40 columns × 10 rows,
 opens with `style = "minimal"`, and `border = false` maps to `"none"`.
-`open_win` in `lua/vantage/client.lua` has a `float` branch again; every other
+`open_win` in `lua/vantage/frontend/terminal.lua` has a `float` branch again; every other
 layout path is untouched.
 
 The float is the one window where the meaningless row is really gone rather

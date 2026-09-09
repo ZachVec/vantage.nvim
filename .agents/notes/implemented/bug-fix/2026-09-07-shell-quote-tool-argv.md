@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`cli.tools.<name>.cmd` is typed as `string[]`, but `commands/agent.lua` joined
+`cli.tools.<name>.cmd` is typed as `string[]`, but the create flow joined
 it with plain spaces and handed the result to tmux as a shell command. An
 argument containing spaces, quotes, or shell metacharacters therefore lost its
 argv boundary. For example, a tool command like `{ "sh", "-c", "echo hi" }`
@@ -20,7 +20,7 @@ POSIX `sh -c` single-quoted arguments:
 - an empty argument becomes `''`;
 - an embedded single quote is escaped as `'\''`.
 
-`commands/agent.lua` builds the Agent command with
+`backend/bridge.lua` builds the Agent command with
 `Util.shell_join(tool.cmd)` before passing it to the Backend. The Backend still
 receives a shell-command string, so no tmux-driver contract changes.
 

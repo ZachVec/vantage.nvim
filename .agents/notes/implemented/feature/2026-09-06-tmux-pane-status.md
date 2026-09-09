@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 The only place the focused Agent's tool · cwd ever surfaced was the terminal
-buffer's name (`retitle()` in `lua/vantage/client.lua`), which renders only
+buffer's name (`retitle()` in `lua/vantage/frontend/terminal.lua`), which renders only
 through tab labels and winbars — invisible on the default borderless float
 (see the [full-terminal-layout
 note](2026-09-03-full-terminal-layout.md) and the [float-terminal-layout-default
@@ -18,12 +18,12 @@ without a long-lived process and without shared mutable counters to corrupt.
 ## Decision
 
 - **`retitle()` is removed** (definition and its three call sites in
-  `focus()`/`retarget()`/attach path in `lua/vantage/client.lua`); the
+  `focus()`/`retarget()`/attach path in `lua/vantage/frontend/terminal.lua`); the
   terminal buffer name is Neovim's default again. This supersedes the retitle
   part of the [full-terminal-layout note](2026-09-03-full-terminal-layout.md).
 - **The pane's top tmux border carries the info.** The plugin owns the
   private server, so the border is applied unconditionally (no config
-  option): `apply_global_config()` in `lua/vantage/backend/tmux.lua` sets
+  option): `apply_global_config()` in `lua/vantage/backend/driver/tmux.lua` sets
   `status-interval 1`, `pane-border-status top`, and a global
   `pane-border-format`, padded with one leading and one trailing space:
   `Group · Tool · cwd` followed by the per-Group State counts. Group is

@@ -71,7 +71,7 @@ Frontend:
 Commands:
 
 - `:Vantage` subcommands: `toggle`, `detach`, `status`, `review`, `kill`.
-- Terminal tokens via `cli.win.keys` (resolved in `commands/toggle.lua`):
+- Terminal tokens via `cli.win.keys` (resolved in `commands/attach.lua`):
   `switch`, `prompt`, `toggle`. `switch` and `prompt` exist only inside the
   terminal; `kill` moved out to a command.
 - Toggle owns presence (hide/show; with no terminal, pick-or-create then

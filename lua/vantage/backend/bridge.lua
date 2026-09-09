@@ -10,7 +10,8 @@ local M = {}
 --- Agent the terminal (job pid) is currently showing. One aggregated read;
 --- grouping is a caller concern.
 ---@param pid? integer the terminal job's pid
----@return { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }
+---@return { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?
+---@return string?
 function M.agents(pid)
   return Driver.get().snapshot(pid)
 end
@@ -19,10 +20,11 @@ end
 --- delegate. The Group is created implicitly when it does not exist.
 ---@param opts { group: string, tool: string, cwd: string }
 ---@return vantage.Agent?
+---@return string?
 function M.create(opts)
   local tool = Config.options.cli.tools[opts.tool]
   if not tool then
-    return nil
+    return nil, ("unknown tool '%s'"):format(opts.tool)
   end
   local cmd = Util.shell_join(tool.cmd)
   return Driver.get().create({ group = opts.group, cmd = cmd, cwd = opts.cwd, tool = opts.tool })
@@ -32,6 +34,7 @@ end
 ---@param pid integer the terminal job's pid
 ---@param agent vantage.Agent
 ---@return boolean
+---@return string?
 function M.retarget(pid, agent)
   return Driver.get().retarget(pid, agent)
 end
@@ -39,36 +42,43 @@ end
 --- Paste final text into an Agent's input (no auto-submit).
 ---@param agent vantage.Agent
 ---@param text string
+---@return boolean
+---@return string?
 function M.send(agent, text)
-  Driver.get().send_keys(agent, text)
+  return Driver.get().send_keys(agent, text)
 end
 
 --- The Agent pane's recent output, for entry previews.
 ---@param agent vantage.Agent
----@return string[]
+---@return string[]?
+---@return string?
 function M.capture(agent)
   return Driver.get().capture_pane(agent)
 end
 
---- The argv the Terminal runs to attach to (Group, Agent).
----@param group string
----@param agent string Agent window id (@N)
+--- The argv the Terminal runs to attach to an Agent.
+---@param agent vantage.Agent
 ---@return string[]
-function M.attach_command(group, agent)
-  return Driver.get().attach_command(group, agent)
+function M.attach_command(agent)
+  return Driver.get().attach_command(agent)
 end
 
 ---@param agent vantage.Agent
+---@return boolean
+---@return string?
 function M.kill_agent(agent)
-  Driver.get().kill_agent(agent)
+  return Driver.get().kill_agent(agent)
 end
 
 ---@param group string
+---@return boolean
+---@return string?
 function M.kill_group(group)
-  Driver.get().kill_group(group)
+  return Driver.get().kill_group(group)
 end
 
----@return { clients: string[], sessions: string[] }
+---@return { clients: string[], sessions: string[] }?
+---@return string?
 function M.status()
   return Driver.get().status()
 end

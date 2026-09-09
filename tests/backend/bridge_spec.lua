@@ -16,7 +16,7 @@ describe("vantage.backend.bridge", function()
     driver = { created = {} }
     function driver.create(opts)
       driver.created[#driver.created + 1] = opts
-      return { group = opts.group, tool = opts.tool, target = "@9" }
+      return { group = opts.group, tool = opts.tool, id = "@9" }
     end
     package.loaded["vantage.backend.driver"] = {
       get = function()
@@ -35,8 +35,15 @@ describe("vantage.backend.bridge", function()
   end)
 
   it("creates through the driver with the resolved command", function()
-    local agent = Bridge.create({ group = "g", tool = "good", cwd = "/tmp" })
-    assert.are.equal("@9", agent.target)
+    local agent, err = Bridge.create({ group = "g", tool = "good", cwd = "/tmp" })
+    assert.are.equal(nil, err)
+    assert.are.equal("@9", agent.id)
     assert.are.equal("'sh'", driver.created[1].cmd)
+  end)
+
+  it("returns an error for an unknown tool", function()
+    local agent, err = Bridge.create({ group = "g", tool = "missing", cwd = "/tmp" })
+    assert.are.equal(nil, agent)
+    assert.are.equal("unknown tool 'missing'", err)
   end)
 end)

@@ -1,7 +1,6 @@
 --- The prompt flow (terminal token): pick a Prompt, render it against the
---- focused Agent's context, and type it into the Agent's input. The template
---- vocabulary lives here with the flow; health validates against
---- `PLACEHOLDERS`.
+--- focused Agent's context, and type it into the Agent's input. The placeholder
+--- vocabulary is the shared contract in `config.PROMPT_PLACEHOLDERS`.
 local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
 local Picker = require("vantage.frontend.picker")
@@ -18,10 +17,27 @@ local M = {}
 ---@field cwd string focused Agent cwd (relativization base)
 
 --- Known placeholder names. Anything else is left literal (health flags it).
-local PLACEHOLDERS = { file = true, line = true, ["function"] = true, ["class"] = true, reviews = true }
+local PLACEHOLDERS = Config.PROMPT_PLACEHOLDERS
+
+--- Monotonic stamp for the most-recently-visited window, read by context
+--- resolution.
+local visit_counter = 0
+
+--- Track the last non-terminal window for Prompt context resolution.
+function M.setup()
+  visit_counter = 0
+  vim.api.nvim_create_augroup("VantageWinVisit", { clear = true })
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = "VantageWinVisit",
+    callback = function()
+      visit_counter = visit_counter + 1
+      vim.w[vim.api.nvim_get_current_win()].vantage_visit = visit_counter
+    end,
+  })
+end
 
 --- The most-recently-visited non-terminal window, tracked by the `WinEnter`
---- autocmd registered in `config.setup` (per-window `vantage_visit` stamp).
+--- autocmd registered in `Prompt.setup` (per-window `vantage_visit` stamp).
 ---@return integer window id
 local function context_window()
   local wins = vim.tbl_filter(function(w)
@@ -192,7 +208,12 @@ M.PLACEHOLDERS = PLACEHOLDERS
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local focused = Bridge.agents(Terminal.pid()).focused
+  local snapshot, err = Bridge.agents(Terminal.pid())
+  if snapshot == nil then
+    Util.warn(err or "failed to read agents")
+    return
+  end
+  local focused = snapshot.focused
   if not focused then
     Util.warn("no focused agent — use :Vantage toggle first")
     return
@@ -211,7 +232,11 @@ local function send_prompt(name)
       return
     end
   end
-  Bridge.send(focused, text)
+  local ok, send_err = Bridge.send(focused, text)
+  if not ok then
+    Util.warn(send_err or "failed to send prompt")
+    return
+  end
   if template:find("{reviews}", 1, true) and Config.options.reviews.clear_on_send then
     Review.clear()
   end
@@ -222,11 +247,10 @@ end
 --- stays where it was (e.g. the terminal).
 function M.run()
   local names = {}
-  local has_reviews = #Review.collect() > 0
   for name in pairs(Config.options.prompts) do
-    if name == "{reviews}" and not has_reviews then
-      -- hide the built-in {reviews} prompt while there is nothing to send
-    else
+    -- Short-circuit: only inspect the Review registry when this prompt can
+    -- actually need it.
+    if name ~= "{reviews}" or #Review.collect() > 0 then
       names[#names + 1] = name
     end
   end
@@ -237,11 +261,12 @@ function M.run()
       vim.api.nvim_set_current_win(win)
     end
   end
-  Picker.get().pick_plain(names, { prompt = "Prompt: " }, function(name)
+  Picker.pick_plain(names, { prompt = "Prompt: " }, function(name)
     if name then
       send_prompt(name)
     end
-    restore()
+    -- Restore after the picker engine has finished closing its window; a
+    -- synchronous restore can fight the engine's own teardown.
     vim.schedule(restore)
   end)
 end

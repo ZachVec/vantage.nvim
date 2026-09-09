@@ -21,25 +21,25 @@ unload — are the boundary: validated once at the seam, trusted after.
 
 Shipped removals:
 
-- `annotation.lua` `field()` returns `string` (its unknown-name fallthrough now
+- `frontend/review.lua` `field()` returns `string` (its unknown-name fallthrough now
   returns `""`); `render_item` and `M.location` drop the dead `or ""`.
-- `annotation.lua` `M.get` drops a dead `or nil` tail (keeps `and by_id`).
-- `annotation.lua` `M.set_active` drops its `M.get()` re-check (keeps the
+- `frontend/review.lua` `M.get` drops a dead `or nil` tail (keeps `and by_id`).
+- `frontend/review.lua` `M.set_active` drops its `M.get()` re-check (keeps the
   `nvim_buf_is_valid` seam check).
-- `backend/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
+- `backend/driver/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
   `M.attach` drops the `target and target ~= ""` guard; `M.list` drops the
   `tool ~= ""` empty-check — `tool` is always a non-empty `cli.tools` key.
-- `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `select.lua`
+- `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `commands/attach.lua`
   drops the `agent.tool or agent.cmd` display fallback and `commands/prompt.lua`
   drops the `agent.tool and` guard — `tool` is never nil for a created Agent.
-- `client.lua` `open_win` drops the `width and` / `height and` re-checks (the
+- `frontend/terminal.lua` `open_win` drops the `width and` / `height and` re-checks (the
   `or 0` default already made them non-nil).
-- `commands/agent.lua` `create_with_tool` drops `if not tool`; the name is a
+- `commands/attach.lua` creation drops `if not tool`; the name is a
   `sanitize_tools`-validated `cli.tools` key.
 - `commands/prompt.lua` `send_prompt` drops `if template == nil`; the name comes
   from `pairs(Config.options.prompts)`.
-- `picker/fzf_lua.lua` and `picker/snacks.lua` drop `and spec.scope` (the
-  `scope_on` flag already implies non-nil).
+- `picker/fzf_lua.lua` and `picker/snacks.lua` trust their resolved options;
+  the current Picker facade validates command descriptors before dispatch.
 
 Kept, deliberately:
 
@@ -74,7 +74,7 @@ once, at creation, from a sanitized non-empty `cli.tools` key, so the empty
 branch is unreachable. `state`'s `(state ~= "" and state) or nil` stays:
 `@agent-state` has an external writer (`scripts/vantage-status`) and an unset
 state is a real, distinct value that `scripts/vantage-counts` treats as idle.
-The remaining `and … or nil` sites (`select.lua` `focused`, `snacks.lua`
+The remaining `and … or nil` sites (`commands/attach.lua` `focused`, `snacks.lua`
 `terminal_win`) stay too: their condition is a boolean that can be false, and
 `or nil` normalizes `false` to `nil` for the `T?` annotations.
 
