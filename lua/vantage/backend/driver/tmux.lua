@@ -296,11 +296,11 @@ function M.snapshot(pid)
   table.sort(agents, function(left, right)
     return left.seq < right.seq
   end)
-  local seen = {}
+  local seen_groups = {}
   local groups = {}
   for _, agent in ipairs(agents) do
-    if not seen[agent.group] then
-      seen[agent.group] = true
+    if not seen_groups[agent.group] then
+      seen_groups[agent.group] = true
       groups[#groups + 1] = agent.group
     end
   end
