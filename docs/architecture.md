@@ -137,7 +137,7 @@ ordinary command, not a Picker concept.
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
   Agent/Tool rows, Group choice, creation handoff, and `<c-g>` scope command.
-- `commands/actions.lua` maps built-in tokens (`toggle`, `switch`, `prompt`)
+- `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`)
   to command functions and installs `cli.win.keys` into the terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
   (Tool rows create one) and open the Terminal on it.
@@ -147,7 +147,7 @@ ordinary command, not a Picker concept.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
 - `:Vantage kill` picks an Agent or Group and kills it.
-- Terminal tokens via `cli.win.keys`: `switch`, `prompt`, `toggle`.
+- Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`.
 
 Creating an Agent from a Tool row resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the

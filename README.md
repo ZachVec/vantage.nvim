@@ -150,7 +150,7 @@ Review list supports `<c-x>` deletion when the picker supports commands.
 The terminal buffer has filetype `vantage_terminal`. No keymaps are added by
 default.
 
-Use `cli.win.keys` for built-in actions or plain keymaps:
+Use `cli.win.keys` for Terminal actions or plain keymaps:
 
 ```lua
 cli = {
@@ -165,8 +165,8 @@ cli = {
 }
 ```
 
-`rhs` may be a built-in action (`"switch"`, `"prompt"`, `"toggle"`) or any
-value accepted by `vim.keymap.set`.
+`rhs` may be a Terminal action (`"switch"`, `"prompt"`, `"toggle"`) or any value
+accepted by `vim.keymap.set`.
 
 You can also use a normal `FileType` autocmd on `vantage_terminal` for full
 control with `vim.keymap.set`.

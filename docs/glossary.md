@@ -57,6 +57,11 @@ _Avoid_: client, ui
 The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command for a per-client View produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes and its View is destroyed, and hiding it keeps the attachment alive.
 _Avoid_: client, screen, window
 
+## Terminal action
+
+A named action available only from a keymap inside the Terminal: `toggle`, `switch`, or `prompt`. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+_Avoid_: action (unqualified), terminal key, shortcut
+
 ## Picker
 
 The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, and the Prompt choice — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)` and `pick_plain(...)`; implementations declare exactly two capabilities, `preview` and `command`, and degrade optional capabilities explicitly. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
@@ -64,7 +69,7 @@ _Avoid_: launcher
 
 ## Picker command
 
-A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope actions are ordinary Picker commands; the Picker knows no flow semantics.
+A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
 ## Tool

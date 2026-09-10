@@ -158,7 +158,7 @@ default. Use `cli.win.keys` with `mode` set to `"n"`, `"t"`, or `"nt"`: >
     })
 
 <
-`rhs` may be a built-in action (`"switch"`, `"prompt"`, `"toggle"`) or any
+`rhs` may be a Terminal action (`"switch"`, `"prompt"`, `"toggle"`) or any
 value accepted by `vim.keymap.set`.
 
 ==============================================================================
