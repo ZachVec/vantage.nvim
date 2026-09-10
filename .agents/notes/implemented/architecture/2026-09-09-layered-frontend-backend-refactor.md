@@ -139,8 +139,6 @@ caller-declared parameter and the restore-mode branching that followed it.
 - `:Vantage kill` is a new user command; `switch`/`prompt` remain
   terminal-only, and there is no `:Vantage switch`/`:Vantage prompt`.
 - Tests mirror the layers (`tests/backend`, `tests/frontend`, `tests/commands`).
-- Superseded decisions are archived: picker-domain-objects, cross-group switch
-  relocation, the Agent-picker `<c-x>` kill, and
-  annotation-cwd-is-nvim-local. The Group/Anchor/View removal is itself
-  superseded by
+- Superseded decisions are archived: cross-group switch relocation and the
+  Agent-picker `<c-x>` kill. The Group/Anchor/View removal is itself superseded by
   [restore-per-client-views](2026-09-10-restore-per-client-views.md).
