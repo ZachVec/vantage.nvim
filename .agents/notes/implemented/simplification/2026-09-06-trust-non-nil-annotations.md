@@ -72,8 +72,8 @@ Only the boolean-guard ones stay. `tool`'s `(tool ~= "" and tool) or nil` was
 removed because `tool ~= ""` is provably always true — `@agent-tool` is written
 once, at creation, from a sanitized non-empty `cli.tools` key, so the empty
 branch is unreachable. `state`'s `(state ~= "" and state) or nil` stays:
-`@agent-state` has an external writer (`scripts/vantage-status`) and an unset
-state is a real, distinct value that `scripts/vantage-counts` treats as idle.
+`@agent-state` has an external writer (the tmux Driver's `status.sh`) and an unset
+state is a real, distinct value that the Driver's `counts.sh` treats as idle.
 The remaining `and … or nil` sites (`commands/attach.lua` `focused`, `snacks.lua`
 `terminal_win`) stay too: their condition is a boolean that can be false, and
 `or nil` normalizes `false` to `nil` for the `T?` annotations.

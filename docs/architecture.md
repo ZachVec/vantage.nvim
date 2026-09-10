@@ -11,7 +11,7 @@ lua/vantage/
 ├── init.lua            composition root: apply config, resolve, install
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
-├── backend/            bridge.lua + driver/ (init registry, tmux)
+├── backend/            bridge.lua + driver/ (init registry, tmux + resources)
 ├── frontend/           terminal, display, note, review, picker/
 └── commands/           dispatch + actions, terminal_keys, attach, flows
 ```
@@ -48,8 +48,8 @@ events, no status line, a 1-second status interval, and a top pane border
 whose format shows `Group · Tool · cwd` plus per-Group State counts, and the
 `client-detached` View cleanup hook — is applied exactly once, when the first
 `new-session` starts the server. The counts are computed read-only per tick by
-`scripts/vantage-counts` inside a `#()` substitution, deduplicated to one run
-per Group.
+the tmux Driver's `counts.sh` resource inside a `#()` substitution,
+deduplicated to one run per Group.
 
 The server is started by the first Agent creation and never re-checked
 afterwards: operations assume it lives. A missing server reads as an empty

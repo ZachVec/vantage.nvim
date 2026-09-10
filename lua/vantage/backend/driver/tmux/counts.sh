@@ -1,5 +1,5 @@
 #!/bin/sh
-# vantage-counts — read-only per-Group State counts for the pane-border display.
+# counts.sh — read-only per-Group State counts for the tmux pane-border display.
 #
 # Invoked by tmux itself from the pane-border-format (#() substitution) about
 # once per second per distinct command string (tmux dedupes identical strings
@@ -11,9 +11,9 @@
 # A window whose @agent-state is unset counts as idle (defensive: the Backend
 # writes idle at create time, so an unset value can only be the result of
 # external tampering). Unknown non-empty values are skipped (writers validate
-# the vocabulary in scripts/vantage-status).
+# the vocabulary in the sibling status.sh).
 #
-# Usage: vantage-counts [-L <socket>] [group]
+# Usage: counts.sh [-L <socket>] [group]
 # Prints e.g. " <glyph> 1 <glyph> 2" — a leading space, then per non-zero
 # bucket "Nerd Font glyph, space, count", in a fixed order — or nothing when
 # every bucket is zero. The leading space separates the counts from the

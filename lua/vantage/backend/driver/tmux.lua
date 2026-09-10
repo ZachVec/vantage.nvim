@@ -21,17 +21,17 @@ local function socket()
   return Config.options.socket
 end
 
---- The repo's scripts/ directory (this file lives at
---- <repo>/lua/vantage/backend/driver/tmux.lua; five dirnames up). Used to call
---- scripts/vantage-counts from a tmux #() substitution: tmux runs #() with the
---- server's environment, where the scripts are not on PATH.
----@return string
-local function scripts_dir()
-  local src = debug.getinfo(1, "S").source
-  if src:sub(1, 1) == "@" then
-    src = src:sub(2)
+--- Resolve a tmux Driver resource from the plugin runtimepath. tmux runs
+--- `#()` with the server's environment, where these files are not on PATH.
+---@param name string
+---@return string?
+---@return string?
+local function resource_path(name)
+  local path = vim.api.nvim_get_runtime_file(("lua/vantage/backend/driver/tmux/%s"):format(name), false)[1]
+  if not path then
+    return nil, ("tmux driver resource '%s' not found"):format(name)
   end
-  return vim.fs.joinpath(vim.fn.fnamemodify(src, ":p:h:h:h:h:h"), "scripts")
+  return path, nil
 end
 
 --- Run a tmux command synchronously.
@@ -115,12 +115,16 @@ local function apply_global_config()
   settings[#settings + 1] = { "set", "-g", "status", "off" }
   -- Agent info in the pane's top border: Group · Tool · cwd · per-Group State
   -- counts. The counts are computed read-only per status tick by
-  -- scripts/vantage-counts inside a #() substitution — never stored; the
+  -- the driver's counts.sh inside a #() substitution — never stored; the
   -- command string embeds the expanded #{@agent-group}, so tmux dedupes it to
   -- one small process per Group per tick.
   settings[#settings + 1] = { "set", "-g", "status-interval", "1" }
   settings[#settings + 1] = { "set", "-g", "pane-border-status", "top" }
-  local counts = ('#("%s/vantage-counts" -L %s #{@agent-group})'):format(scripts_dir(), socket())
+  local counts_path, resource_err = resource_path("counts.sh")
+  if not counts_path then
+    return false, resource_err
+  end
+  local counts = ('#("%s" -L %s #{@agent-group})'):format(counts_path, socket())
   local border_format = (" #{@agent-group} · #{@agent-tool} · #{@agent-cwd-tilde}%s "):format(counts)
   settings[#settings + 1] = { "set", "-g", "pane-border-format", border_format }
 

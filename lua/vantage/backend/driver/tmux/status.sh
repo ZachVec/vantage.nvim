@@ -1,5 +1,5 @@
 #!/bin/sh
-# vantage-status — write an Agent's State into the Agent window's tmux option.
+# status.sh — write an Agent's State into the Agent window's tmux option.
 #
 # The State slot contract: every Agent window owns @agent-state, and writers
 # overwrite it FULL-VALUE on each transition — never read-modify-write — so
@@ -9,10 +9,10 @@
 #
 # The vocabulary is a fixed five (adopted from tmux-agent-sidebar's closed
 # enum): running | background | waiting | idle | error. Extending it means
-# changing this validation, scripts/vantage-counts, and the Agent Note — keep
+# changing this validation, the sibling counts.sh, and the Agent Note — keep
 # the set in exactly these two scripts.
 #
-# Usage: vantage-status [-L <socket>] <window-id> <state>
+# Usage: status.sh [-L <socket>] <window-id> <state>
 #
 # This is a manual trigger (and the skeleton the future per-Agent lifecycle
 # scripts will call); it never talks to the plugin.
@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$#" -ne 2 ]; then
-  echo "usage: vantage-status [-L <socket>] <window-id> <state>" >&2
+  echo "usage: status.sh [-L <socket>] <window-id> <state>" >&2
   exit 2
 fi
 window_id=$1
@@ -42,7 +42,7 @@ state=$2
 case "$state" in
   running | background | waiting | idle | error) ;;
   *)
-    echo "vantage-status: unknown state '$state' (running|background|waiting|idle|error)" >&2
+    echo "status.sh: unknown state '$state' (running|background|waiting|idle|error)" >&2
     exit 2
     ;;
 esac
