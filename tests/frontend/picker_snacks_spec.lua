@@ -49,6 +49,8 @@ describe("vantage.frontend.picker.snacks", function()
     assert.is_false(empty)
     assert.is_not_nil(captured)
     assert.are.equal("agent row", captured.finder()[1].text)
+    assert.are.equal("vantage_command_1", captured.win.input.keys["<C-g>"][1])
+    assert.are.same({ "i", "n" }, captured.win.input.keys["<C-g>"].mode)
 
     local picker = {
       refresh = function() end,

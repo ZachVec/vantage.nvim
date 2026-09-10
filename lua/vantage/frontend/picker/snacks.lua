@@ -156,7 +156,7 @@ function M.pick(spec, opts)
     end
     win.input = win.input or { keys = {} }
     win.list = win.list or { keys = {} }
-    win.input.keys[command[1]] = action
+    win.input.keys[command[1]] = { action, mode = { "i", "n" } }
     win.list.keys[command[1]] = action
   end
   if next(actions) ~= nil then
