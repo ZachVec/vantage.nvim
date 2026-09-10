@@ -117,10 +117,14 @@ prompts = {
 
 ### Reviews
 
-`:Vantage review` adds a Review over the selection or current line.
-`:Vantage review list` jumps to and edits Reviews; `:Vantage review clear`
-removes them. Reviews live only in memory and are lost when the buffer unloads
-or Neovim exits.
+```vim
+:Vantage review          " add a review over the selection or current line
+:Vantage review list     " jump to and edit reviews
+:Vantage review clear    " remove all reviews
+```
+
+Reviews live only in memory and are lost when the buffer unloads or Neovim
+exits.
 
 In the note window, `<Esc>` saves. An empty note deletes the Review.
 
