@@ -136,7 +136,8 @@ ordinary command, not a Picker concept.
 ## Flows and the command surface
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
-  Agent/Tool rows, Group choice, creation handoff, and `<c-g>` scope command.
+  Agent/Tool rows, Group choice, creation handoff, and the `<c-g>` scope and
+  `<c-x>` kill commands.
 - `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`)
   to command functions and installs `cli.win.keys` into the terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent

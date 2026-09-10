@@ -10,6 +10,7 @@ describe("vantage.commands.attach", function()
   local terminal
   local actions
   local captured_spec
+  local captured_opts
   local command_capable
   local focused
   local agent_fixture
@@ -45,6 +46,19 @@ describe("vantage.commands.attach", function()
     return out
   end
 
+  --- The picker command registered for `lhs` by the last pick.
+  ---@param lhs string
+  ---@return vantage.PickerCommand
+  local function command_for(lhs)
+    assert.is_not_nil(captured_opts)
+    for _, command in ipairs(captured_opts.commands) do
+      if command[1] == lhs then
+        return command
+      end
+    end
+    error(("no picker command registered for %s"):format(lhs))
+  end
+
   --- Run a public flow without selecting a row and return the spec it passed
   --- to the Picker.
   ---@param pid? integer
@@ -75,7 +89,7 @@ describe("vantage.commands.attach", function()
       { group = "a", cwd = "/a", tool = "zeta", id = "@3", seq = 3, cmd = "zeta" },
       { group = "a", cwd = "/a", tool = "zeta", id = "@1", seq = 1, cmd = "zeta" },
     }
-    bridge = { created = {}, captured = {}, retargeted = nil }
+    bridge = { created = {}, captured = {}, retargeted = nil, killed = {} }
     function bridge.agents(pid)
       return {
         agents = vim.deepcopy(agent_fixture),
@@ -103,6 +117,10 @@ describe("vantage.commands.attach", function()
       bridge.retargeted = { pid = pid, id = agent.id }
       return true, nil
     end
+    function bridge.kill_agent(agent)
+      bridge.killed[#bridge.killed + 1] = agent.id
+      return true, nil
+    end
 
     picker = {}
     function picker.capabilities()
@@ -110,6 +128,7 @@ describe("vantage.commands.attach", function()
     end
     function picker.pick(spec, opts)
       captured_spec = spec
+      captured_opts = opts
       if picker.auto_select then
         local items = spec.items_provider()
         if #items > 0 then
@@ -156,7 +175,9 @@ describe("vantage.commands.attach", function()
     bridge.captured = {}
     bridge.retargeted = nil
     bridge.killed_view = nil
+    bridge.killed = {}
     captured_spec = nil
+    captured_opts = nil
     command_capable = true
     picker.auto_select = false
     terminal.pid_value = 42
@@ -233,6 +254,25 @@ describe("vantage.commands.attach", function()
     Attach.switch()
 
     assert.are.same({ pid = 42, id = "@1" }, bridge.retargeted)
+  end)
+
+  it("kills a non-focused agent row in place with <c-x>", function()
+    focused = agent_fixture[2]
+    local items = items_for(42)
+    local row = items[2]
+
+    assert.is_true(command_for("<C-x>")[2]({ item = row, items = items }))
+    assert.are.same({ row.agent.id }, bridge.killed)
+  end)
+
+  it("ignores <c-x> on the pinned focused row and Tool rows", function()
+    focused = agent_fixture[2]
+    local items = items_for(42)
+    local command = command_for("<C-x>")[2]
+
+    assert.is_false(command({ item = items[1], items = items }))
+    assert.is_false(command({ item = items[#items], items = items }))
+    assert.are.same({}, bridge.killed)
   end)
 
   it("toggle opens the terminal and installs keys when no terminal exists", function()

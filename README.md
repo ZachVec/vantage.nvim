@@ -141,13 +141,21 @@ prompts = { notes = "My notes:\n{reviews}" }
 
 `picker` selects the UI used for Agent, kill, and Review lists:
 
-- `"native"` — `vim.ui.select`
-- `"fzf-lua"` — requires fzf-lua
-- `"snacks"` — requires snacks.nvim
+| Picker | Provided by | Previews |
+|--------|-------------|----------|
+| `"native"` | `vim.ui.select` | — |
+| `"fzf-lua"` | fzf-lua | Agent output, Reviews |
+| `"snacks"` | snacks.nvim | Agent output, Reviews |
 
-`fzf-lua` and `snacks` preview Agent output and Reviews. With a focused Agent,
-the Agent list starts scoped to its Group; `<c-g>` toggles the scope. The
-Review list supports `<c-x>` deletion when the picker supports commands.
+`fzf-lua` and `snacks` also support these keys:
+
+| Key | Agent list | Review list |
+|-----|------------|-------------|
+| `<c-g>` | toggle Group scope | — |
+| `<c-x>` | kill the selected Agent | delete the selected Review |
+
+With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
+ignores the pinned `(focused)` row and Tool rows. `"native"` binds no keys.
 
 ### Terminal keymaps
 

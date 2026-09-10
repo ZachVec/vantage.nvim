@@ -215,3 +215,12 @@ on older target versions.
 
 A `title`/`footer` set as a string is returned by `nvim_win_get_config` as a
 list `{ { text, hl } }`. Compare the inner text, not the string.
+
+### Help text conceals backticks, bars, and tags
+
+Help windows set `conceallevel=2` and the help syntax conceals inline-code
+backticks (and `|links|`, `*tags*`) to zero width. A column hand-aligned with
+spaces in `doc/*.txt` therefore shifts left by one column per concealed marker
+before it. Keep the concealed-marker count uniform per aligned line (each row
+of the PROMPTS list has one backticked term), or align with tabs so the
+modeline's `ts=8` tab stops absorb the shift.
