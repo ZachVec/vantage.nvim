@@ -27,7 +27,7 @@ end
 ---@return string?
 ---@return string?
 local function resource_path(name)
-  local path = vim.api.nvim_get_runtime_file(("lua/vantage/backend/driver/tmux/%s"):format(name), false)[1]
+  local path = vim.api.nvim_get_runtime_file(("lua/vantage/backend/driver/resources/tmux/%s"):format(name), false)[1]
   if not path then
     return nil, ("tmux driver resource '%s' not found"):format(name)
   end

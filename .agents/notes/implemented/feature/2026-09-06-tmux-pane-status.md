@@ -86,9 +86,9 @@ without a long-lived process and without shared mutable counters to corrupt.
   defaults to `vantage` (the plugin's default `Config.options.socket`); the
   Lua side always passes the configured socket explicitly.
 - The border's only `#()` is the counts command, called by absolute path
-  (`resource_path()` resolves the driver's `tmux/counts.sh` through the plugin
-  runtimepath — tmux runs `#()` with the server environment, where the
-  resource is not on `PATH`). The command string embeds the expanded
+  (`resource_path()` resolves the driver's `resources/tmux/counts.sh` through
+  the plugin runtimepath — tmux runs `#()` with the server environment, where
+  the resource is not on `PATH`). The command string embeds the expanded
   `#{@agent-group}`, so tmux dedupes it to one run per Group per tick.
 
 ## Verification

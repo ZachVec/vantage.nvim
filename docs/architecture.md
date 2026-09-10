@@ -11,7 +11,7 @@ lua/vantage/
 ├── init.lua            composition root: apply config, resolve, install
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
-├── backend/            bridge.lua + driver/ (init registry, tmux + resources)
+├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
 ├── frontend/           terminal, display, note, review, picker/
 └── commands/           dispatch + actions, terminal_keys, attach, flows
 ```
