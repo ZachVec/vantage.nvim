@@ -205,6 +205,24 @@ local function spec(pid, state)
   }
 end
 
+--- Kill the current row's Agent in place. The pinned `(focused)` row is the
+--- Agent the Terminal is attached to, so it and Tool rows (no Agent yet) are
+--- no-ops. Returns true when the list may have changed.
+---@param ctx vantage.PickerCommandCtx
+---@return boolean
+local function kill_agent(ctx)
+  local item = ctx.item
+  if not item or item.focused or not item.agent then
+    return false
+  end
+  local ok, err = Bridge.kill_agent(item.agent)
+  if not ok then
+    Util.warn(err or "failed to kill agent")
+    return false
+  end
+  return true
+end
+
 --- Pick an Agent to act on, creating one from a Tool row when needed.
 ---@param after fun(agent: vantage.Agent)
 ---@param pid? integer the terminal job's pid (nil = no focused Agent)
@@ -215,6 +233,11 @@ local function pick(after, pid)
       entry:target(after)
     end,
     commands = {
+      {
+        "<C-x>",
+        kill_agent,
+        desc = "kill agent",
+      },
       {
         "<C-g>",
         function()

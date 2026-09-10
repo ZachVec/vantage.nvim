@@ -61,11 +61,15 @@ Frontend:
   and `TermClose` closes the window, deletes the buffer, and resets state — the
   attachment's lifecycle is the terminal's lifecycle. It stores no domain
   state and never resolves the focused Agent (that is derived per `snapshot`).
-- Each command defines its own row classes behind a local protocol: the switch
-  flow's `SwitchAgentEntry`/`SwitchToolEntry` resolve rows (`target(done)`),
-  the kill flow's `KillAgentEntry`/`KillGroupEntry` delete rows (`delete()`),
-  and the review flow's rows open notes; every row renders through `format()` /
-  `preview()`. No entry carries a flow action.
+- Each command defines its own row classes behind a local protocol: the attach
+  flow's `AgentEntry`/`ToolEntry` resolve rows (`target(done)`), the kill
+  flow's `KillAgentEntry`/`KillGroupEntry` delete rows (`delete()`), and the
+  review flow's rows open notes; every row renders through `format()` /
+  `preview()`. No entry carries a flow action: the attach flow's `<c-x>` kill
+  and `<c-g>` scope toggle are flow-owned picker commands, not row methods.
+  The `<c-x>` command kills the row's Agent in place; the pinned `(focused)`
+  row and Tool rows are no-ops, with the behavior owned by the
+  [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md).
 - Picker implementations stay pure renderers (format/preview/on_choice,
   optional in-place delete where the flow enables it, optional `<c-g>` scope
   toggle reading the `group` field). The `from_terminal` flag is deleted: a

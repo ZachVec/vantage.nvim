@@ -131,13 +131,17 @@ PICKERS ~
 
 `picker` selects the UI used for Agent, kill, and Review lists:
 
-  `"native"`   `vim.ui.select`
-  `"fzf-lua"`  fzf-lua; requires the fzf-lua plugin
-  `"snacks"`   snacks.nvim; requires snacks.nvim
+  `"native"`   `vim.ui.select`; no preview and no list keys
+  `"fzf-lua"`  fzf-lua; previews Agent output and Reviews
+  `"snacks"`   snacks.nvim; previews Agent output and Reviews
 
-`fzf-lua` and `snacks` preview Agent output and Reviews. With a focused Agent,
-the Agent list starts scoped to its Group; `<c-g>` toggles the scope. The
-Review list supports `<c-x>` deletion when the picker supports commands.
+With `fzf-lua` or `snacks`:
+
+  `<c-g>`      toggle the Agent list's Group scope
+  `<c-x>`      kill the selected Agent, or delete the selected Review
+
+With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
+ignores the pinned `(focused)` row and Tool rows.
 
 KEYMAPS ~
 
