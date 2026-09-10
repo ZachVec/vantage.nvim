@@ -91,14 +91,27 @@ M.capabilities = {
 function M.pick(spec, opts)
   local terminal_win = terminal_window()
 
-  local list = spec.items_provider()
+  ---@param items any[]
+  ---@return any[]
+  local function prepare(items)
+    for _, item in ipairs(items) do
+      item.text = item:format()
+    end
+    return items
+  end
+
+  local function read()
+    return prepare(spec.items_provider())
+  end
+
+  local list = read()
   if #list == 0 then
     return true
   end
 
   local function refresh(picker, reread)
     if reread then
-      list = spec.items_provider()
+      list = read()
     end
     if #list == 0 then
       picker:close()
@@ -109,7 +122,7 @@ function M.pick(spec, opts)
 
   local pick_opts = {
     format = function(item)
-      return { { item:format(), "" } }
+      return { { item.text, "" } }
     end,
     preview = preview(),
     on_close = terminal_win and function()
