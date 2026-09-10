@@ -6,17 +6,18 @@ Vantage is a Neovim plugin — a coding-agent manager over tmux. Read [docs/glos
 
 ```
 lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
-  backend/         Backend interface + tmux driver (the seam for future drivers)
-  client.lua       the single :terminal that is the tmux client
-  commands/        :Vantage subcommand dispatch (init.lua) + one module per command concern
+  init.lua         composition root: apply config, resolve seams, install runtime
+  backend/         Bridge + pluggable Driver registry/tmux implementation
+    driver/resources/tmux/   tmux resources (counts.sh, status.sh)
+  frontend/        terminal, display, note, review, pluggable picker
+  commands/        dispatch + actions, attach, flows
   config.lua       defaults + shared LuaLS types
-  picker/          pluggable selection UI (native / fzf-lua / snacks)
   health.lua       :checkhealth vantage
   util.lua         shared helpers
 doc/               vim help docs (:h vantage.nvim)
 docs/              architecture + glossary (developer docs)
 .agents/notes/     Agent Notes (proposals and decision records)
-scripts/           repo gates (verify-agent-notes.lua)
+scripts/           repo gates (verify-agent-notes.lua, verify-architecture.lua)
 tests/             mini.test specs + test bootstrap
 Makefile           check entrypoint
 stylua.toml        Lua formatting
@@ -25,15 +26,17 @@ stylua.toml        Lua formatting
 ## Commands
 
 ```sh
-make check            # Agent Note gate + stylua --check when installed
+make check            # Agent Notes + stylua + architecture + lua-language-server
 make notes            # Agent Note gate only (needs only nvim)
+make architecture     # module dependency-direction gate
 make test             # mini.test + luassert suite (first run installs deps under .tests/)
 stylua --check .      # Lua format check
 ```
 
 Tests live in `tests/**/*_spec.lua` and run with `make test`; the tmux backend
-specs require tmux and use a private per-run socket. There is no standalone
-linter wired yet; add one before claiming lint coverage.
+specs require tmux and use a private per-run socket. `make check` runs
+lua-language-server when installed; `make architecture` enforces the module
+dependency directions documented in [docs/architecture.md](docs/architecture.md).
 
 ## Conventions
 

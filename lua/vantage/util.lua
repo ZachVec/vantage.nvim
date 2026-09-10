@@ -2,7 +2,7 @@
 local M = {}
 
 --- The picker prompt glyph (U+F105, e.g. Nerd Font), passed to the pickers as
---- the PickSpec's `prompt` by the frontend orchestrator (vantage.select).
+--- the PickSpec's `prompt` by the flow layer.
 M.picker_prompt = vim.fn.nr2char(0xF105)
 
 --- Run a command synchronously via vim.system.
@@ -16,10 +16,62 @@ function M.run(cmd)
   return result.code or 0, result.stdout or "", result.stderr or ""
 end
 
---- Normalized window-local cwd (respects :lcd / :tcd).
+--- Render `{placeholder}` tokens in `template` against a caller-provided
+--- whitelist and resolver. Unknown placeholders are left literal; a resolver
+--- returning nil records the failing name and returns nil from this function.
+--- This is the single implementation shared by Prompt and Annotation
+--- templates.
+---@param template string
+---@param allowed table<string, boolean>
+---@param resolve fun(name: string): string?
+---@return string?
+---@return string? failed placeholder name, when nil is returned
+function M.interpolate(template, allowed, resolve)
+  local failed
+  local out = template:gsub("{([%w_]+)}", function(name)
+    if not allowed[name] then
+      return "{" .. name .. "}"
+    end
+    local value = resolve(name)
+    if value == nil then
+      failed = name
+      return ""
+    end
+    return value
+  end)
+  if failed then
+    return nil, failed
+  end
+  return out
+end
+
+--- Quote one argument for POSIX `sh -c`, so a `string[]` command keeps its
+--- argv boundaries when tmux passes the concatenated shell command to the
+--- Agent's shell.
+---@param arg string
+---@return string
+function M.shell_quote(arg)
+  if arg == "" then
+    return "''"
+  end
+  return "'" .. arg:gsub("'", "'\\''") .. "'"
+end
+
+--- Join an argv array into one safely shell-quoted command string.
+---@param args string[]
+---@return string
+function M.shell_join(args)
+  local out = {}
+  for _, arg in ipairs(args) do
+    out[#out + 1] = M.shell_quote(arg)
+  end
+  return table.concat(out, " ")
+end
+
+--- Normalized global cwd (follows :cd, ignores :lcd / :tcd).
 ---@return string
 function M.cwd()
-  return vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(0), ":p"))
+  return vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p"))
 end
 
 --- Path relative to `cwd`, or absolute when it escapes `cwd` or relativizing

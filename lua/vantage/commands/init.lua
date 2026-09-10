@@ -1,11 +1,12 @@
 --- The :Vantage user command: subcommand dispatch. Each subcommand's logic
 --- lives in its own module under `vantage.commands`; this file only maps
---- subcommand names to functions and owns the few one-line commands (toggle,
---- detach, status).
-local Agent = require("vantage.commands.agent")
-local Annotation = require("vantage.commands.annotation")
-local Backend = require("vantage.backend")
-local Client = require("vantage.client")
+--- subcommand names to functions and owns the one-line commands (detach,
+--- status).
+local Attach = require("vantage.commands.attach")
+local Bridge = require("vantage.backend.bridge")
+local Kill = require("vantage.commands.kill")
+local Review = require("vantage.commands.review")
+local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
@@ -16,31 +17,23 @@ local function usage()
       "Vantage — coding-agent manager",
       "",
       "  :Vantage toggle          hide/show the terminal (picks an Agent if none)",
-      "  :Vantage detach          detach the client (kills the View; Agents survive)",
-      "  :Vantage annotate        annotate a range (visual selection, or current line)",
-      "  :Vantage annotate list   open the annotation picker",
-      "  :Vantage annotate clear  clear every annotation",
+      "  :Vantage detach          destroy the terminal (Agents keep running)",
+      "  :Vantage review          review a range (visual selection, or current line)",
+      "  :Vantage review list     open the review picker",
+      "  :Vantage review clear    clear every review",
+      "  :Vantage kill            kill an Agent or Group",
       "  :Vantage status          show clients + sessions",
     }, "\n"),
     vim.log.levels.INFO
   )
 end
 
---- Hide/show the terminal (lightweight). With no live terminal, pick an Agent
---- (or create one via a Tool row) and open the terminal on it.
-local function toggle()
-  if Client.toggle() then
+local function status()
+  local status_info, err = Bridge.status()
+  if status_info == nil then
+    Util.warn(err or "failed to read status")
     return
   end
-  Agent.pick_or_new(Client.focus, false)
-end
-
-local function detach()
-  Client.detach()
-end
-
-local function status()
-  local status_info = Backend.get().status()
   local lines = { "sessions:" }
   for _, line in ipairs(status_info.sessions) do
     lines[#lines + 1] = "  " .. line
@@ -63,11 +56,13 @@ function M.run(args)
   if subcommand == nil then
     usage()
   elseif subcommand == "toggle" then
-    toggle()
+    Attach.toggle()
   elseif subcommand == "detach" then
-    detach()
-  elseif subcommand == "annotate" then
-    Annotation.run(remaining[1], args.line1, args.line2)
+    Terminal.destroy()
+  elseif subcommand == "review" then
+    Review.run(remaining[1], args.line1, args.line2)
+  elseif subcommand == "kill" then
+    Kill.run()
   elseif subcommand == "status" then
     status()
   else
@@ -80,8 +75,8 @@ end
 ---@param cmdline string
 ---@return string[]
 function M.complete(arglead, cmdline)
-  local subcommands = { "toggle", "detach", "annotate", "status" }
-  if cmdline:match("^%s*Vantage%s+annotate%s+%S*%s*$") then
+  local subcommands = { "toggle", "detach", "review", "kill", "status" }
+  if cmdline:match("^%s*Vantage%s+review%s+%S*%s*$") then
     return vim.tbl_filter(function(s)
       return vim.startswith(s, arglead)
     end, { "list", "clear" })
@@ -93,8 +88,5 @@ function M.complete(arglead, cmdline)
   end
   return {}
 end
-
---- Resolved by the `toggle` terminal keymap token (see vantage.keys).
-M.toggle = toggle
 
 return M

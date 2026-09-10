@@ -33,7 +33,7 @@ layouts (`left | top | bottom | right`) are unchanged for users who want the
 terminal alongside the current window.
 
 Agent info is no longer carried by the terminal buffer name: `retitle()` in
-`lua/vantage/client.lua` was removed — see the [tmux pane border
+`lua/vantage/frontend/terminal.lua` was removed — see the [tmux pane border
 note](../../feature/2026-09-06-tmux-pane-status.md) — and the buffer keeps
 Neovim's default name. The focused Agent's Tool, cwd, and per-Group State
 counts now show in the pane's top tmux border instead. While it existed, it

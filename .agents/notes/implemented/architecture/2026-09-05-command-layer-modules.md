@@ -19,22 +19,21 @@ The command layer is a directory mirroring the repo's existing
   function call, `complete` answers completion, and the few one-line commands
   (`toggle`, `detach`, `status`) live here as thin local functions. No complex
   logic sits in `run`.
-- `commands/agent.lua` owns the Agent domain — `switch`, `kill`, and the
-  create/pick flow (`find_agent`, `do_create`, `ask_new_group_name`,
-  `create_with_tool`, `pick_or_new`). `pick_or_new` is exported because
-  toggle's open path reuses it.
+- `commands/attach.lua` owns `toggle`/`switch` and their shared
+  Agent/Tool selection, Group choice, and creation handoff;
+  `commands/kill.lua` owns the kill flow.
 - `commands/prompt.lua` owns the `prompt` terminal action (`run` +
   `send_prompt`).
-- `commands/annotation.lua` owns `:Vantage annotate` and its sub-actions
-  (`run(action, line1, line2)` + `jump_to_annotation`, `note_style`,
-  `annotate_list`, `annotate_add`, `annotate_clear`); the note editor itself
-  lives in `ui/note.lua`.
+- `commands/review.lua` owns `:Vantage review` and its sub-actions
+  (`run(action, line1, line2)` + list/clear/add); the note editor itself lives
+  in `frontend/note.lua`.
+- `commands/actions.lua` owns terminal action tokens and installs
+  `cli.win.keys`.
 
-Prompt and Annotation are **peers**, matching the domain modules `prompt.lua`
-and `annotation.lua`: the `{annotations}` placeholder is a prompt that reads
-annotation data (a "uses" dependency), not an "annotation is a kind of prompt"
-subordination. `annotation.run` owns the remaining sub-dispatch
-(list/clear/add); `agent.switch` / `agent.kill` take no arguments.
+Prompt and Review are **peers**: the `{reviews}` placeholder is a prompt that
+reads Review data (a "uses" dependency), not a "Review is a kind of Prompt"
+subordination. `review.run` owns the remaining sub-dispatch (list/clear/add);
+`switch` / `kill` take no arguments.
 
 `config.lua` is unchanged: `require("vantage.commands")` now resolves
 `commands/init.lua` instead of `commands.lua`.
@@ -64,9 +63,9 @@ noise for no readability gain.
 
 ## Consequences
 
-- `lua/vantage/commands.lua` is deleted;
-  `commands/{init,agent,prompt,annotation}.lua` take its place. `config.lua`
-  still calls `run`/`complete` unchanged.
+- `lua/vantage/commands.lua` is deleted; `commands/` now holds dispatch,
+  `attach`, `actions`, `prompt`, `review`, and
+  `kill`. The composition root registers `run`/`complete`.
 - The stale `commands.lua` paths in older Agent Notes and `AGENTS.md` are
   updated to their new module; the `prompt_wizard` name is gone (`prompt.run`).
 - The dispatch is a flat name→function map; adding a subcommand is one branch

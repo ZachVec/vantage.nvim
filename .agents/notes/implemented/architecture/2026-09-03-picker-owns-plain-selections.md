@@ -40,9 +40,9 @@ never mixes renderer families:
 - Light two-choice confirmations (delete-annotation, clear-all) leave the
   selection path entirely and use Neovim's built-in `confirm()` dialog.
 - `lua/vantage/select.lua` is deleted: the Agent-creation Group-step assembly
-  and the new-Group cmdline name prompt live in `commands/agent.lua`, which
-  also keeps the zero-Group behavior (no Group exists → the Group step is
-  skipped and the name is prompted directly).
+  and the new-Group cmdline name prompt live in
+  `commands/attach.lua`, which also keeps the zero-Group behavior (no
+  Group exists → the Group step is skipped and the name is prompted directly).
 
 ## Alternatives considered
 
@@ -82,7 +82,8 @@ select implementations cover every current configuration with far less code.
 - `vim.ui.select` remains only inside the native backend, as that engine's
   definition. Free-text prompts (new-Group name) still use `input()`.
 - Confirmations use `vim.fn.confirm()` and no longer open a selection UI.
-- `lua/vantage/select.lua` is gone; the Agent-creation Group-step assembly lives in `commands/agent.lua`.
+- `lua/vantage/select.lua` is gone; the Agent-creation Group-step assembly
+  lives in `commands/attach.lua`.
 - Wording across README, help, glossary, and architecture now describes the
   Picker as owning every selection.
 

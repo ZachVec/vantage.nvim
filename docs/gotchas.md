@@ -6,6 +6,14 @@ anything that interacts with these tools.
 
 ## Backend · tmux · agent CLI
 
+### Clients attached to one session share its current window
+
+`switch-client -c <client> -t <session>:<window>` and `select-window` change the
+session's current window, not a client-local one. Two clients attached to the
+same session therefore follow each other. Per-client independence requires a
+grouped session per client (Vantage's View); see
+[architecture.md](architecture.md#domain-model-over-the-multiplexer).
+
 ### `tmux send-keys -l` collapses newlines in claude
 
 `send-keys -l` sends raw LF; **claude** collapses those newlines onto one line
@@ -22,6 +30,16 @@ Consequence: bracketed paste inserts the text verbatim, so a trailing `\n`
 becomes a **visible empty line**. Do NOT append `\n` to the pasted text — the
 old `send-keys -l` needed the LF to move the cursor to the next line; paste
 does not.
+
+## Picker · dependency checks
+
+### Runtimepath is not a reliable dependency check under lazy.nvim
+
+A configured picker plugin may be installed but not yet on `runtimepath` when
+Vantage's `setup()` runs. `nvim_get_runtime_file("lua/fzf-lua/init.lua", …)`
+then returns nothing even though lazy.nvim can load the module on demand.
+Check availability with `pcall(require, module)` instead; this preserves
+fail-fast behavior without misclassifying a lazy-loaded dependency.
 
 ## Picker · fzf-lua
 
@@ -77,6 +95,14 @@ press `i`, or invoke from terminal input state or a plain window.
 
 ## Picker · snacks
 
+### Picker items must not carry a `resolve` field
+
+snacks' picker resolves any item with a `resolve` function during formatting —
+`item.resolve(item)`, then sets `item.resolve = nil` — for lazy items. A row
+whose action method is named `resolve` therefore gets called by the picker
+itself, with the row as its only argument. Vantage row action methods avoid
+the name (the switch flow uses `target(done)`).
+
 ### Closing returns to Normal mode — not your previous terminal mode
 
 The snacks picker input is a **prompt buffer, not a terminal window**, and on
@@ -102,11 +128,10 @@ both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
 same scheduled close handler also re-asserts the terminal window itself:
 Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
 window when that float is already gone, so closing the picker floats from a
-floating Client lands the focus on the editor behind it — the handler
+floating Terminal lands the focus on the editor behind it — the handler
 re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The
-preview-capable picks (`pick_agent`, `pick_kill`, `pick_annotation`) pass an
-`on_close` handler; `pick_plain` (the Agent-creation Group step and
+the terminal mode re-entry follows. The preview-capable `Picker.pick` path
+passes an `on_close` handler; `Picker.pick_plain` (the Agent-creation Group step and
 `:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,
 because snacks' own `ui_select` shim owns `on_close` there — and because the
 new-Group name prompt (a cmdline `input()` scheduled from inside the choice
@@ -114,9 +139,9 @@ handler) keeps the scheduler alive while its `c` mode is active: a re-entry
 check queued after the handler would see `c`, skip, and strand the terminal in
 Normal once the prompt closes. Queued first, the `startinsert` stays pending
 across the cmdline and lands when it closes (verified on nvim 0.12.3). A
-Tool-row creation through `:Vantage toggle` ends in terminal mode via
-`Client.focus`'s `show` (`startinsert`) and skips the re-entry; a
-`:Vantage switch` re-points without showing (`Client.retarget`), so it depends
+Tool-row creation through `:Vantage toggle` ends in terminal mode via the
+toggle tail's `Terminal.open` (`startinsert`) and skips the re-entry; a
+`switch` re-points without showing (`retarget`), so it depends
 on the `on_close`/wrapped re-entry above.
 
 ### Finder signature is `fun(opts, ctx): result`

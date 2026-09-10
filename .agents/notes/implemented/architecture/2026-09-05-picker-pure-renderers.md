@@ -4,112 +4,74 @@ Status: implemented
 
 ## Problem
 
-The three picker implementations (`native`, `fzf-lua`, `snacks`) each required
-`vantage.picker.items` to build their own items, reached into the Backend
-(`capture_pane`) and the Annotation domain (`render_item`) to produce previews,
-triplicated the empty-list warning, and (snacks) reached into the Client to
-decide terminal-mode restoration. Domain assembly lived inside renderers, so
-the Picker seam mixed presentation with domain logic — the same coupling the
-Backend seam exists to avoid — and the empty-list policy was repeated per
-engine.
+The three picker implementations (`native`, `fzf-lua`, `snacks`) each built
+their own items, reached into the Backend to produce previews, duplicated the
+empty-list policy, and (snacks) reached into the Terminal to decide terminal
+mode restoration. Domain assembly lived inside renderers, so the Picker seam
+mixed presentation with domain logic — the same coupling the Backend seam
+exists to avoid.
 
 ## Decision
 
-The Picker implementations become **pure renderers** that depend on nothing but
-their engine. A frontend orchestrator, `lua/vantage/select.lua`, builds the
-items and assembles a `vantage.PickSpec` per flow; the picker only renders it.
+Picker implementations are pure renderers over a flow-owned `PickSpec`. The
+command flow builds items and calls `Picker.pick(spec, opts)`; the
+`vantage.frontend.picker` facade owns implementation resolution, capability
+negotiation, and command validation. `Picker.get()` is internal.
 
-The picker interface:
+A picker declares exactly two capabilities:
 
-- `pick_agent(spec, on_choice)`, `pick_kill(spec, on_choice)`,
-  `pick_annotation(spec, on_choice)` each return `boolean empty` — true when
-  the list was empty and nothing was shown. `pick_plain` is unchanged.
-- A `PickSpec` carries the picker's **inputs** only: `items_provider`
-  (`fun(): table[]`), `preview` (`fun(item): string[]?`, nil = nothing to
-  preview), `prompt`, `from_terminal` (a caller-declared fact),
-  `on_delete` (an in-flight action), and `scope` (an optional live items
-  transform, re-applied on every read while the picker's `<c-g>` toggle is
-  on — see the [group-scope note](../feature/2026-09-05-agent-picker-group-scope.md)).
-  The chosen value is delivered through the positional `on_choice` — the
-  picker's single result channel — so the split is *result* (positional)
-  versus *how to run the pick* (spec).
+- `preview` — it can render `item:preview()`.
+- `command` — it can bind the flow's picker commands.
 
-Consequences of that boundary:
+`PickSpec` carries only the picker's inputs: `prompt` and `items_provider`.
+`PickOpts` carries `on_choice` and optional `commands`. A command is a
+keymap-shaped descriptor `{ lhs, rhs, desc? }`; `rhs(ctx)` receives the
+neutral `{ item, items }` context and returns `true` when the item list may
+have changed. Commands are globally bound, duplicate `lhs` values fail fast,
+and a renderer without `command` drops them. Group scoping is an ordinary
+command owned by the flow, not a Picker field.
 
-- Item construction (`agent_items`, `kill_items`, `annotation_items`), the
-  focused-Agent pin, ordering, `format_agent`, and `focused_cwd` moved out of
-  `picker/` into `select.lua`; `picker/items.lua` is deleted.
-- Preview **content** is computed by the orchestrator and injected as the
-  `preview` thunk (`capture_pane` for panes, `render_item` for annotations).
-  The "pane previews go through the Backend" invariant still holds — the call
-  just moved from the picker into the orchestrator, both Frontend. Preview
-  **presentation** (how fzf/snacks/native show it) stays in the picker.
-- The empty-list policy is single-sourced: the picker detects empty (its
-  synchronous `empty` return) and the caller warns with the flow-specific
-  message. The builders normalized to "always return a list, never warn, never
-  nil".
-- `on_choice` receives the **domain value** (target / annotation / choice),
-  extracted by the picker, so the result channel is what its name promises
-  rather than the raw rendered item. `on_delete` receives the **raw item**:
-  the flow's spec decides what "remove this row" means (and no-ops for rows
-  with nothing to remove), so the picker carries no per-flow item-shape
-  knowledge for `<c-x>`.
-- Deleting the last item auto-closes the picker: snacks calls `picker:close()`,
-  fzf-lua calls `utils.fzf_exit()`, both after re-reading `items_provider`
-  through a cached-items pattern (one re-read per delete, verified against each
-  engine's source).
-- The snacks terminal-mode restore applies to every snacks pick — the
-  preview-capable picks via `on_close`, `pick_plain` via a wrapped `on_choice`
-  queued *before* the choice handler runs (its `select` shim owns `on_close`;
-  the ordering protects the new-Group cmdline re-entry — see [the fix
-  note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)) — keyed on
-  `from_terminal`. The same scheduled handler re-asserts the invoked-
-  from window's focus on close (see [the float client focus
-  note](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md)), still
-  without requiring any Vantage module: the window id is captured from
-  `nvim_get_current_win()` at pick start.
+The empty-list policy stays single-sourced: `Picker.pick` returns `boolean
+empty`; the caller emits its flow-specific warning. Preview content is
+computed by the flow-owned row's `preview()` method, so renderers never reach
+into the Backend.
 
 ## Alternatives considered
 
 ### Why not keep the pickers self-building their items?
 
-Keeping `picker/items.lua` and the per-engine `Items.*` calls is the
-least-change option, but it keeps domain assembly inside the renderers and
-triplicates the empty-list policy — the exact coupling this change removes.
+That keeps domain assembly inside renderers and triplicates the empty-list
+policy — the exact coupling this change removes.
 
-### Why not pass the whole rendered item through `on_choice`?
+### Why not keep semantic `pick_agent`/`pick_kill`/`pick_review` methods?
 
-Delivering the raw item would make the three methods identical and collapse
-them into a generic `pick(spec, on_choice)`. Delivering the domain value keeps
-the methods' result types distinct (`target` / `annotation` / `choice`) and
-their names meaningful.
+The current result channel already delivers the chosen row through
+`on_choice(item)`, so the methods had converged. Their only differences are
+the `preview`/`command` capabilities and the flow-provided commands. One
+facade removes the need to edit every renderer when a flow is added.
 
-### Why not keep the empty warn in each engine?
+### Why not keep `spec.group` as a special Picker field?
 
-That is the `agent-picker-order` note's "empty is the engines' problem"
-decision, reversed here: a generic boolean return plus a caller-side warn is
-single-sourced and deletes three copies of the same message.
+Group scoping is a flow-owned filter toggled by a key. Treating it as a
+Picker concept made the interface grow with flow semantics; it is now an
+ordinary `commands` entry.
 
 ### Why not a blocking "return the chosen item" interface?
 
 All three engines are callback-only (`vim.ui.select`, `fzf_exec`, snacks
 `confirm`); a synchronous return would require coroutine-blocking every call
-site (resume-in-schedule, manual error re-raise) and an asymmetric delete
-side-channel. The callback result channel keeps each engine's native async
-shape.
+site. The callback result channel keeps each engine's native async shape.
 
 ## Consequences
 
 - The picker implementations no longer `require` any Vantage module — only
-  their engine (`vim.ui.select`, `fzf-lua`, `snacks`). `select.lua` is the new
-  frontend orchestrator.
-- This supersedes the "why not a generic `select(items, opts, on_choice)`
-  primitive" rationale in the
-  [pluggable-picker note](2026-08-31-pluggable-picker-frontend.md): the preview
-  contract is now one engine-neutral `fun(item): string[]?` (fzf joins lines,
-  snacks sets lines, native has none), so the "one preview contract across
-  pickers" objection no longer holds.
-- `docs/architecture.md` and the Picker glossary term now say the Picker
-  *renders* every selection rather than *owning* its construction; the
-  plain-select flows (`pick_plain`, the Agent-creation Group step in
-  `commands/agent.lua`) are unchanged.
+  their engine. `commands/attach.lua`, `commands/kill.lua`, and
+  `commands/review.lua` assemble their own rows and call `Picker.pick`.
+- `frontend/display.lua` owns shared Agent-row formatting;
+  `frontend/review.lua` owns Review rendering.
+- The snacks terminal-mode restore applies to every snacks pick: the
+  preview-capable path via `on_close`, and `pick_plain` via its wrapped
+  `on_choice`, preserving the terminal-window re-entry described in
+  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
+- The interface and failure semantics are current as of
+  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).

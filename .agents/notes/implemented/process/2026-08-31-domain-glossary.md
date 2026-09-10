@@ -25,4 +25,4 @@ Overkill for a small plugin; one glossary file is the right granularity.
 - Reviewing prose for `_Avoid:` words becomes a mechanical check against docs/glossary.md.
 - The glossary is documentation, not code: it can lag unless it is kept in sync in the same change that alters the model.
 
-The vocabulary it defines is exercised by [the Group/Anchor/Agent/View note](../architecture/2026-08-31-group-anchor-agent-view.md).
+The vocabulary it defines is exercised by [the layered refactor note](../architecture/2026-09-09-layered-frontend-backend-refactor.md).

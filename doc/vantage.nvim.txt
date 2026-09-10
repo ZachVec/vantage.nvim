@@ -1,4 +1,4 @@
-*vantage.nvim.txt*                    Vantage: coding agents in a tmux-backed terminal
+*vantage.nvim.txt*              Vantage: coding agents in a tmux terminal
 
 
 ==============================================================================
@@ -9,44 +9,34 @@ CONTENTS                                                        *vantage.nvim*
 3. Installation                                        |vantage.nvim-installation|
 4. Configuration                                      |vantage.nvim-configuration|
 5. Commands                                              |vantage.nvim-commands|
-6. Key concepts                                          |vantage.nvim-concepts|
 
 ==============================================================================
 1. INTRODUCTION                                *vantage.nvim-introduction*
 
-Vantage is a coding-agent manager for Neovim. It runs coding agents (Claude
-Code, Codex, dsh, …) in a tmux server and shows them in a single persistent
-`:terminal`. tmux is the state store, multiplexer, renderer and input layer —
-there is no custom TUI.
-
-The plugin owns the backend: its Lua layer drives a private tmux socket
-directly. The frontend is a pluggable picker (native / fzf-lua / snacks) plus
-the terminal window that is the tmux client.
+Vantage runs coding agents (Claude Code, Codex, dsh, …) in tmux and shows them
+in a single persistent `:terminal`. Multiple Neovim instances can show
+different Agents in the same Group.
 
 ==============================================================================
 2. REQUIREMENTS                                *vantage.nvim-requirements*
 
 - Neovim >= 0.10
-- tmux 3.0+ (developed against 3.6a)
-- nvim-treesitter-textobjects (optional; for the `{function}` / `{class}`
-  prompt placeholders)
+- tmux 3.0+
+- nvim-treesitter-textobjects (optional; for `{function}` / `{class}` prompts)
 
 ==============================================================================
 3. INSTALLATION                                *vantage.nvim-installation*
 
-Install with your favorite package manager. With lazy.nvim: >
+With lazy.nvim: >
 
     {
       "ZachVec/vantage.nvim",
-      cmd  = "Vantage",
+      cmd = "Vantage",
       opts = {},
     }
 
 <
-
-lazy.nvim resolves the module name `vantage` from the repo and runs
-`require("vantage").setup(opts)` automatically. The plugin loads lazily on the
-first `:Vantage`.
+The plugin loads on the first `:Vantage`.
 
 ==============================================================================
 4. CONFIGURATION                              *vantage.nvim-configuration*
@@ -54,274 +44,150 @@ first `:Vantage`.
 `setup()` accepts: >
 
     require("vantage").setup({
-      backend = "tmux",          -- pluggable backend driver (only "tmux" today)
-      socket  = "vantage",       -- private tmux socket name
-      picker  = "native",        -- native | fzf-lua | snacks
-      prompts = {              -- {file}/{line}/{annotations} built in; add/override yours
+      backend = "tmux",          -- only "tmux" today
+      socket = "vantage",        -- private tmux socket
+      picker = "native",         -- native | fzf-lua | snacks
+
+      prompts = {                -- add or override prompt templates
         ["{file}"] = "{file}",
         ["{line}"] = "{line}",
-        ["{annotations}"] = "{annotations}",
+        ["{reviews}"] = "{reviews}",
       },
-      annotations = {          -- notes on line ranges, sent via {annotations}
-        item = "{lines} {note}",  -- per-annotation template
-        clear_on_send = true,     -- clear after a sent prompt uses {annotations}
-        float = {                 -- note-float window options
-          style = "inherit",      -- "inherit" (default) | "minimal"
-        },
+
+      reviews = {
+        item = "{lines} {note}", -- per-review template
+        clear_on_send = true,    -- clear reviews after sending {reviews}
+        float = { style = "inherit" }, -- "inherit" | "minimal"
       },
+
       cli = {
-        tools = {},              -- provide your own (name -> cmd array); nothing built in
-        win = {                  -- the terminal window that is the tmux client
+        tools = {},              -- name -> { cmd = { ... } }
+        win = {
           layout = "float",      -- float | full | left | top | bottom | right
-          float  = { width = 1.0, height = 1.0, border = "none" }, -- default layout
-          split  = { width = 80, height = 20 },
-          -- no keymaps by default; add your own (see TERMINAL FILETYPE below)
-          keys = {},
+          float = { width = 1.0, height = 1.0, border = "none" },
+          split = { width = 80, height = 20 },
+          keys = {},             -- no default keymaps
         },
       },
     })
 
 <
+An unknown or unavailable `backend`/`picker` is an error at setup.
 
-The default `layout = "float"` opens the terminal as a borderless floating
-window at the full editor size — a pure terminal view, with no statusline,
-winbar, or border. If the terminal's cursor flickers for you, use
-`layout = "full"` (a dedicated tab) instead. The float's `width`/`height` are
-fractions of the editor area (0 < v <= 1).
+TOOLS ~
 
-The Agent pane draws a top tmux border showing the Group, the Agent's Tool,
-its working directory — absolute path, `~` for the home prefix — and the
-Group's State counts (running / background / waiting / idle / error, non-zero
-buckets only, shown as Nerd Font icons). It refreshes about once a second,
-is always on and not configurable.
-
-`cli.tools` is empty by default — provide every tool yourself, e.g. `tools = {
-claude = { cmd = { "claude" } } }`. `tools.<name>.cmd` is run verbatim when
-creating an Agent; it may include arguments, e.g.
-`{ cmd = { "claude", "--dangerously-skip-permissions" } }`. Nothing is built
-in. A tool entry needs a non-empty name and a non-empty `cmd` array — invalid
-entries are dropped at setup with a warning and listed by `:checkhealth
-vantage`. A tool may also carry a `format` function
-(`fun(text): string`), applied to a rendered prompt just before it is sent to
-the Agent — e.g. to translate the Claude-dialect location references for
-another tool.
-
-PROMPT TEMPLATES ~
-
-`prompts` maps names to text templates. Three are built in — `{file}`, `{line}`,
-and `{annotations}`, as identity templates (`"{file}"` → `"{file}"`) — so the raw
-location references and the accumulated Annotations are always available. The
-`{annotations}` prompt is hidden while there are no Annotations. The `prompt`
-key (see TERMINAL FILETYPE & KEYMAPS) picks one through the pluggable Picker's
-plain-select form and pastes it into the focused Agent's input (no
-auto-submit). Your `prompts` merge additively: a name you set overrides the
-built-in, and names you leave unset are kept. A template may use five
-placeholders, four of which are Claude-style location references relative to
-the Agent's cwd:
-
-  `{file}`         `@path/to/file.lua`
-  `{line}`         `@path/to/file.lua :L42` (cursor line)
-  `{function}`     `function foo @path/to/file.lua :L42:C3`
-  `{class}`        `class Foo @path/to/file.lua :L42:C3`
-  `{annotations}`  every Annotation, each rendered by `annotations.item`
-
-`{function}` and `{class}` need nvim-treesitter-textobjects; without it (or
-outside a function/class) the prompt is skipped with a warning — that is why
-they are not built in. An unknown placeholder is left literal at runtime and
-reported by `:checkhealth`. A prompt may span multiple lines; newlines are
-typed literally and never submit.
-Examples: >
+`cli.tools` is empty by default. Each Tool is an argv array: >
 
     require("vantage").setup({
-      prompts = {
-        review    = "Review {file} for issues.",
-        fix_line  = "Fix {line}.",
-        document  = "Add documentation to {function}.",
+      cli = {
+        tools = {
+          claude = { cmd = { "claude" } },
+          codex = { cmd = { "codex", "--full-auto" } },
+        },
       },
     })
 
 <
+A Tool needs a non-empty name, a non-empty `cmd`, and an executable first
+element. Invalid entries are reported by `:checkhealth vantage`. The Agent
+working directory is Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`). A Tool may
+also define `format(text)` to transform a prompt before sending it.
 
-The Agent's working directory is the current window's local cwd (respects
-`:lcd` / `:tcd`), overridable with `create --cwd <dir>`.
+PROMPTS ~
 
-ANNOTATIONS ~
+`prompts` maps names to templates. The built-in names are `{file}`, `{line}`,
+and `{reviews}`; user entries merge with them. The `prompt` terminal key picks
+a prompt and types it into the focused Agent without submitting. The available
+placeholders are:
 
-An Annotation is a note anchored to a line range in a normal file. Add one
-with `:Vantage annotate` (over the visual selection, else the current line);
-`:Vantage annotate list` opens a picker of annotations — selecting one jumps
-to its range and opens an editable note float. `:Vantage annotate clear`
-removes every annotation. Annotations tint the range's line numbers only — no
-sign column, no layout shift, no code obscuring; when the number column is off
-they are not drawn. They live in memory only: lost on buffer unload/reload or
-Neovim exit, and never written to the file.
+  `{file}`         `@path/to/file.lua`
+  `{line}`         `@path/to/file.lua :L42`
+  `{function}`     `function foo @path/to/file.lua :L42:C3`
+  `{class}`        `class Foo @path/to/file.lua :L42:C3`
+  `{reviews}`      all Reviews rendered through `reviews.item`
 
-The note float is a normal scratch buffer (normal mode), so editing is ordinary
-Vim — multi-line notes and undo included. By default
-(`annotations.float.style = "inherit"`) its window options follow the window it
-opens from, so the user's line numbers, cursorline and friends apply and the
-float reads as an editable buffer at a glance; set
-`annotations.float.style = "minimal"` for a clean dialog look with those
-options off. Pressing `<Esc>` commits the note and closes the float; an empty
-note deletes the annotation after a confirmation.
+`{function}` and `{class}` require nvim-treesitter-textobjects. The
+`{reviews}` prompt is hidden while there are no Reviews.
 
-The picker is the pluggable one (`native` / `fzf-lua` / `snacks`): fzf-lua and
-snacks preview each annotation through `annotations.item` (what you see is what
-gets sent) and offer an in-place `<c-x>` delete; native has no preview and no
-keymaps, so it is selection only.
+REVIEWS ~
 
-Send the accumulated annotations to the focused Agent through a Prompt that
-uses `{annotations}`, e.g. `prompts = { notes = "My notes:\n{annotations}" }`.
-`annotations.item` is the per-annotation template; its fields are:
+`:Vantage review` adds a Review over the selection or current line.
+`:Vantage review list` jumps to and edits Reviews; `:Vantage review clear`
+removes them. Reviews live only in memory and are lost when the buffer unloads
+or Neovim exits.
 
-  `{note}`    the annotation text
-  `{lines}`   `@path/to/file.lua :L10-L20` (`:L10` for a single line)
-  `{code}`    the selected lines, leading/trailing blank lines dropped
-  `{file}`    the relative path (no `@`, no `:L`)
-  `{start}`   the first line number
-  `{end}`     the last line number
+In the note window, `<Esc>` saves. An empty note deletes the Review. Send
+Reviews with a prompt containing `{reviews}`, for example: >
 
-The default `item` is `"{lines} {note}"`; to also send the code use
-`item = "{lines} {note}\n{code}"`. When `clear_on_send` is true (default), a
-successful send whose template used `{annotations}` clears all annotations.
+    require("vantage").setup({
+      prompts = { notes = "My notes:\n{reviews}" },
+    })
 
-PICKERS & PROMPTS ~
+<
+`reviews.item` supports `{note}`, `{lines}`, `{code}`, `{file}`, `{start}`, and
+`{end}`. The default is `"{lines} {note}"`.
 
-The Agent list (the `switch` key) and the kill list (the `kill` key) go
-through a pluggable picker, chosen by `picker`:
+PICKERS ~
 
-  `picker = "native"`   built-in `vim.ui.select` (default). Respects any
-                        global `vim.ui.select` override (dressing.nvim,
-                        snacks' ui_select, …).
-  `picker = "fzf-lua"`  fzf-lua; requires the fzf-lua plugin.
-  `picker = "snacks"`   snacks.nvim picker; requires snacks.nvim.
+`picker` selects the UI used for Agent, kill, and Review lists:
 
-`fzf-lua` and `snacks` preview the selected Agent's pane (its recent terminal
-output), and Agent rows offer an in-place `<c-x>` kill: the row's Agent is
-killed, the list refreshes and stays open (several Agents can be killed in one
-session), closing when nothing remains; the pinned `(focused)` row and the
-Tool rows ignore `<c-x>`, and `native` is selection-only. The Agent list opens
-scoped to the focused Agent's Group by default — `<c-g>` toggles it in place
-(Tool rows always stay; with nothing focused the whole list shows). The
-Agent-creation Group step and the `prompt` key run through the same picker in
-its compact plain-select form, so a flow never depends on a global
-`vim.ui.select` override (`native` follows any override by definition).
-Free-text prompts (e.g. the new-Group name) use `input()` and are insert-mode
-by default; Yes/No confirmations use Neovim's built-in confirm dialog.
+  `"native"`   `vim.ui.select`
+  `"fzf-lua"`  fzf-lua; requires the fzf-lua plugin
+  `"snacks"`   snacks.nvim; requires snacks.nvim
 
-TERMINAL FILETYPE & KEYMAPS ~
+`fzf-lua` and `snacks` preview Agent output and Reviews. With a focused Agent,
+the Agent list starts scoped to its Group; `<c-g>` toggles the scope. The
+Review list supports `<c-x>` deletion when the picker supports commands.
 
-No keymaps are added by default. The terminal buffer has filetype
-`vantage_terminal`. Add keys in either of two ways:
+KEYMAPS ~
 
-1. `cli.win.keys` — a list of 4-tuples `{ lhs, rhs, mode = "n", desc }`,
-   applied buffer-locally to the terminal when it is created. `rhs` is passed
-   verbatim to `vim.keymap.set` — a key sequence / `<cmd>` RHS, or a Lua
-   function — except a string naming a built-in terminal action, which runs
-   that action. `mode` is `"n"`, `"t"` or `"nt"` (also a table). The built-in
-   actions:
+The terminal buffer has filetype `vantage_terminal`. No keymaps are added by
+default. Use `cli.win.keys` with `mode` set to `"n"`, `"t"`, or `"nt"`: >
 
-     `"switch"`  re-point the terminal to an Agent (Agent picker)
-     `"kill"`    kill an Agent or Group (kill picker)
-     `"prompt"`  pick a prompt and type it into the focused Agent
-     `"toggle"`  hide/show the terminal
-
-   `switch`, `kill` and `prompt` are terminal actions only — there is no
-   `:Vantage` command for them; bind them here. Example: >
-
-      require("vantage").setup({
-        cli = {
-          win = {
-            keys = {
-              { "<c-q>", "toggle", mode = "t", desc = "hide/show the terminal" },
-              { "q", "toggle", mode = "n", desc = "hide/show the terminal" },
-              { "<c-s>", function() vim.cmd("stopinsert") end, mode = "t", desc = "enter normal mode" },
-              { "s", "switch", mode = "n", desc = "switch Agent" },
-              { "k", "kill", mode = "n", desc = "kill Agent/Group" },
-              { "p", "prompt", mode = "n", desc = "send a prompt" },
-            },
+    require("vantage").setup({
+      cli = {
+        win = {
+          keys = {
+            { "<c-q>", "toggle", mode = "t", desc = "hide/show terminal" },
+            { "q", "toggle", mode = "n", desc = "hide/show terminal" },
+            { "s", "switch", mode = "n", desc = "switch Agent" },
+            { "p", "prompt", mode = "n", desc = "send prompt" },
           },
         },
-      })
+      },
+    })
 
 <
-
-2. Any `ftplugin`/`autocmd` on the filetype (full control, plain `vim.keymap.set`): >
-
-      vim.api.nvim_create_autocmd("FileType", {
-        pattern = "vantage_terminal",
-        callback = function(ev)
-          vim.keymap.set("n", "q", ":Vantage toggle<CR>", { buffer = ev.buf })
-          vim.keymap.set("t", "<c-q>", "<cmd>Vantage toggle<CR>", { buffer = ev.buf })
-        end,
-      })
-
-<
-
-For a normal-mode keymap that opens/toggles from anywhere in nvim (not just
-inside the terminal buffer): >
-
-      vim.keymap.set("n", "<leader>vt", "<cmd>Vantage toggle<CR>", { desc = "Toggle Vantage" })
-
-<
+`rhs` may be a Terminal action (`"switch"`, `"prompt"`, `"toggle"`) or any
+value accepted by `vim.keymap.set`.
 
 ==============================================================================
 5. COMMANDS                                    *vantage.nvim-commands*
 
                                                           *:Vantage*
 `:Vantage`
-    Show help (no default action).
+    Show help.
 
 `:Vantage toggle`
-    Hide the terminal window if it is open, or show it again — a lightweight
-    toggle that keeps the buffer, tmux client and View alive. If there is no
-    live terminal, open the Agent picker (Agents plus one Tool row per
-    configured `cli.tools` key) and open the terminal on the chosen Agent.
-    Map it, e.g. `vim.keymap.set("n", "<leader>vt", ":Vantage toggle<CR>")`.
+    Hide or show the terminal. With no terminal, pick an Agent and open it.
 
 `:Vantage detach`
-    Detach the terminal's client (the client-detached hook destroys the View).
-    Agents keep running headless.
+    Close the terminal. Agents keep running.
 
-`:Vantage annotate`
-    Add an Annotation over the command's range — a visual selection, or the
-    current line when none — and open an empty note float.
+`:Vantage review`
+    Add a Review over the current selection or line.
 
-`:Vantage annotate list`
-    Open the Annotation picker (pluggable; fzf-lua/snacks preview each note and
-    offer an in-place `<c-x>` delete). Selecting one jumps to its range and
-    opens an editable note float.
+`:Vantage review list`
+    Open the Review picker.
 
-`:Vantage annotate clear`
-    Remove every Annotation (after a confirmation).
+`:Vantage review clear`
+    Remove all Reviews.
+
+`:Vantage kill`
+    Pick an Agent or Group and kill it.
 
 `:Vantage status`
-    Show attached clients and sessions (debug).
-
-==============================================================================
-6. KEY CONCEPTS                                  *vantage.nvim-concepts*
-
-Group ~
-    A tmux session group: one persistent Anchor session owns the Agents.
-
-Anchor ~
-    The one persistent session in a Group that keeps its Agents alive headless.
-
-Agent ~
-    A tmux window running a coding agent, shared across a Group's Views.
-
-View ~
-    A transient grouped session attached by a client. Closing the terminal
-    detaches the client, the client-detached hook destroys the View, and the
-    Agents keep running. Switching the client into another Group destroys its
-    old View there (a fresh View is created in the destination Group).
-
-State ~
-    A transient condition of an Agent — running, background, waiting, idle,
-    error (a fixed vocabulary). Written by the Agent's lifecycle scripts
-    (`scripts/vantage-status` is the manual trigger and calling convention)
-    and aggregated per Group by the plugin's counting scripts; an Agent that
-    has not reported yet counts as idle.
+    Show clients and sessions.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

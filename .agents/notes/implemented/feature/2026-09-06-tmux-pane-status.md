@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 The only place the focused Agent's tool · cwd ever surfaced was the terminal
-buffer's name (`retitle()` in `lua/vantage/client.lua`), which renders only
+buffer's name (`retitle()` in `lua/vantage/frontend/terminal.lua`), which renders only
 through tab labels and winbars — invisible on the default borderless float
 (see the [full-terminal-layout
 note](2026-09-03-full-terminal-layout.md) and the [float-terminal-layout-default
@@ -18,12 +18,12 @@ without a long-lived process and without shared mutable counters to corrupt.
 ## Decision
 
 - **`retitle()` is removed** (definition and its three call sites in
-  `focus()`/`retarget()`/attach path in `lua/vantage/client.lua`); the
+  `focus()`/`retarget()`/attach path in `lua/vantage/frontend/terminal.lua`); the
   terminal buffer name is Neovim's default again. This supersedes the retitle
   part of the [full-terminal-layout note](2026-09-03-full-terminal-layout.md).
 - **The pane's top tmux border carries the info.** The plugin owns the
   private server, so the border is applied unconditionally (no config
-  option): `apply_global_config()` in `lua/vantage/backend/tmux.lua` sets
+  option): `apply_global_config()` in `lua/vantage/backend/driver/tmux.lua` sets
   `status-interval 1`, `pane-border-status top`, and a global
   `pane-border-format`, padded with one leading and one trailing space:
   `Group · Tool · cwd` followed by the per-Group State counts. Group is
@@ -59,7 +59,7 @@ without a long-lived process and without shared mutable counters to corrupt.
   read-modify-write. Writers on different windows cannot race (disjoint keys);
   two events in one window are sequential and last-writer-wins, which is the
   correct end state.
-- **Counts are never stored.** `scripts/vantage-counts` recomputes them per
+- **Counts are never stored.** the tmux Driver's `counts.sh` resource recomputes them per
   status tick from the live tmux state (read-only `list-windows -a`, group
   filter, unset → idle, only non-zero buckets, leading space, fixed order);
   tmux runs one `#()` process per distinct command string per tick, so one run
@@ -77,25 +77,25 @@ without a long-lived process and without shared mutable counters to corrupt.
   prompt uses a glyph). Two earlier sets were rejected: the first nf-fa
   circle variants were indistinguishable at terminal size, and standard
   Unicode Geometric Shapes lacked the semantic signatures. The format
-  appends `#("<scripts>/vantage-counts" -L <socket> #{@agent-group})`, so
+  appends `#("<driver-resource>/counts.sh" -L <socket> #{@agent-group})`, so
   each pane's border shows its own Group's buckets, zero buckets skipped,
   unset State as idle.
-- **`scripts/vantage-status`** is a manual, vocabulary-validating writer —
+- **the tmux Driver's `status.sh` resource** is a manual, vocabulary-validating writer —
   the skeleton every future per-Agent lifecycle script will call. It takes
   `[-L <socket>] <window-id> <state>` and writes the full value. The socket
   defaults to `vantage` (the plugin's default `Config.options.socket`); the
   Lua side always passes the configured socket explicitly.
 - The border's only `#()` is the counts command, called by absolute path
-  (`scripts_dir()` resolves `<repo>/scripts` from the module's source path —
-  tmux runs `#()` with the server environment, where the scripts are not on
-  `PATH`). The command string embeds the expanded `#{@agent-group}`, so tmux
-  dedupes it to one run per Group per tick.
+  (`resource_path()` resolves the driver's `resources/tmux/counts.sh` through
+  the plugin runtimepath — tmux runs `#()` with the server environment, where
+  the resource is not on `PATH`). The command string embeds the expanded
+  `#{@agent-group}`, so tmux dedupes it to one run per Group per tick.
 
 ## Verification
 
 On tmux 3.6a against a throwaway socket, with `status off` (the plugin's
 setting): windows with `@agent-group` / `@agent-tool` / `@agent-cwd-tilde`
-set and `vantage-status` writes applied — the captured client render shows
+set and `status.sh` writes applied — the captured client render shows
 the top border ` grpA · claude · ~/vantage <running-symbol> 1 <idle-symbol> 1 `
 (padded; `$HOME`-rooted display path collapsed; per-Group counts rendered as
 Nerd Font glyphs, glyph space count per bucket, zero buckets skipped, unset
@@ -140,7 +140,7 @@ tmux-agent-sidebar's status set is a compile-time-fixed Rust enum — not
 configurable — and the user's directive was: if it is fixed, adopt it. A
 fixed vocabulary also makes the counts script and the writer validation
 closed and testable. Extending the set is a deliberate act: edit
-`scripts/vantage-status` validation, `scripts/vantage-counts`, and this note
+the driver's `status.sh` validation, `counts.sh`, and this note
 in one change.
 
 ### Why not `pane-border-status bottom`?
@@ -200,7 +200,7 @@ writer trivial and the display self-healing.
 - The five-state vocabulary and the full-value write contract are load-bearing
   for the future per-Agent lifecycle scripts (a separate, later feature): they
   must emit these five values, full-value per window, and the plugin-side
-  skeletons (`vantage-status`) are their calling convention.
+  skeletons (`status.sh`) are their calling convention.
 - The [full-terminal-layout note](2026-09-03-full-terminal-layout.md) keeps
   the `full`-layout flicker rationale; its retitle paragraphs were updated in
   place to point here, and the inbound link in the [single-Client-terminal

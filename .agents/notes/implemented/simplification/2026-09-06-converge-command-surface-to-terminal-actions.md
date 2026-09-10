@@ -13,7 +13,7 @@ bound through `cli.win.keys` entries whose RHS is a verbatim
 them was surface area that was never used directly.
 
 The same uncertainty forced a runtime probe: because any subcommand could be
-triggered either from the terminal window or from a normal window, `select.lua`
+triggered either from the terminal window or from a normal window, the old picker orchestrator
 carried `invoked_from_terminal()` — "is the terminal open and is it the current
 window?" — and threaded its result through `PickSpec`/`PlainSelectOpts`, where
 only the snacks picker consumed it (to re-enter terminal mode after a picker
@@ -27,20 +27,18 @@ is fixed by construction, that probe has nothing left to decide.
   completion, and the `usage()` help.
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
   `switch`, `kill`, `prompt`, or `toggle` resolves to the built-in action
-  (new `lua/vantage/keys.lua`); any other `rhs` — a key sequence, a `<cmd>`
+  (`commands/actions.lua` owns the token map and installs the mappings); any
+  other `rhs` — a key sequence, a `<cmd>`
   string, or a Lua function — is bound verbatim as before. No default keymaps
   are shipped (the
   [single-terminal-frontend](../architecture/2026-08-31-single-terminal-frontend.md)
   "no default keymaps" decision stands); the four actions are opt-in.
-- The `invoked_from_terminal()` probe is deleted. `PickSpec`/`PlainSelectOpts`
-  carry `from_terminal` as a **caller-declared** constant instead:
-  `switch`/`kill`/`prompt` (terminal-only) declare `true`, `annotate` declares
-  `false`, and `toggle`'s open-path fallback declares `false`. The focused pin
-  and the snacks terminal-mode restore key off that declared fact, never off a
-  window probe.
-- `Agent.switch`'s "no client" guard is removed: from a terminal keymap the
-  terminal is live by construction, and `Client.retarget` keeps its own
-  `is_attached` seam check.
+- The `invoked_from_terminal()` probe was deleted at the time of this note.
+  The later layered refactor removed the caller-declared `from_terminal` field
+  too: the snacks renderer detects the Terminal by buffer filetype at pick
+  open time, and the focused row comes from the live `snapshot(pid)`.
+- `switch` warns when there is no Terminal; `Bridge.retarget` reports a
+  missing client through the Driver result contract.
 
 ## Alternatives considered
 
@@ -77,16 +75,15 @@ terminal and remain `:Vantage` commands, not terminal actions.
 
 - `switch`, `kill` and `prompt` have no `:Vantage` entry point; they run only
   through a `cli.win.keys` token. `toggle` remains both a command and a token.
-- `PickSpec.from_terminal` / `PlainSelectOpts.from_terminal` replace
-  `invoked_from_terminal` across `select.lua`, `commands/*`, and the snacks
-  picker; native and fzf-lua still ignore the field.
-- `Agent.switch` and `Agent.kill` no longer take an argument: their `@N` /
-  `group|@N` branches (now unreachable) and the `find_agent` helper are
-  removed; both always run their interactive picker.
+- `from_terminal` no longer exists in `PickSpec`/`PlainSelectOpts`; the snacks
+  renderer detects the Terminal by filetype. Native and fzf-lua never needed
+  the field.
+- `switch` and `kill` take no target argument; they always run their
+  interactive picker.
 - README and `doc/vantage.nvim.txt` document the trimmed command list and the
   token-or-verbatim `cli.win.keys` form, with `switch`/`kill`/`prompt` marked
   terminal-only.
-- Facts updated in place: `invoked_from_terminal` → `from_terminal` in
+- Facts updated in place: `from_terminal` is gone in
   [picker-pure-renderers](../architecture/2026-09-05-picker-pure-renderers.md),
   [agent-picker-order](../feature/2026-09-04-agent-picker-order.md),
   [float-terminal-switch-loses-focus](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md),

@@ -1,0 +1,98 @@
+#!/bin/sh
+# counts.sh — read-only per-Group State counts for the tmux pane-border display.
+#
+# Invoked by tmux itself from the pane-border-format (#() substitution) about
+# once per second per distinct command string (tmux dedupes identical strings
+# across panes within a tick), and by hand for verification. It never writes:
+# the display side always recomputes from the live tmux state, so there is no
+# stored counter to drift or race — concurrent State writers stay invisible to
+# this script's correctness.
+#
+# A window whose @agent-state is unset counts as idle (defensive: the Backend
+# writes idle at create time, so an unset value can only be the result of
+# external tampering). Unknown non-empty values are skipped (writers validate
+# the vocabulary in the sibling status.sh).
+#
+# Usage: counts.sh [-L <socket>] [group]
+# Prints e.g. " <glyph> 1 <glyph> 2" — a leading space, then per non-zero
+# bucket "Nerd Font glyph, space, count", in a fixed order — or nothing when
+# every bucket is zero. The leading space separates the counts from the
+# preceding tool · cwd segments of the border.
+
+set -eu
+
+socket_name=vantage
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -L)
+      socket_name="$2"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+group="${1:-}"
+
+# Symbols, one per State. POSIX octal escapes (dash-safe); the vocabulary
+# names stay the contract — the symbols are display only. They are Nerd Font
+# private-use glyphs, so the terminal font must be a Nerd Font (the plugin
+# already assumes one: the picker prompt uses a glyph).
+glyph_running=$(printf '\357\204\221') # \uf111 nf-fa-circle
+glyph_background=$(printf '\357\201\202') # \uf042 nf-fa-adjust
+glyph_waiting=$(printf '\357\201\231') # \uf059 nf-fa-circle_question
+glyph_idle=$(printf '\357\204\214') # \uf10c nf-fa-circle_o
+glyph_error=$(printf '\357\201\234') # \uf05c nf-fa-circle_xmark
+
+# The Group of an Agent window is explicit window data written at create time
+# (@agent-group); the caller passes the already-expanded value. The window id
+# is carried along for dedup (see the loop).
+fmt=$(printf '%s\t%s\t%s' '#{window_id}' '#{@agent-group}' '#{@agent-state}')
+out=$(tmux -L "$socket_name" list-windows -a -f '#{@agent-cmd}' -F "$fmt" 2>/dev/null) || exit 0
+
+running=0
+background=0
+waiting=0
+idle=0
+error=0
+
+tab=$(printf '\t')
+seen=""
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  wid=${line%%$tab*}
+  rest=${line#*$tab}
+  g=${rest%%$tab*}
+  s=${rest#*$tab}
+  # An Agent window is shared across the Anchor and every View session, so
+  # `list-windows -a` repeats it once per session — count each window once.
+  case " $seen " in
+    *" $wid "*) continue ;;
+  esac
+  seen="$seen $wid"
+  if [ -n "$group" ] && [ "$g" != "$group" ]; then
+    continue
+  fi
+  case "$s" in
+    running) running=$((running + 1)) ;;
+    background) background=$((background + 1)) ;;
+    waiting) waiting=$((waiting + 1)) ;;
+    idle) idle=$((idle + 1)) ;;
+    error) error=$((error + 1)) ;;
+    "") idle=$((idle + 1)) ;; # unset State: counts as idle
+    *) ;; # unknown non-empty: skipped
+  esac
+done <<EOF
+$out
+EOF
+
+counts=""
+[ "$running" -gt 0 ] && counts="$counts $glyph_running $running"
+[ "$background" -gt 0 ] && counts="$counts $glyph_background $background"
+[ "$waiting" -gt 0 ] && counts="$counts $glyph_waiting $waiting"
+[ "$idle" -gt 0 ] && counts="$counts $glyph_idle $idle"
+[ "$error" -gt 0 ] && counts="$counts $glyph_error $error"
+
+printf '%s\n' "$counts"

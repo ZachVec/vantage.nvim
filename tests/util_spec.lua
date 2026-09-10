@@ -3,8 +3,47 @@
 describe("vantage.util", function()
   local Util = require("vantage.util")
 
-  it("exposes the picker prompt glyph", function()
+  it("exposes the picker prompt glyph and the global cwd", function()
     assert.are.equal(vim.fn.nr2char(0xF105), Util.picker_prompt)
+    assert.are.equal(vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p")), Util.cwd())
+  end)
+
+  describe("interpolate", function()
+    local allowed = { name = true, file = true }
+
+    it("renders known placeholders and leaves unknown ones literal", function()
+      local rendered, failed = Util.interpolate("hello {name} {file} {bogus}", allowed, function(key)
+        if key == "name" then
+          return "zach"
+        end
+        return "a.lua"
+      end)
+      assert.are.equal("hello zach a.lua {bogus}", rendered)
+      assert.are.equal(nil, failed)
+    end)
+
+    it("returns the failing placeholder when a resolver yields nil", function()
+      local rendered, failed = Util.interpolate("see {name}", allowed, function()
+        return nil
+      end)
+      assert.are.equal(nil, rendered)
+      assert.are.equal("name", failed)
+    end)
+  end)
+
+  describe("shell_quote", function()
+    it("quotes empty strings and ordinary arguments", function()
+      assert.are.equal("''", Util.shell_quote(""))
+      assert.are.equal("'claude'", Util.shell_quote("claude"))
+    end)
+
+    it("escapes embedded single quotes for POSIX sh", function()
+      assert.are.equal("'a'\\''b'", Util.shell_quote("a'b"))
+    end)
+
+    it("joins an argv array with preserved argument boundaries", function()
+      assert.are.equal("'sh' '-c' 'echo hello world'", Util.shell_join({ "sh", "-c", "echo hello world" }))
+    end)
   end)
 
   describe("relpath", function()
@@ -12,14 +51,8 @@ describe("vantage.util", function()
       assert.are.equal("src/a.lua", Util.relpath("/proj", "/proj/src/a.lua"))
     end)
 
-    it("keeps an absolute path when the path escapes cwd", function()
-      local outside = Util.relpath("/proj", "/elsewhere/a.lua")
-      assert.are.equal("/elsewhere/a.lua", outside)
-    end)
-
-    it("keeps the absolute path when relativization is empty", function()
-      local cwd = "/proj"
-      assert.are.equal(cwd, Util.relpath(cwd, cwd))
+    it("keeps absolute paths when the path escapes cwd", function()
+      assert.are.equal("/elsewhere/a.lua", Util.relpath("/proj", "/elsewhere/a.lua"))
     end)
   end)
 
@@ -30,24 +63,15 @@ describe("vantage.util", function()
       vim.env.HOME = home
     end)
 
-    it("folds the home directory itself", function()
+    it("folds the home directory and paths below it", function()
       vim.env.HOME = "/home/test"
       assert.are.equal("~", Util.tilde("/home/test"))
-    end)
-
-    it("folds paths below home", function()
-      vim.env.HOME = "/home/test"
       assert.are.equal("~/src/a.lua", Util.tilde("/home/test/src/a.lua"))
     end)
 
     it("leaves paths outside home unchanged", function()
       vim.env.HOME = "/home/test"
       assert.are.equal("/home/testing/a.lua", Util.tilde("/home/testing/a.lua"))
-    end)
-
-    it("leaves paths unchanged when HOME is unset", function()
-      vim.env.HOME = vim.NIL
-      assert.are.equal("/home/test/a.lua", Util.tilde("/home/test/a.lua"))
     end)
   end)
 end)

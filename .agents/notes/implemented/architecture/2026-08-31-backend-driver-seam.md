@@ -8,7 +8,7 @@ The multiplexer choice (tmux) should not be welded into every call site, or a fu
 
 ## Decision
 
-The Backend is a thin interface: `lua/vantage/backend/init.lua` resolves the driver through a `REGISTRY` whitelist (falling back to `tmux`) and exposes one surface (`list`, `groups`, `create`, `attach`, `retarget`, `kill`, `status`, `ensure_server`, `has_session`, `capture_pane`, `send_keys`, `client_command`, `health`). `tmux` is the only driver today and owns all domain logic. Callers never touch tmux directly — `commands/`, `picker/`, `client.lua`, and `health.lua` go through `Backend.get()`. The Backend never infers context: cwd, group, and target are passed in explicitly.
+The Backend is a thin interface: `lua/vantage/backend/driver/init.lua` resolves the driver through a `REGISTRY` whitelist, with `setup()` failing fast on an unknown or unavailable implementation. `backend/bridge.lua` exposes the domain surface (`agents`, `create`, `retarget`, `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`, `status`) and passes Driver results/errors through. `tmux` is the only driver today and owns all multiplexer mapping. Callers never touch tmux directly. The Backend never infers context: cwd, group, and the opaque Agent id are passed in explicitly.
 
 ## Alternatives considered
 
@@ -23,6 +23,6 @@ With one known driver there is nothing yet to share. The surface is small enough
 ## Consequences
 
 - A new driver implements the same module surface and is selected by `setup { backend = "zellij" }`; nothing above `backend/` changes.
-- The interface is the de-facto contract; it grows when a second driver needs a method, or when a Frontend/health need (`capture_pane`, `client_command`, `health`) must not bypass the "never touch tmux directly" invariant.
+- The interface is the `vantage.Driver` LuaLS contract; it grows when a second driver needs a method, or when a Frontend/health need must not bypass the "never touch tmux directly" invariant. Current result/error semantics are owned by [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
 
 The tmux driver's object model is documented in [the state-store note](2026-08-31-tmux-as-state-store.md).

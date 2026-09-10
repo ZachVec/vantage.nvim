@@ -12,10 +12,10 @@ LUA_LS   := $(call find_tool,lua-language-server)
 # nvim holds the default log lock; pin the log to /tmp to keep the repo clean.
 NVIM_RUN = NVIM_LOG_FILE=$(NVIM_LOG) $(NVIM) --headless -u NONE -l
 
-.PHONY: check notes style lint test
+.PHONY: check notes style lint architecture test
 
-## check: Agent Notes + Lua format + Lua diagnostics
-check: notes style lint
+## check: Agent Notes + Lua format + architecture + Lua diagnostics
+check: notes style architecture lint
 
 ## notes: verify the Agent Note tree and file formats (needs only nvim)
 notes:
@@ -24,6 +24,10 @@ notes:
 ## style: check Lua formatting (stylua)
 style:
 	@if [ -n "$(STYLUA)" ]; then $(STYLUA) --check .; else echo "note: stylua not installed; skipping Lua format check"; fi
+
+## architecture: verify module dependency directions
+architecture:
+	@$(NVIM_RUN) scripts/verify-architecture.lua
 
 ## lint: check Lua diagnostics (lua-language-server)
 lint:

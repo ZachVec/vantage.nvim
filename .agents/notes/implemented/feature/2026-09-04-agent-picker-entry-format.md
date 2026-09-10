@@ -15,7 +15,7 @@ last — `[web] claude · ~/vantage`.
 
 ## Decision
 
-`M.format_agent` in `lua/vantage/picker/items.lua` renders the shared Agent
+`M.format_agent` in `lua/vantage/frontend/display.lua` renders the shared Agent
 row string as
 
 ```lua
@@ -44,12 +44,12 @@ list's `group <n>` rows keep their own text.
 
 ### Why not fold `~` at creation/storage time?
 
-Folding in `commands/agent.lua`/`Util.cwd()` and letting the backend store
+Folding in `commands/attach.lua`/`Util.cwd()` and letting the backend store
 `~/…` breaks launch correctness: tmux does not expand a literal `~` in `-c`
 (verified empirically — `new-session -c '~/vantage'` resolves the literal
 path relative to the client cwd, silently falling back to `$HOME` on
 failure), and the driver passes the cwd straight into `-c`
-(`backend/tmux.lua` new-window/new-session). Keeping launch correct would
+(`backend/driver/tmux.lua` new-window/new-session). Keeping launch correct would
 force `create()` to split an absolute launch-cwd from a folded stored-cwd —
 the fold would live in the backend storage layer, and every later consumer
 of `@agent-cwd` would see whichever form was stored. Stored state instead
@@ -87,7 +87,7 @@ unambiguous either way.
   the row text folds `$HOME` through `Util.tilde`, exactly as before.
 - No doc or README describes the row text, so nothing user-facing there
   went stale.
-- The terminal buffer title (`retitle`, `lua/vantage/client.lua`) still
+- The terminal buffer title (`retitle`, `lua/vantage/frontend/terminal.lua`) still
   shows the raw absolute cwd — pre-existing, outside this change's scope;
   a later one-line `Util.tilde` there would make it consistent.
 - Rows build on the shared same-source item model of the
