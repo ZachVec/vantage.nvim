@@ -13,7 +13,7 @@ lua/vantage/
 ├── health.lua          diagnostics adapter
 ├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
 ├── frontend/           terminal, display, note, review, picker/
-└── commands/           dispatch + actions, terminal_keys, attach, flows
+└── commands/           dispatch + actions, attach, flows
 ```
 
 - `init.lua` is the composition root. `setup()` applies configuration, resolves
@@ -137,8 +137,8 @@ ordinary command, not a Picker concept.
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
   Agent/Tool rows, Group choice, creation handoff, and `<c-g>` scope command.
-- `commands/terminal_keys.lua` installs `cli.win.keys`; `commands/actions.lua`
-  maps built-in tokens (`toggle`, `switch`, `prompt`) to command functions.
+- `commands/actions.lua` maps built-in tokens (`toggle`, `switch`, `prompt`)
+  to command functions and installs `cli.win.keys` into the terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
   (Tool rows create one) and open the Terminal on it.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.

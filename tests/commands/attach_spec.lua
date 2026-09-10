@@ -8,7 +8,7 @@ describe("vantage.commands.attach", function()
   local bridge
   local picker
   local terminal
-  local terminal_keys
+  local actions
   local captured_spec
   local command_capable
   local focused
@@ -134,13 +134,13 @@ describe("vantage.commands.attach", function()
       return true
     end
 
-    terminal_keys = { applied = nil }
+    actions = { applied = nil }
     package.loaded["vantage.backend.bridge"] = bridge
     package.loaded["vantage.frontend.picker"] = picker
     package.loaded["vantage.frontend.terminal"] = terminal
-    package.loaded["vantage.commands.terminal_keys"] = {
+    package.loaded["vantage.commands.actions"] = {
       apply = function(buffer)
-        terminal_keys.applied = buffer
+        actions.applied = buffer
       end,
     }
     Attach = require("vantage.commands.attach")
@@ -162,7 +162,7 @@ describe("vantage.commands.attach", function()
     terminal.pid_value = 42
     terminal.toggle_result = false
     terminal.opened = nil
-    terminal_keys.applied = nil
+    actions.applied = nil
   end)
 
   it("orders agent rows by group, cwd, tool, then creation seq, and tools by name", function()
@@ -240,6 +240,6 @@ describe("vantage.commands.attach", function()
     Attach.toggle()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
-    assert.are.equal(77, terminal_keys.applied)
+    assert.are.equal(77, actions.applied)
   end)
 end)

@@ -27,8 +27,8 @@ is fixed by construction, that probe has nothing left to decide.
   completion, and the `usage()` help.
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
   `switch`, `kill`, `prompt`, or `toggle` resolves to the built-in action
-  (`commands/actions.lua` owns the token map; `commands/terminal_keys.lua`
-  installs the mappings); any other `rhs` — a key sequence, a `<cmd>`
+  (`commands/actions.lua` owns the token map and installs the mappings); any
+  other `rhs` — a key sequence, a `<cmd>`
   string, or a Lua function — is bound verbatim as before. No default keymaps
   are shipped (the
   [single-terminal-frontend](../architecture/2026-08-31-single-terminal-frontend.md)

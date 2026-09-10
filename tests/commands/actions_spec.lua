@@ -1,6 +1,6 @@
 ---@module 'luassert'
 
-describe("vantage.commands.actions (keymap tokens)", function()
+describe("vantage.commands.actions", function()
   local Actions = require("vantage.commands.actions")
 
   it("resolves every built-in action token to a function", function()

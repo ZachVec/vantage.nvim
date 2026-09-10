@@ -27,8 +27,8 @@ The command layer is a directory mirroring the repo's existing
 - `commands/review.lua` owns `:Vantage review` and its sub-actions
   (`run(action, line1, line2)` + list/clear/add); the note editor itself lives
   in `frontend/note.lua`.
-- `commands/actions.lua` owns terminal action tokens and
-  `commands/terminal_keys.lua` installs `cli.win.keys`.
+- `commands/actions.lua` owns terminal action tokens and installs
+  `cli.win.keys`.
 
 Prompt and Review are **peers**: the `{reviews}` placeholder is a prompt that
 reads Review data (a "uses" dependency), not a "Review is a kind of Prompt"
@@ -64,7 +64,7 @@ noise for no readability gain.
 ## Consequences
 
 - `lua/vantage/commands.lua` is deleted; `commands/` now holds dispatch,
-  `attach`, `actions`, `terminal_keys`, `prompt`, `review`, and
+  `attach`, `actions`, `prompt`, `review`, and
   `kill`. The composition root registers `run`/`complete`.
 - The stale `commands.lua` paths in older Agent Notes and `AGENTS.md` are
   updated to their new module; the `prompt_wizard` name is gone (`prompt.run`).

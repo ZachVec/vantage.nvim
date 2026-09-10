@@ -54,8 +54,8 @@ flow-owned ordinary command.
 
 **Command ownership.** `commands/attach.lua` owns `toggle`/`switch`
 plus their shared Agent/Tool selection and Group creation;
-`commands/terminal_keys.lua` installs `cli.win.keys`; `commands/actions.lua`
-maps terminal action tokens to command functions.
+`commands/actions.lua` maps terminal action tokens and installs
+`cli.win.keys`.
 
 ## Alternatives considered
 

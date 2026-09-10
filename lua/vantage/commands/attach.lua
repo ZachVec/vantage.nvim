@@ -3,12 +3,12 @@
 --- `toggle` owns Terminal presence; `switch` owns the attached client's
 --- target. The Agent/Tool rows, Group choice, and creation handoff are local
 --- to this module because both flows are their only consumers.
+local Actions = require("vantage.commands.actions")
 local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
 local Display = require("vantage.frontend.display")
 local Picker = require("vantage.frontend.picker")
 local Terminal = require("vantage.frontend.terminal")
-local TerminalKeys = require("vantage.commands.terminal_keys")
 local Util = require("vantage.util")
 
 local M = {}
@@ -245,7 +245,7 @@ function M.toggle()
       return
     end
     if Terminal.open(attachment.argv) then
-      TerminalKeys.apply(Terminal.buffer)
+      Actions.apply(Terminal.buffer)
     else
       Bridge.kill_view(attachment.view)
     end
