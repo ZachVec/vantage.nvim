@@ -1,11 +1,10 @@
 --- The prompt flow (terminal token): pick a Prompt, render it against the
 --- focused Agent's context, and type it into the Agent's input. The placeholder
 --- vocabulary is the shared contract in `config.PROMPT_PLACEHOLDERS`.
-local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
-local Terminal = require("vantage.frontend.terminal")
+local Send = require("vantage.commands.send")
 local Util = require("vantage.util")
 
 local M = {}
@@ -59,32 +58,34 @@ function M.context(agent)
   return { buf = buf, row = cursor[1], col = cursor[2] + 1, cwd = agent.cwd }
 end
 
---- "@<path>" with `path` relative to `cwd`; absolute when `path` escapes `cwd`.
+--- `path` relative to `cwd`; absolute when `path` escapes `cwd`.
 ---@param cwd string base directory
 ---@param path string absolute file path
 ---@return string
 local function loc_file(cwd, path)
-  return "@" .. Util.relpath(cwd, path)
+  return Util.relpath(cwd, path)
 end
 
 ---@param ctx vantage.PromptCtx
+---@param format vantage.ReferenceFormat
 ---@return string?
-local function resolve_file(ctx)
+local function resolve_file(ctx, format)
   local name = vim.api.nvim_buf_get_name(ctx.buf)
   if name == nil or name == "" then
     return nil
   end
-  return loc_file(ctx.cwd, name)
+  return format(loc_file(ctx.cwd, name), nil)
 end
 
 ---@param ctx vantage.PromptCtx
+---@param format vantage.ReferenceFormat
 ---@return string?
-local function resolve_line(ctx)
+local function resolve_line(ctx, format)
   local name = vim.api.nvim_buf_get_name(ctx.buf)
   if name == nil or name == "" then
     return nil
   end
-  return ("%s :L%d"):format(loc_file(ctx.cwd, name), ctx.row)
+  return format(loc_file(ctx.cwd, name), (":L%d"):format(ctx.row))
 end
 
 --- The name of the treesitter node starting at `row`/`col` (0-based), via the
@@ -152,8 +153,9 @@ end
 
 ---@param ctx vantage.PromptCtx
 ---@param kind "function"|"class"
+---@param format vantage.ReferenceFormat
 ---@return string?
-local function resolve_symbol(ctx, kind)
+local function resolve_symbol(ctx, kind, format)
   local t = textobject(ctx, kind)
   if not t then
     return nil
@@ -163,34 +165,39 @@ local function resolve_symbol(ctx, kind)
     return nil
   end
   local prefix = t.name and ("%s %s "):format(kind, t.name) or (kind .. " ")
-  return ("%s%s :L%d:C%d"):format(prefix, loc_file(ctx.cwd, name), t.row, t.col)
+  local loc = (":L%d:C%d"):format(t.row, t.col)
+  return prefix .. (format(loc_file(ctx.cwd, name), loc) or "")
 end
 
 local resolvers = {
   file = resolve_file,
   line = resolve_line,
-  ["function"] = function(ctx)
-    return resolve_symbol(ctx, "function")
+  ["function"] = function(ctx, format)
+    return resolve_symbol(ctx, "function", format)
   end,
-  ["class"] = function(ctx)
-    return resolve_symbol(ctx, "class")
+  ["class"] = function(ctx, format)
+    return resolve_symbol(ctx, "class", format)
   end,
-  reviews = function(ctx)
-    return Review.render(ctx.cwd)
+  reviews = function(ctx, format)
+    return Review.render(ctx.cwd, format)
   end,
 }
 
---- Render a template against `ctx`. Returns the rendered text, or nil (with
---- the failing placeholder name) when any placeholder resolved empty.
+--- Render a template against `ctx`, spelling every location reference through
+--- `format` (the focused Tool's dialect, defaulting to the plain
+--- `file` and space-joined `loc` form). Returns the rendered text, or nil
+--- (with the failing placeholder name) when any placeholder resolved empty.
 ---@param template string
 ---@param ctx vantage.PromptCtx
+---@param format? vantage.ReferenceFormat
 ---@return string?
 ---@return string?
-function M.render(template, ctx)
+function M.render(template, ctx, format)
+  format = format or Util.reference
   local out = {}
   for _, line in ipairs(vim.split(template, "\n", { plain = true })) do
     local rendered, failed = Util.interpolate(line, PLACEHOLDERS, function(name)
-      return resolvers[name](ctx)
+      return resolvers[name](ctx, format)
     end)
     if rendered == nil then
       return nil, failed
@@ -208,33 +215,20 @@ M.PLACEHOLDERS = PLACEHOLDERS
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local snapshot, err = Bridge.agents(Terminal.pid())
-  if snapshot == nil then
-    Util.warn(err or "failed to read agents")
-    return
-  end
-  local focused = snapshot.focused
+  local focused, err = Send.focused()
   if not focused then
-    Util.warn("no focused agent — use :Vantage toggle first")
+    Util.warn(err or "failed to resolve the focused agent")
     return
   end
   local template = Config.options.prompts[name]
-  local text, failed = M.render(template, M.context(focused))
+  local text, failed = M.render(template, M.context(focused), Send.formatter(focused))
   if text == nil then
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
     return
   end
-  local tool = Config.options.cli.tools[focused.tool]
-  if tool and tool.format then
-    text = tool.format(text)
-    if text == nil or text == "" then
-      Util.warn(("prompt '%s' dropped by its format hook"):format(name))
-      return
-    end
-  end
-  local ok, send_err = Bridge.send(focused, text)
+  local ok, send_err = Send.send(focused, text)
   if not ok then
-    Util.warn(send_err or "failed to send prompt")
+    Util.warn(("prompt '%s': %s"):format(name, send_err or "failed to send"))
     return
   end
   if template:find("{reviews}", 1, true) and Config.options.reviews.clear_on_send then

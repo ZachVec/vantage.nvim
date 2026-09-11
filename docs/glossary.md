@@ -59,12 +59,12 @@ _Avoid_: client, screen, window
 
 ## Terminal action
 
-A named action available only from a keymap inside the Terminal: `toggle`, `switch`, or `prompt`. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick rows through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
 _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
 
-The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, and the Prompt choice — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)` and `pick_plain(...)`; implementations declare exactly two capabilities, `preview` and `command`, and degrade optional capabilities explicitly. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
+The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)`, `pick_multi(spec, opts)`, and `pick_plain(...)`; implementations declare exactly three capabilities, `preview`, `command`, and `multi`, and degrade optional capabilities explicitly — a picker without `multi` renders a multi-selection request as a single choice. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
 
 ## Picker command

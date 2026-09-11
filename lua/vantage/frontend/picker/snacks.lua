@@ -81,7 +81,24 @@ end
 M.capabilities = {
   preview = true,
   command = true,
+  multi = true,
 }
+
+--- The engine's `on_close`: re-enter the terminal the pick opened from, then
+--- hand the close back to the flow.
+---@param terminal_win? integer
+---@param on_close? fun()
+---@return fun()
+local function close_handler(terminal_win, on_close)
+  return function()
+    if terminal_win then
+      restore_terminal_mode(terminal_win)
+    end
+    if on_close then
+      on_close()
+    end
+  end
+end
 
 --- Render a preview-capable pick and bind the flow's neutral commands to both
 --- the snacks input and list surfaces.
@@ -125,9 +142,7 @@ function M.pick(spec, opts)
       return { { item.text, "" } }
     end,
     preview = preview(),
-    on_close = terminal_win and function()
-      restore_terminal_mode(terminal_win)
-    end or nil,
+    on_close = close_handler(terminal_win, opts.on_close),
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -166,6 +181,47 @@ function M.pick(spec, opts)
   pick_opts.win = win
 
   pick(pick_opts)
+  return false
+end
+
+--- Render a multi-selection pick: rows are marked in the list (`<Tab>` by
+--- default) and Enter confirms every marked row, falling back to the row
+--- under the cursor when nothing is marked.
+---@param spec vantage.PickSpec
+---@param opts vantage.PickMultiOpts
+---@return boolean empty
+function M.pick_multi(spec, opts)
+  local terminal_win = terminal_window()
+  local items = spec.items_provider()
+  for _, item in ipairs(items) do
+    item.text = item:format()
+  end
+  if #items == 0 then
+    return true
+  end
+
+  pick({
+    format = function(item)
+      return { { item.text, "" } }
+    end,
+    preview = preview(),
+    on_close = close_handler(terminal_win, opts.on_close),
+    confirm = function(picker)
+      -- `selected` returns copies of the rows, but a deep copy keeps its
+      -- metatable, so the flow-owned row methods survive.
+      local chosen = picker:selected({ fallback = true })
+      picker:close()
+      if #chosen > 0 then
+        vim.schedule(function()
+          opts.on_choices(chosen)
+        end)
+      end
+    end,
+    finder = function()
+      return items
+    end,
+    win = { preview = { wo = NO_PREVIEW_LINENR } },
+  })
   return false
 end
 

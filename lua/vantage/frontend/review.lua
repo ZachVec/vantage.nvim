@@ -194,19 +194,20 @@ end
 ---@param review vantage.Review
 ---@param name string
 ---@param cwd string
----@return string
-local function field(review, name, cwd)
+---@param format vantage.ReferenceFormat
+---@return string? nil when the Tool's formatter dropped a location
+local function field(review, name, cwd, format)
   local path = vim.api.nvim_buf_get_name(review.buf) or ""
   if name == "note" then
     return review.note
   elseif name == "lines" then
-    local range = review.start_row == review.end_row and (":L%d"):format(review.start_row)
+    local loc = review.start_row == review.end_row and (":L%d"):format(review.start_row)
       or (":L%d-%d"):format(review.start_row, review.end_row)
-    return "@" .. Util.relpath(cwd, path) .. " " .. range
+    return format(Util.relpath(cwd, path), loc)
   elseif name == "code" then
     return code_text(review)
   elseif name == "file" then
-    return Util.relpath(cwd, path)
+    return format(Util.relpath(cwd, path), nil)
   elseif name == "start" then
     return tostring(review.start_row)
   elseif name == "end" then
@@ -218,35 +219,42 @@ end
 ---@param review vantage.Review
 ---@param template string
 ---@param cwd string
----@return string
-local function render_item(review, template, cwd)
+---@param format vantage.ReferenceFormat
+---@return string? nil when a location field was dropped
+local function render_item(review, template, cwd, format)
   return Util.interpolate(template, FIELDS, function(name)
-    return field(review, name, cwd)
-  end) or ""
+    return field(review, name, cwd, format)
+  end)
 end
 
 --- Render one review through the configured `item` template (for picker
 --- previews: what you see is what gets sent).
 ---@param review vantage.Review
 ---@param cwd string focused Agent cwd (relativization base)
+---@param format? vantage.ReferenceFormat
 ---@return string
-function M.render_item(review, cwd)
-  return render_item(review, Config.options.reviews.item, cwd)
+function M.render_item(review, cwd, format)
+  return render_item(review, Config.options.reviews.item, cwd, format or Util.reference) or ""
 end
 
---- The `{lines}` location reference for one review (`@<relpath> :L<start>-<end>`).
+--- The `{lines}` location reference for one review, spelled through `format`
+--- (`<relpath>:L<start>-<end>` without a Tool hook).
 ---@param review vantage.Review
 ---@param cwd string
+---@param format? vantage.ReferenceFormat
 ---@return string
-function M.location(review, cwd)
-  return field(review, "lines", cwd)
+function M.location(review, cwd, format)
+  return field(review, "lines", cwd, format or Util.reference) or ""
 end
 
 --- Render every review through the configured `item` template into one
---- string, or nil when there are none (so the prompt skips with a warning).
+--- string, or nil when there are none — or when `format` dropped a location —
+--- so the prompt skips with a warning.
 ---@param cwd string focused Agent cwd (relativization base)
+---@param format? vantage.ReferenceFormat
 ---@return string?
-function M.render(cwd)
+function M.render(cwd, format)
+  format = format or Util.reference
   local reviews = M.collect()
   if #reviews == 0 then
     return nil
@@ -254,7 +262,11 @@ function M.render(cwd)
   local item = Config.options.reviews.item
   local out = {}
   for _, review in ipairs(reviews) do
-    out[#out + 1] = render_item(review, item, cwd)
+    local rendered = render_item(review, item, cwd, format)
+    if rendered == nil then
+      return nil
+    end
+    out[#out + 1] = rendered
   end
   return table.concat(out, "\n")
 end

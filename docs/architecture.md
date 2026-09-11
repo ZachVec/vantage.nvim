@@ -119,11 +119,18 @@ job, `destroy` stops the job and deletes the buffer, and a `TermClose` autocmd
 does the same whenever the client exits. One Terminal per Neovim instance.
 
 **Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
-Commands call `Picker.pick(spec, opts)` or `Picker.pick_plain(...)`; `get()` is
-internal. A picker declares exactly two capabilities:
+Commands call `Picker.pick(spec, opts)`, `Picker.pick_multi(spec, opts)`, or
+`Picker.pick_plain(...)`; `get()` is internal. A picker declares exactly three
+capabilities:
 
 - `preview` — it can render `item:preview()`.
 - `command` — it can bind the flow's picker commands.
+- `multi` — it can confirm several rows at once.
+
+A picker without `multi` renders a multi-selection request as a single choice,
+so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
+optional `commands`/`on_close`; `PickMultiOpts` carries `on_choices` and the
+same optional `on_close`, run whenever the picker closes.
 
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
@@ -138,8 +145,14 @@ ordinary command, not a Picker concept.
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
   Agent/Tool rows, Group choice, creation handoff, and the `<c-g>` scope and
   `<c-x>` kill commands.
-- `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`)
-  to command functions and installs `cli.win.keys` into the terminal buffer.
+- `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
+  lists candidates under the focused Agent's cwd (fd → ripgrep → a Lua walk),
+  renders `<relpath>` references, and sends them through `commands/send.lua`,
+  which runs each reference through the Tool's `format` and joins them with
+  `setup { gather = { join = … } }`.
+- `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`,
+  `files`, `buffers`) to command functions and installs `cli.win.keys` into the
+  terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
   (Tool rows create one) and open the Terminal on it.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
@@ -148,7 +161,8 @@ ordinary command, not a Picker concept.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
 - `:Vantage kill` picks an Agent or Group and kills it.
-- Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`.
+- Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`, `files`,
+  `buffers`.
 
 Creating an Agent from a Tool row resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the
@@ -159,5 +173,9 @@ Terminal's client by the terminal job's pid.
 Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
 registry) and render through `setup { reviews = { item = … } }`; the Prompt
 vocabulary (`{file}`, `{line}`, `{function}`, `{class}`, `{reviews}`) lives in
-`config.lua` as a shared contract, health-checked at startup. Prompt text is
-pasted with bracketed paste and never auto-submits.
+`config.lua` as a shared contract, health-checked at startup. Prompt text and
+gathered references are pasted with bracketed paste and never auto-submit.
+Every location reference — a Prompt's placeholders, each Review's `{lines}` /
+`{file}`, and each gathered row — is spelled by the focused Tool's
+`format(file, loc)` hook (default: `file` and its `loc` suffix separated by a
+space), and `gather.join` decides how gathered references are joined.

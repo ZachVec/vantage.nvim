@@ -4,7 +4,7 @@ describe("vantage.commands.actions", function()
   local Actions = require("vantage.commands.actions")
 
   it("resolves every built-in action token to a function", function()
-    for _, token in ipairs({ "toggle", "switch", "prompt" }) do
+    for _, token in ipairs({ "toggle", "switch", "prompt", "files", "buffers" }) do
       assert.are.equal("function", type(Actions.resolve(token)), token)
     end
   end)

@@ -32,9 +32,13 @@ function M.setup()
     type(impl.capabilities) ~= "table"
     or type(impl.capabilities.preview) ~= "boolean"
     or type(impl.capabilities.command) ~= "boolean"
+    or type(impl.capabilities.multi) ~= "boolean"
     or type(impl.pick) ~= "function"
     or type(impl.pick_plain) ~= "function"
   then
+    error(("vantage: picker '%s' does not implement vantage.PickerImpl"):format(name), 0)
+  end
+  if impl.capabilities.multi and type(impl.pick_multi) ~= "function" then
     error(("vantage: picker '%s' does not implement vantage.PickerImpl"):format(name), 0)
   end
   if impl.requires then
@@ -105,7 +109,33 @@ function M.pick(spec, opts)
   end
   return impl.pick(spec, {
     on_choice = opts.on_choice,
+    on_close = opts.on_close,
     commands = commands,
+  })
+end
+
+--- Render a multi-selection pick through the configured implementation. A
+--- picker without the `multi` capability degrades to a single choice, so the
+--- callback's shape never depends on the capability.
+---@param spec vantage.PickSpec
+---@param opts vantage.PickMultiOpts
+---@return boolean empty
+function M.pick_multi(spec, opts)
+  local impl = get()
+  if type(opts.on_choices) ~= "function" then
+    error("vantage: picker opts.on_choices must be a function", 0)
+  end
+  if impl.capabilities.multi then
+    return impl.pick_multi(spec, {
+      on_choices = opts.on_choices,
+      on_close = opts.on_close,
+    })
+  end
+  return impl.pick(spec, {
+    on_choice = function(item)
+      opts.on_choices({ item })
+    end,
+    on_close = opts.on_close,
   })
 end
 

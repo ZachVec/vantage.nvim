@@ -23,15 +23,34 @@ local function emit(items, cb)
   cb(nil)
 end
 
---- Recover the 1-based item index from a returned entry string.
----@param selected string[]
+--- The numeric prefix exists only to round-trip entries back to items; hide it
+--- from the list with `--with-nth`, the way fzf-lua's own providers do. fzf
+--- still hands the original line to actions, so the round-trip holds. No
+--- `--nth`: fzf evaluates it against the *transformed* line, so `--nth=2..`
+--- would drop the entry's own first field and leave a single-token path with
+--- an empty search scope.
+local PREFIX_HIDDEN = { ["--with-nth"] = "2.." }
+
+--- Recover the 1-based item index from one returned entry string.
+---@param entry string
 ---@return integer?
-local function index_of(selected)
-  local entry = selected and selected[1]
-  if not entry then
-    return nil
-  end
+local function index_of(entry)
   return tonumber(entry:match("^%s*(%d+)%."))
+end
+
+--- Map fzf's returned display strings back to their items, in returned order.
+---@param items table[]
+---@param selected string[]?
+---@return table[]
+local function items_of(items, selected)
+  local out = {}
+  for _, entry in ipairs(selected or {}) do
+    local item = items[index_of(entry) or 0]
+    if item then
+      out[#out + 1] = item
+    end
+  end
+  return out
 end
 
 --- Translate a Neovim key notation into fzf's action name.
@@ -67,6 +86,7 @@ end
 M.capabilities = {
   preview = true,
   command = true,
+  multi = true,
 }
 
 --- Open an fzf_exec picker over `spec` with a live item list and the flow's
@@ -85,7 +105,7 @@ function M.pick(spec, opts)
   end
 
   local function item_of(selected)
-    return state.items[index_of(selected)]
+    return items_of(state.items, selected)[1]
   end
 
   ---@type table<string, any>
@@ -119,9 +139,53 @@ function M.pick(spec, opts)
 
   fzf().fzf_exec(content, {
     prompt = spec.prompt,
+    fzf_opts = PREFIX_HIDDEN,
+    winopts = { on_close = opts.on_close },
     actions = actions,
     preview = function(selected)
       local item = item_of(selected)
+      if not item then
+        return ""
+      end
+      local lines = item:preview()
+      if not lines then
+        return ""
+      end
+      return table.concat(lines, "\n")
+    end,
+  })
+  return false
+end
+
+--- Open an fzf picker with `--multi`: tab marks rows and Enter confirms the
+--- marked set (fzf returns the row under the cursor when nothing is marked).
+---@param spec vantage.PickSpec
+---@param opts vantage.PickMultiOpts
+---@return boolean empty
+function M.pick_multi(spec, opts)
+  local items = spec.items_provider()
+  if #items == 0 then
+    return true
+  end
+
+  fzf().fzf_exec(function(cb)
+    emit(items, cb)
+  end, {
+    prompt = spec.prompt,
+    fzf_opts = vim.tbl_extend("force", { ["--multi"] = true }, PREFIX_HIDDEN),
+    winopts = { on_close = opts.on_close },
+    actions = {
+      ["default"] = function(selected)
+        local chosen = items_of(items, selected)
+        if #chosen > 0 then
+          vim.schedule(function()
+            opts.on_choices(chosen)
+          end)
+        end
+      end,
+    },
+    preview = function(selected)
+      local item = items_of(items, selected)[1]
       if not item then
         return ""
       end

@@ -29,7 +29,9 @@ Frontend never touches tmux directly.
   `vim.ui.select` override the user already has).
 - `fzf-lua` drives `fzf_exec`; because fzf-lua returns display strings, entries
   carry a numeric prefix that round-trips the item index (the scheme fzf-lua's
-  own ui_select shim uses).
+  own ui_select shim uses), hidden from the list with `--with-nth=2..` alone —
+  `--nth` is evaluated against the transformed line and would drop the entry's
+  own first field.
 - `snacks` drives `snacks.picker` with `format = "text"` and an explicit
   `picker:close()` in `confirm`.
 
