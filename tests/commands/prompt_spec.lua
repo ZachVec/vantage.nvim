@@ -36,14 +36,39 @@ describe("vantage.commands.prompt", function()
   it("renders {file} and {line} relative to the agent cwd", function()
     local buf = Helpers.buffer({ "a", "b", "c" }, "/tmp/proj/src/a.lua")
     bufs[#bufs + 1] = buf
-    assert.are.equal("@src/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj")))
-    assert.are.equal("@src/a.lua :L3", Prompt.render("{line}", context(buf, 3, "/tmp/proj")))
+    assert.are.equal("src/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj")))
+    assert.are.equal("src/a.lua :L3", Prompt.render("{line}", context(buf, 3, "/tmp/proj")))
+  end)
+
+  it("spells locations through the Tool's reference formatter", function()
+    local buf = Helpers.buffer({ "a" }, "/tmp/proj/src/a.lua")
+    bufs[#bufs + 1] = buf
+    local seen = {}
+    local format = function(file, loc)
+      seen[#seen + 1] = ("%s|%s"):format(file, tostring(loc))
+      return "@" .. file .. (loc and (" " .. loc) or "")
+    end
+
+    assert.are.equal("@src/a.lua :L1", Prompt.render("{line}", context(buf, 1, "/tmp/proj"), format))
+    assert.are.equal("@src/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj"), format))
+    assert.are.same({ "src/a.lua|:L1", "src/a.lua|nil" }, seen)
+  end)
+
+  it("skips a prompt when the formatter drops a location", function()
+    local buf = Helpers.buffer({ "a" }, "/tmp/proj/src/a.lua")
+    bufs[#bufs + 1] = buf
+
+    local rendered, failed = Prompt.render("{file}", context(buf, 1, "/tmp/proj"), function()
+      return nil
+    end)
+    assert.are.equal(nil, rendered)
+    assert.are.equal("file", failed)
   end)
 
   it("keeps paths absolute when they escape the agent cwd", function()
     local buf = Helpers.buffer({ "a" }, "/elsewhere/a.lua")
     bufs[#bufs + 1] = buf
-    assert.are.equal("@/elsewhere/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj")))
+    assert.are.equal("/elsewhere/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj")))
   end)
 
   it("leaves unknown placeholders literal and fails empty resolvers", function()
@@ -66,10 +91,7 @@ describe("vantage.commands.prompt", function()
     assert.are.equal("reviews", failed)
 
     Review.add(buf, 2, 2, "fix this")
-    assert.are.equal(
-      "Notes:\n@src/a.lua :L2 fix this",
-      Prompt.render("Notes:\n{reviews}", context(buf, 1, "/tmp/proj"))
-    )
+    assert.are.equal("Notes:\nsrc/a.lua :L2 fix this", Prompt.render("Notes:\n{reviews}", context(buf, 1, "/tmp/proj")))
   end)
 
   it("fails {function} and {class} when textobjects are unavailable", function()

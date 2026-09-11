@@ -1,8 +1,10 @@
 --- Configuration and shared types for Vantage.
 
+---@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L`/`:C` suffix in a Tool's dialect
+
 ---@class vantage.Tool A launch command (name -> cmd array).
 ---@field cmd string[]
----@field format? fun(text: string): string per-Agent text transform before sending a prompt
+---@field format? vantage.ReferenceFormat per-Agent reference dialect; without it a reference is `file` plus a space-separated `loc`
 
 ---@class vantage.Agent A running coding-agent process.
 ---@field id string opaque Driver identity
@@ -44,6 +46,9 @@
 ---@field clear_on_send boolean clear after a sent prompt contains {reviews}
 ---@field float vantage.ReviewFloatConfig
 
+---@class vantage.GatherConfig
+---@field join string separator between gathered references ("\n" = one per line, " " = one line)
+
 ---@class vantage.NoteOpts Options for the editable-note UI (vantage.frontend.note).
 ---@field text string
 ---@field title? string
@@ -59,6 +64,7 @@
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
 ---@field reviews vantage.ReviewConfig
+---@field gather vantage.GatherConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
 ---@class vantage.PickSpec The selection contract passed to a picker
@@ -81,7 +87,14 @@
 
 ---@class vantage.PickOpts
 ---@field on_choice fun(item: any)
+---@field on_close? fun() run when the picker closes, whether chosen or cancelled
 ---@field commands? vantage.PickerCommand[]
+
+---@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
+--- without the `multi` capability degrades to one choice, so `on_choices`
+--- always receives a list of at least one item.
+---@field on_choices fun(items: any[])
+---@field on_close? fun() run when the picker closes, whether chosen or cancelled
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
 --- (`pick_plain`), mirroring `vim.ui.select`'s opts.
@@ -91,6 +104,7 @@
 ---@class vantage.PickerCapabilities
 ---@field preview boolean
 ---@field command boolean
+---@field multi boolean
 
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
 --- snacks) rendering every Vantage selection on its own engine. The command
@@ -99,6 +113,7 @@
 ---@field requires? string optional runtime module dependency
 ---@field capabilities vantage.PickerCapabilities
 ---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
+---@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local M = {}
@@ -131,7 +146,8 @@ local defaults = {
   --- the focused Agent through the {reviews} prompt placeholder.
   reviews = {
     --- Per-review template rendered for each review inside {reviews}.
-    --- Fields: {note} (the text), {lines} (`@<relpath> :L<start>-<end>`),
+    --- Fields: {note} (the text), {lines} (`<relpath>:L<start>-<end>`,
+    --- spelled through the Tool's `format` hook)
     --- {code} (the selected lines), and {file}/{start}/{end} as building blocks.
     item = "{lines} {note}",
     --- Clear every review after a prompt containing {reviews} is typed into
@@ -145,12 +161,23 @@ local defaults = {
       style = "inherit",
     },
   },
+  --- The gather flow (`files`/`buffers`): every selected reference runs
+  --- through the focused Tool's `format` hook, then the results are joined
+  --- with `join` and typed into the Agent's input.
+  gather = {
+    --- Separator between references: "\n" puts one per line, " " keeps them
+    --- on one line.
+    join = "\n",
+  },
   cli = {
     --- Launch commands offered when creating an Agent (name -> cmd array).
     --- Empty by default: provide your own; invalid entries are dropped at
     --- setup with a warning.
-    --- A tool may also carry a `format` function, applied to a rendered prompt
-    --- just before it is sent to the Agent.
+    --- A tool may also carry a `format(file, loc)` function: it renders every
+    --- location reference a Prompt or the `files`/`buffers` terminal actions
+    --- produce, deciding the dialect. `file` is a path relative to the Agent's
+    --- cwd (absolute when it escapes) and `loc` the `:L`/`:C` suffix, nil for a
+    --- whole-file reference.
     tools = {},
     --- The persistent :terminal window that is the tmux client.
     win = {

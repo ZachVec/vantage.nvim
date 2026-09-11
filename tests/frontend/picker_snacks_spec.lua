@@ -59,4 +59,36 @@ describe("vantage.frontend.picker.snacks", function()
     captured.actions.vantage_command_1(picker, items[1])
     assert.are.equal("agent row", items[1].text)
   end)
+
+  it("confirms every marked row for a multi pick", function()
+    local chosen
+    local empty = Snacks.pick_multi({
+      prompt = "pick",
+      items_provider = function()
+        return items
+      end,
+    }, {
+      on_choices = function(rows)
+        chosen = rows
+      end,
+    })
+
+    assert.is_false(empty)
+    assert.is_not_nil(captured)
+    assert.are.equal("agent row", captured.finder()[1].text)
+
+    local picker = {
+      selected = function()
+        return vim.deepcopy(items)
+      end,
+      close = function() end,
+    }
+    captured.confirm(picker)
+    vim.wait(500, function()
+      return chosen ~= nil
+    end)
+
+    assert.are.equal(1, #chosen)
+    assert.are.equal("agent row", chosen[1]:format())
+  end)
 end)

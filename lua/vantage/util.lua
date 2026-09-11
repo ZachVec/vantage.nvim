@@ -7,11 +7,12 @@ M.picker_prompt = vim.fn.nr2char(0xF105)
 
 --- Run a command synchronously via vim.system.
 ---@param cmd string[]
+---@param opts? { cwd?: string }
 ---@return integer code
 ---@return string stdout
 ---@return string stderr
-function M.run(cmd)
-  local process = vim.system(cmd, { text = true })
+function M.run(cmd, opts)
+  local process = vim.system(cmd, { text = true, cwd = opts and opts.cwd or nil })
   local result = process:wait()
   return result.code or 0, result.stdout or "", result.stderr or ""
 end
@@ -85,6 +86,18 @@ function M.relpath(cwd, path)
     return rel
   end
   return path
+end
+
+--- The plain reference spelling, used when a Tool defines no `format` hook:
+--- the path and its `:L`/`:C` suffix joined by a space (`src/a.lua :L42`).
+---@param file string path relative to the Agent cwd, or absolute
+---@param loc? string `:L`/`:C` position suffix; nil for a whole-file reference
+---@return string
+function M.reference(file, loc)
+  if loc then
+    return file .. " " .. loc
+  end
+  return file
 end
 
 --- Fold $HOME into ~ for display.

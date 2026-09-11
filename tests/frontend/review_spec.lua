@@ -94,8 +94,19 @@ describe("vantage.frontend.review", function()
     local single = Review.add(buf, 2, 2, "")
     local range = Review.add(buf, 3, 4, "")
 
-    assert.are.equal("@one.lua :L2", Review.location(single, "/tmp/proj"))
-    assert.are.equal("@one.lua :L3-4", Review.location(range, "/tmp/proj"))
+    assert.are.equal("one.lua :L2", Review.location(single, "/tmp/proj"))
+    assert.are.equal("one.lua :L3-4", Review.location(range, "/tmp/proj"))
+  end)
+
+  it("spells locations through the Tool's reference formatter", function()
+    local buf = named_buffer("/tmp/proj/one.lua", { "a", "b" })
+    Review.add(buf, 2, 2, "note")
+    local format = function(file, loc)
+      return "@" .. file .. (loc and (" " .. loc) or "")
+    end
+
+    assert.are.equal("@one.lua :L2", Review.location(Review.collect()[1], "/tmp/proj", format))
+    assert.are.equal("@one.lua :L2 note", Review.render("/tmp/proj", format))
   end)
 
   it("renders the configured item template with every field", function()
@@ -104,7 +115,7 @@ describe("vantage.frontend.review", function()
     local review = Review.add(buf, 1, 4, "todo")
 
     assert.are.equal(
-      "@src/one.lua :L1-4 todo | src/one.lua 1-4 | first\n\nthird",
+      "src/one.lua :L1-4 todo | src/one.lua 1-4 | first\n\nthird",
       Review.render_item(review, "/tmp/proj")
     )
   end)
@@ -115,7 +126,7 @@ describe("vantage.frontend.review", function()
     Review.add(one, 2, 2, "A")
     Review.add(two, 1, 1, "B")
 
-    assert.are.equal("@proj/a.lua :L2 A\n@proj/b.lua :L1 B", Review.render("/tmp"))
+    assert.are.equal("proj/a.lua :L2 A\nproj/b.lua :L1 B", Review.render("/tmp"))
     Review.clear()
     assert.are.equal(nil, Review.render("/tmp"))
   end)

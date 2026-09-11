@@ -8,6 +8,11 @@ describe("vantage.util", function()
     assert.are.equal(vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p")), Util.cwd())
   end)
 
+  it("spells the plain reference form", function()
+    assert.are.equal("src/a.lua", Util.reference("src/a.lua", nil))
+    assert.are.equal("src/a.lua :L42", Util.reference("src/a.lua", ":L42"))
+  end)
+
   describe("interpolate", function()
     local allowed = { name = true, file = true }
 

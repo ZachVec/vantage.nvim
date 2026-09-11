@@ -62,6 +62,23 @@ items are baked into the command when the picker opens).
 `fzf_exec` returns the display string, not the original item. Recover the item
 with a numeric-prefix round-trip (`"1. text"` and parse the leading index), and
 keep that items array in sync with the content across reloads (mutable state).
+The prefix does not have to be visible: `--with-nth=2..` hides it from the list
+and fzf still hands actions the original line. Do NOT pair it with
+`--nth=2..`: fzf evaluates `--nth` against the *transformed* line, so the
+entry loses its prefix and `--nth=2..` then drops the entry's own first
+field. A single-token path such as `src/main.lua` is left with an empty search
+scope, and any query empties the list — `printf '1. src/main.lua\n' | fzf
+--with-nth=2.. --nth=2.. --filter=main` matches nothing while the same command
+without `--nth` matches.
+
+### Window options — including `on_close` — live under `winopts`
+
+`fzf_exec(contents, opts)` takes picker-level options (`prompt`, `actions`,
+`preview`, `fzf_opts`) at the top level, but every window option lives under
+`opts.winopts` — fzf-lua's own providers set `opts.winopts.on_close` (see
+`providers/colorschemes.lua`). A top-level `on_close` is **silently ignored**:
+the flow's handler never runs and nothing errors, so only a real fzf session
+can tell you it is wrong.
 
 ### Consecutive pickers over a terminal race during teardown
 

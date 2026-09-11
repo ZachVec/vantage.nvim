@@ -31,7 +31,9 @@ code.
 through `reviews.item` (default `"{lines} {note}"`) and returns nil when there
 are none. It is a built-in identity prompt and is hidden while there are no
 Reviews. The item template fields are `{note}`, `{lines}`
-(`@<relpath> :L<start>-<end>`), `{code}`, `{file}`, `{start}`, and `{end}`.
+(`<relpath>:L<start>-<end>`, spelled through the Tool's `format` hook — see
+[the Tool format hook note](2026-09-11-tool-format-location-hook.md)),
+`{code}`, `{file}`, `{start}`, and `{end}`.
 After a successful send containing `{reviews}`, `reviews.clear_on_send`
 (default true) clears them.
 

@@ -19,6 +19,12 @@ local ACTIONS = {
   prompt = function()
     require("vantage.commands.prompt").run()
   end,
+  files = function()
+    require("vantage.commands.gather").files()
+  end,
+  buffers = function()
+    require("vantage.commands.gather").buffers()
+  end,
 }
 
 --- Resolve a cli.win.keys rhs: a string naming a built-in action becomes that

@@ -28,7 +28,7 @@ describe("vantage.init", function()
     assert.are.equal(2, vim.fn.exists(":Vantage"))
     assert.are.equal("tmux", Config.options.backend)
     assert.is_true(pcall(Driver.get))
-    assert.are.same({ preview = false, command = false }, Picker.capabilities())
+    assert.are.same({ preview = false, command = false, multi = false }, Picker.capabilities())
   end)
 
   it("fails fast before installing command side effects", function()

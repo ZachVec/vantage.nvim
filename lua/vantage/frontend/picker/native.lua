@@ -6,6 +6,7 @@ local M = {}
 M.capabilities = {
   preview = false,
   command = false,
+  multi = false,
 }
 
 --- Render a spec's items with vim.ui.select. Commands are ignored because
@@ -26,6 +27,9 @@ function M.pick(spec, opts)
   }, function(item)
     if item then
       opts.on_choice(item)
+    end
+    if opts.on_close then
+      opts.on_close()
     end
   end)
   return false
