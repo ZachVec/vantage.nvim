@@ -22,7 +22,6 @@ different Agents in the same Group.
 
 - Neovim >= 0.10
 - tmux 3.0+
-- nvim-treesitter-textobjects (optional; for `{function}` / `{class}` prompts)
 
 ==============================================================================
 3. INSTALLATION                                *vantage.nvim-installation*
@@ -96,7 +95,7 @@ A Tool needs a non-empty name, a non-empty `cmd`, and an executable first
 element. Invalid entries are reported by `:checkhealth vantage`. The Agent
 working directory is Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`). A Tool may
 also define `format(file, loc)`, the reference formatter: `file` is a path
-relative to the Agent's cwd (absolute when it escapes) and `loc` the `:L`/`:C`
+relative to the Agent's cwd (absolute when it escapes) and `loc` the `:L`
 position suffix, or nil for a whole-file reference.
 
 PROMPTS ~
@@ -108,15 +107,12 @@ placeholders are:
 
   `{file}`         `path/to/file.lua`
   `{line}`         `path/to/file.lua :L42`
-  `{function}`     `function foo path/to/file.lua :L42:C3`
-  `{class}`        `class Foo path/to/file.lua :L42:C3`
   `{reviews}`      all Reviews rendered through `reviews.item`
 
 Locations are spelled by the focused Tool's `format` hook; without one the path
-and its `:L`/`:C` suffix are joined by a space.
+and its `:L` suffix are joined by a space.
 
-`{function}` and `{class}` require nvim-treesitter-textobjects. The
-`{reviews}` prompt is hidden while there are no Reviews.
+The `{reviews}` prompt is hidden while there are no Reviews.
 
 FILES AND BUFFERS ~
 

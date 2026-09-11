@@ -30,8 +30,6 @@ Adopt a snacks.nvim-style headless suite:
   server in teardown. It never touches the user's default `vantage` socket.
   It covers create/list/groups/status/health/attach/same-Group retarget/
   no-client cross-Group failure/capture/send_keys/kill.
-- `prompt_spec` does not install `nvim-treesitter-textobjects`; it pins the
-  absent-plugin failure contract for `{function}`/`{class}` only.
 - `make test` is standalone: it is not wired into `make check`, and no CI
   workflow is added in this change.
 - One edge bug found while writing the suite is fixed in the same change:

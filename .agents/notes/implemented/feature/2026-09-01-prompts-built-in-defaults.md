@@ -35,7 +35,8 @@ the built-in, and names left unset are kept.
 `{function}` and `{class}` are not built in either: they need the optional
 nvim-treesitter-textobjects plugin, and shipping them would make every default
 install without it report a `:checkhealth` warning and skip those prompts at
-runtime. They remain available as placeholders in user templates.
+  runtime. They were [later removed entirely](../simplification/2026-09-11-remove-function-class-prompt-placeholders.md),
+so the vocabulary is exactly the three built-in names.
 
 Because `prompts` can no longer be empty, the "no prompts configured" warning
 in `:Vantage prompt` and the "prompts: none configured" `:checkhealth` branch
@@ -54,8 +55,8 @@ only prompts that can be "correct" for everyone out of the box.
 
 They require nvim-treesitter-textobjects. A built-in set should keep a minimal
 install (Neovim + tmux) warning-free; a default that emits a `checkhealth`
-warning for everyone without an optional plugin is noise. The placeholders stay
-usable in user templates, which is where that dependency is expected.
+warning for everyone without an optional plugin is noise. They stayed usable
+  in user templates until they were [removed from the vocabulary altogether](../simplification/2026-09-11-remove-function-class-prompt-placeholders.md).
 
 ### Why not replace-all merge?
 
@@ -80,4 +81,6 @@ has no value for a pure-text, opt-in feature, so a `false` sentinel or a
 - `prompts` is never empty, so `:Vantage prompt` always has entries and the
   empty-state warning/report are gone from `commands/prompt.lua` and `health.lua`.
 - Defaults use only `{file}` and `{line}`, so a zero-config install reports a
-  clean `:checkhealth` and never needs nvim-treesitter-textobjects.
+  clean `:checkhealth`; after the
+  [removal note](../simplification/2026-09-11-remove-function-class-prompt-placeholders.md),
+  no prompt needs nvim-treesitter-textobjects at all.

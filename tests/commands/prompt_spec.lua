@@ -9,7 +9,7 @@ describe("vantage.commands.prompt", function()
   local bufs = {}
 
   local function context(buf, row, cwd)
-    return { buf = buf, row = row, col = 1, cwd = cwd }
+    return { buf = buf, row = row, cwd = cwd }
   end
 
   setup(function()
@@ -92,15 +92,5 @@ describe("vantage.commands.prompt", function()
 
     Review.add(buf, 2, 2, "fix this")
     assert.are.equal("Notes:\nsrc/a.lua :L2 fix this", Prompt.render("Notes:\n{reviews}", context(buf, 1, "/tmp/proj")))
-  end)
-
-  it("fails {function} and {class} when textobjects are unavailable", function()
-    local buf = Helpers.buffer({ "local x = 1" }, "/tmp/proj/a.lua")
-    bufs[#bufs + 1] = buf
-    for _, placeholder in ipairs({ "function", "class" }) do
-      local rendered, failed = Prompt.render("{" .. placeholder .. "}", context(buf, 1, "/tmp/proj"))
-      assert.are.equal(nil, rendered)
-      assert.are.equal(placeholder, failed)
-    end
   end)
 end)

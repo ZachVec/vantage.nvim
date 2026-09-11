@@ -79,7 +79,7 @@ _Avoid_: command, template
 
 ## Prompt
 
-A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — plus `{reviews}`, and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`, `{function}`, `{class}`) or the accumulated Reviews (`{reviews}`) before being sent.
+A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — plus `{reviews}`, and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`) or the accumulated Reviews (`{reviews}`) before being sent.
 _Avoid_: snippet
 
 ## Review
