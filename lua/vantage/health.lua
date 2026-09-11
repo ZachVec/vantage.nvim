@@ -6,27 +6,16 @@ local ok = vim.health.ok or vim.health.report_ok
 local warn = vim.health.warn or vim.health.report_warn
 local err = vim.health.error or vim.health.report_error
 
---- True when the Lua module `mod` (dots as separators) is on the runtimepath,
---- without loading it.
-local function module_available(mod)
-  local path = mod:gsub("%.", "/")
-  return #vim.api.nvim_get_runtime_file(("lua/%s.lua"):format(path), false) > 0
-    or #vim.api.nvim_get_runtime_file(("lua/%s/init.lua"):format(path), false) > 0
-end
-
 --- Validate configured prompt placeholders (name -> template).
 local function check_prompts()
   local prompts = require("vantage.config").options.prompts or {}
   local known = require("vantage.config").PROMPT_PLACEHOLDERS
   local unknown = {}
-  local uses_symbol = false
   for _, template in pairs(prompts) do
     if type(template) == "string" then
       for token in template:gmatch("{([%w_]+)}") do
         if not known[token] then
           unknown[token] = true
-        elseif token == "function" or token == "class" then
-          uses_symbol = true
         end
       end
     end
@@ -40,9 +29,6 @@ local function check_prompts()
     err(("prompts: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
   else
     ok("prompts: all placeholders known")
-  end
-  if uses_symbol and not module_available("nvim-treesitter-textobjects.shared") then
-    warn("prompts use {function}/{class} but nvim-treesitter-textobjects is not installed")
   end
 end
 

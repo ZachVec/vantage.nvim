@@ -89,9 +89,9 @@ function M.relpath(cwd, path)
 end
 
 --- The plain reference spelling, used when a Tool defines no `format` hook:
---- the path and its `:L`/`:C` suffix joined by a space (`src/a.lua :L42`).
+--- the path and its `:L` suffix joined by a space (`src/a.lua :L42`).
 ---@param file string path relative to the Agent cwd, or absolute
----@param loc? string `:L`/`:C` position suffix; nil for a whole-file reference
+---@param loc? string `:L` position suffix; nil for a whole-file reference
 ---@return string
 function M.reference(file, loc)
   if loc then

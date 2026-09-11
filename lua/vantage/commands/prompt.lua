@@ -12,7 +12,6 @@ local M = {}
 ---@class vantage.PromptCtx
 ---@field buf integer context buffer
 ---@field row integer 1-based cursor row
----@field col integer 1-based cursor column
 ---@field cwd string focused Agent cwd (relativization base)
 
 --- Known placeholder names. Anything else is left literal (health flags it).
@@ -55,7 +54,7 @@ function M.context(agent)
   local win = context_window()
   local buf = vim.api.nvim_win_get_buf(win)
   local cursor = vim.api.nvim_win_get_cursor(win)
-  return { buf = buf, row = cursor[1], col = cursor[2] + 1, cwd = agent.cwd }
+  return { buf = buf, row = cursor[1], cwd = agent.cwd }
 end
 
 --- `path` relative to `cwd`; absolute when `path` escapes `cwd`.
@@ -88,96 +87,9 @@ local function resolve_line(ctx, format)
   return format(loc_file(ctx.cwd, name), (":L%d"):format(ctx.row))
 end
 
---- The name of the treesitter node starting at `row`/`col` (0-based), via the
---- field/identifier heuristic sidekick uses.
----@param buf integer
----@param row integer 0-based
----@param col integer 0-based
----@return string?
-local function node_name(buf, row, col)
-  local node = vim.treesitter.get_node({ bufnr = buf, pos = { row, col } })
-  if not node then
-    return nil
-  end
-  for _, field in ipairs({ "name", "identifier", "field" }) do
-    local name_node = node:field(field)[1]
-    if name_node then
-      local text = vim.treesitter.get_node_text(name_node, buf)
-      if text and #text > 0 then
-        return text
-      end
-    end
-  end
-  for child in node:iter_children() do
-    if child:type():match("identifier") then
-      local text = vim.treesitter.get_node_text(child, buf)
-      if text and #text > 0 then
-        return text
-      end
-    end
-  end
-  return nil
-end
-
---- The enclosing `@<kind>.outer` textobject at the cursor, or nil when the
---- textobjects plugin/query is unavailable or the cursor is not inside one.
----@param ctx vantage.PromptCtx
----@param kind "function"|"class"
----@return { name?: string, row: integer, col: integer }?
-local function textobject(ctx, kind)
-  if not vim.api.nvim_buf_is_valid(ctx.buf) then
-    return nil
-  end
-  local ok, shared = pcall(require, "nvim-treesitter-textobjects.shared")
-  if not ok then
-    return nil
-  end
-  local ok_parser, parser = pcall(vim.treesitter.get_parser, ctx.buf)
-  if not ok_parser or not parser then
-    return nil
-  end
-  parser:parse()
-  local lang = parser:lang()
-  if not vim.treesitter.query.get(lang, "textobjects") then
-    return nil
-  end
-  local success, range =
-    pcall(shared.textobject_at_point, ("@%s.outer"):format(kind), "textobjects", ctx.buf, { ctx.row, ctx.col })
-  if not success or not range then
-    return nil
-  end
-  -- Range6 is 0-based [start_row, start_col, start_byte, end_row, end_col, end_byte].
-  local name = node_name(ctx.buf, range[1], range[2])
-  return { name = name, row = range[1] + 1, col = range[2] + 1 }
-end
-
----@param ctx vantage.PromptCtx
----@param kind "function"|"class"
----@param format vantage.ReferenceFormat
----@return string?
-local function resolve_symbol(ctx, kind, format)
-  local t = textobject(ctx, kind)
-  if not t then
-    return nil
-  end
-  local name = vim.api.nvim_buf_get_name(ctx.buf)
-  if name == nil or name == "" then
-    return nil
-  end
-  local prefix = t.name and ("%s %s "):format(kind, t.name) or (kind .. " ")
-  local loc = (":L%d:C%d"):format(t.row, t.col)
-  return prefix .. (format(loc_file(ctx.cwd, name), loc) or "")
-end
-
 local resolvers = {
   file = resolve_file,
   line = resolve_line,
-  ["function"] = function(ctx, format)
-    return resolve_symbol(ctx, "function", format)
-  end,
-  ["class"] = function(ctx, format)
-    return resolve_symbol(ctx, "class", format)
-  end,
   reviews = function(ctx, format)
     return Review.render(ctx.cwd, format)
   end,

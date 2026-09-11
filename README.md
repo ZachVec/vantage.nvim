@@ -7,7 +7,6 @@ dsh, …) in tmux and shows them in a single persistent `:terminal`.
 
 - Neovim ≥ 0.10
 - tmux 3.0+
-- [nvim-treesitter-textobjects](https://github.com/nvim-treesitter/nvim-treesitter-textobjects) (optional; for `{function}` / `{class}` prompts)
 
 ## Install
 
@@ -95,7 +94,7 @@ The Agent working directory is Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`).
 
 A tool may also define `format(file, loc)`, the reference formatter: `file` is
 a path relative to the Agent's cwd (absolute when it escapes) and `loc` the
-`:L`/`:C` position suffix, or nil for a whole-file reference.
+`:L` position suffix, or nil for a whole-file reference.
 
 ### Prompts
 
@@ -107,15 +106,12 @@ a prompt and types it into the focused Agent without submitting.
 |-------------|------------|
 | `{file}` | `path/to/file.lua` |
 | `{line}` | `path/to/file.lua :L42` |
-| `{function}` | `function foo path/to/file.lua :L42:C3` |
-| `{class}` | `class Foo path/to/file.lua :L42:C3` |
 | `{reviews}` | all Reviews rendered with `reviews.item` |
 
 Locations are spelled by the focused tool's `format` hook; without one the
-path and its `:L`/`:C` suffix are joined by a space.
+path and its `:L` suffix are joined by a space.
 
-`{function}` and `{class}` require nvim-treesitter-textobjects. The
-`{reviews}` prompt is hidden when there are no Reviews.
+The `{reviews}` prompt is hidden when there are no Reviews.
 
 ```lua
 prompts = {

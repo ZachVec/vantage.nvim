@@ -172,7 +172,7 @@ Terminal's client by the terminal job's pid.
 
 Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
 registry) and render through `setup { reviews = { item = … } }`; the Prompt
-vocabulary (`{file}`, `{line}`, `{function}`, `{class}`, `{reviews}`) lives in
+vocabulary (`{file}`, `{line}`, `{reviews}`) lives in
 `config.lua` as a shared contract, health-checked at startup. Prompt text and
 gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /

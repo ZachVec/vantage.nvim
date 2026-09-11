@@ -1,6 +1,6 @@
 --- Configuration and shared types for Vantage.
 
----@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L`/`:C` suffix in a Tool's dialect
+---@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L` suffix in a Tool's dialect
 
 ---@class vantage.Tool A launch command (name -> cmd array).
 ---@field cmd string[]
@@ -134,9 +134,8 @@ local defaults = {
   --- references and the accumulated Reviews are always available. The
   --- {reviews} prompt is hidden when there are no Reviews. User prompts merge
   --- additively: a name you set overrides the built-in, and names you leave
-  --- unset are kept. Templates may use the placeholders {file}, {line},
-  --- {function}, {class}, and {reviews}, rendered relative to the focused
-  --- Agent's cwd.
+  --- unset are kept. Templates may use the placeholders {file}, {line}, and
+  --- {reviews}, rendered relative to the focused Agent's cwd.
   prompts = {
     ["{file}"] = "{file}",
     ["{line}"] = "{line}",
@@ -176,7 +175,7 @@ local defaults = {
     --- A tool may also carry a `format(file, loc)` function: it renders every
     --- location reference a Prompt or the `files`/`buffers` terminal actions
     --- produce, deciding the dialect. `file` is a path relative to the Agent's
-    --- cwd (absolute when it escapes) and `loc` the `:L`/`:C` suffix, nil for a
+    --- cwd (absolute when it escapes) and `loc` the `:L` position suffix, nil for a
     --- whole-file reference.
     tools = {},
     --- The persistent :terminal window that is the tmux client.
@@ -205,8 +204,6 @@ M.options = vim.deepcopy(defaults)
 M.PROMPT_PLACEHOLDERS = {
   file = true,
   line = true,
-  ["function"] = true,
-  ["class"] = true,
   reviews = true,
 }
 

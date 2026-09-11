@@ -24,11 +24,12 @@ The Tool's hook is `format(file, loc)`, the reference formatter:
   whole-file reference.
 - The return is the reference text; nil or "" gives up on that reference.
 
-Vantage composes everything around the hook — template prose, the
-`function foo ` prefix, Review notes — and spells every location through it:
+Vantage composes everything around the hook — template prose, Review notes —
+and spells every location through it:
 
-- `{file}`, `{line}`, `{function}`, and `{class}`, with `loc` nil, `:L<row>`,
-  and `:L<row>:C<col>` respectively;
+- `{file}` and `{line}`, with `loc` nil and `:L<row>` respectively (the
+  `{function}`/`{class}` pair that once produced `:L<row>:C<col>` was
+  [removed](../simplification/2026-09-11-remove-function-class-prompt-placeholders.md));
 - each Review's `{lines}` and `{file}` inside `reviews.item`;
 - every gathered `files`/`buffers` row (path only, `loc` nil), joined with
   `setup { gather = { join = … } }`.

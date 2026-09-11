@@ -20,8 +20,8 @@ single source of truth.
 
 ### Why not a shared placeholders module?
 
-A five-element vocabulary table does not warrant its own module; `prompt.lua` is
-the natural owner because it already defines and consumes the placeholders.
+A three-element vocabulary table does not warrant its own module; `prompt.lua`
+is the natural owner because it already defines and consumes the placeholders.
 
 ## Consequences
 
