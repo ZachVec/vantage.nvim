@@ -16,7 +16,7 @@ pressing `<c-x>` did nothing while the Review list's `<c-x>` still deleted.
 ## Decision
 
 `commands/attach.lua` carries `<c-x>` as a flow-owned picker command beside
-`<c-g>`: it kills the current entry's Agent through `Bridge.kill_agent` and
+`<c-g>`: it kills the current entry's Agent through `Backend.kill_agent` and
 returns true, so the picker re-reads `items_provider` in place and closes when
 the list empties. Entry scope is the archived decision's: the pinned
 `(focused)` entry — the Agent the Terminal is attached to — and Tool entries are
@@ -58,7 +58,7 @@ surface across two mechanisms.
   `docs/architecture.md` and the
   [refactor note](../architecture/2026-09-09-layered-frontend-backend-refactor.md)
   name the command.
-- The kill path is the same `Bridge.kill_agent` the kill flow uses; no
+- The kill path is the same `Backend.kill_agent` the kill flow uses; no
   backend, config, or Driver change.
 
 ## Verification

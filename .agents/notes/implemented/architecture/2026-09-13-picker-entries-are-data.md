@@ -43,7 +43,7 @@ each returning a per-kind class declared beside it for the type checker — an
 entry is a plain table with no metatable at runtime. Each builder binds the
 preview for its kind, next to the text and the fields that kind carries; those
 preview functions are module-level, so an entry references one shared function
-instead of allocating a closure. An Agent preview goes through the Bridge,
+instead of allocating a closure. An Agent preview goes through the Backend,
 which makes `entries.lua` the first Frontend module to import the Backend — the
 direction the Frontend's own definition already describes.
 
@@ -71,7 +71,7 @@ per-entry allocation.
 ### Why not compute previews eagerly as `preview: string[]?`?
 
 Listing a directory would read the first 200 lines of every file, and opening
-the Agent list would run one `Bridge.capture` — a tmux command — per Agent.
+the Agent list would run one `Backend.capture` — a tmux command — per Agent.
 Both are currently paid once per highlight, and `entry.preview` is what keeps
 that true.
 

@@ -14,10 +14,10 @@
 ---@field view string
 ---@field argv string[]
 
----@class vantage.Driver The multiplexer contract behind the Bridge.
+---@class vantage.Driver The multiplexer contract behind the Backend's public surface.
 ---@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
 ---@field agents fun(): vantage.Agent[]?, string?
----@field client_window fun(pid: integer): string?, string?
+---@field focus fun(pid: integer): vantage.Agent?, string?
 ---@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
 ---@field attach fun(agent: vantage.Agent): vantage.Attachment?, string?
 ---@field kill_view fun(view: string): boolean, string?
@@ -41,7 +41,7 @@ local REGISTRY = {
 local REQUIRED = {
   "create",
   "agents",
-  "client_window",
+  "focus",
   "retarget",
   "attach",
   "kill_view",

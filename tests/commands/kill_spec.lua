@@ -4,14 +4,14 @@ local Helpers = require("helpers")
 
 describe("vantage.commands.kill", function()
   local Kill
-  local bridge
+  local backend
   local captured_spec
   local captured_opts
 
   setup(function()
     Helpers.reload_vantage()
-    bridge = { killed_agents = {}, killed_groups = {} }
-    function bridge.inventory()
+    backend = { killed_agents = {}, killed_groups = {} }
+    function backend.inventory()
       return {
         agents = {
           { group = "a", id = "@1", seq = 1, tool = "codex", cwd = "/a" },
@@ -21,16 +21,16 @@ describe("vantage.commands.kill", function()
       },
         nil
     end
-    function bridge.kill_agent(agent)
-      bridge.killed_agents[#bridge.killed_agents + 1] = agent.id
+    function backend.kill_agent(agent)
+      backend.killed_agents[#backend.killed_agents + 1] = agent.id
       return true, nil
     end
-    function bridge.kill_group(group)
-      bridge.killed_groups[#bridge.killed_groups + 1] = group
+    function backend.kill_group(group)
+      backend.killed_groups[#backend.killed_groups + 1] = group
       return true, nil
     end
 
-    package.loaded["vantage.backend.bridge"] = bridge
+    package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = {
       pick = function(spec, opts)
         captured_spec = spec
@@ -64,8 +64,8 @@ describe("vantage.commands.kill", function()
     for _, entry in ipairs(items) do
       captured_opts.on_choice(entry)
     end
-    assert.are.same({ "@1", "@4" }, bridge.killed_agents)
-    assert.are.same({ "a", "b" }, bridge.killed_groups)
+    assert.are.same({ "@1", "@4" }, backend.killed_agents)
+    assert.are.same({ "a", "b" }, backend.killed_groups)
   end)
 
   it("warns the read's reason instead of the empty list message", function()
@@ -74,7 +74,7 @@ describe("vantage.commands.kill", function()
     vim.notify = function(msg)
       notified[#notified + 1] = msg
     end
-    bridge.inventory = function()
+    backend.inventory = function()
       return nil, "no server running"
     end
 

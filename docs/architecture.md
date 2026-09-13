@@ -1,6 +1,6 @@
 # Vantage Architecture
 
-A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a [Bridge](glossary.md#bridge) over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
+A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
 
 Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
 
@@ -11,7 +11,7 @@ lua/vantage/
 ├── init.lua            composition root: apply config, resolve, install
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
-├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
+├── backend/            init.lua + driver/ (registry, tmux, resources/tmux)
 ├── frontend/           terminal, entries, note, review, picker/
 └── commands/           dispatch + flows (attach, gather, kill, prompt, review)
 ```
@@ -40,7 +40,7 @@ graph; a module that imports against it fails the gate.
   and the `:Vantage` command.
 - `commands` — orchestrates flows and imports `frontend/`, `backend/`, its own
   pieces, and shared modules.
-- `frontend` — imports `backend/` (through the Bridge) and its own pieces.
+- `frontend` — imports `backend/` and its own pieces.
 - `backend` — imports only shared modules.
 - `shared` — `config.lua` and `util.lua`, importable by every category and
   importing nothing but itself. It is a dependency-checking category, not a
@@ -117,10 +117,14 @@ whitelist):
   failures roll back the partial Agent.
 - `agents()` → `Agent[], nil` or `nil, err`: the live inventory in creation
   order. A missing server reads as an empty inventory, not as an error.
-- `client_window(pid)` → `window, nil`, `nil, nil`, or `nil, err`: the window
-  the client with that pid displays, as the Driver's own opaque id. No client
-  with that pid is `nil, nil` (a normal answer); a missing server is `nil` plus
-  the reason, so "no Terminal client" and "nothing is running" stay distinct.
+- `focus(pid)` → `agent, nil`, `nil, FOCUS_NO_CLIENT`, `nil, FOCUS_NO_FOCUS`,
+  or `nil, err`: the [Focus](glossary.md#focus) — the Agent the client with
+  that pid displays. One multiplexer query reads the client's current window
+  and that window's Agent fields together, so the window id never needs
+  matching against a second inventory read. A pid with no live client and a
+  client whose window is not an Agent are normal answers (`FOCUS_NO_CLIENT`,
+  `FOCUS_NO_FOCUS`); a missing server is `nil` plus the reason, so "no Terminal
+  client" and "nothing is running" stay distinct.
 - `retarget(pid, agent)` → `true` or `false, err`; same-Group switching selects
   a window in the client's own View, while cross-Group switching creates a
   fresh View, moves the client, and destroys the old View.
@@ -135,28 +139,29 @@ whitelist):
   `status()` → `{ clients, sessions }, nil` or `nil, err`;
   `health()` → health-check records.
 
-The Driver returns errors and never notifies the user. The Bridge passes
+The Driver returns errors and never notifies the user. The Backend passes
 results through; command flows decide how to report them.
 
-**Bridge** (`backend/bridge.lua`) is the Frontend's only door to the Backend:
-`inventory()`, `focus(pid?)`, `client_window(pid)`, `create`, `retarget(pid,
-agent)`, `send(agent, text)`, `capture(agent)`, `attach(agent)`,
-`kill_view(view)`, `kill_agent`, `kill_group`, `status`. It holds no state and
-does no UI; the prompt flow resolves the Focus and renders templates, then
-hands the Bridge the final text.
+`backend/init.lua` is the Frontend's only door to the Backend:
+`inventory()`, `focus(pid?)`, `create`, `retarget(pid, agent)`, `send(agent,
+text)`, `capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
+`kill_group`, `status`. It holds no state and does no UI; the prompt flow
+resolves the Focus and renders templates, then hands the Backend the final text.
 
 The two reads are separate because they answer different questions.
 `inventory()` returns the flat Agent list plus the Groups derived from it (each
 Group once, in the Agents' order) and never reads the clients, so a caller that
 does not care what the Terminal shows — the kill flow, the Group prompt — does
 not pay for the extra multiplexer query. `focus(pid)` is the [Focus](glossary.md#focus)
-read: it matches `client_window(pid)` against the inventory and returns the
-Agent, or `nil` plus one of the reasons in `config.lua` (`FOCUS_NO_TERMINAL`,
-`FOCUS_NO_CLIENT`, `FOCUS_NO_FOCUS`, `FOCUS_SERVER_DOWN`) or the Driver's own
-error. Callers report that string as-is; nothing branches on which reason it
-is, so the reasons are messages rather than a cause vocabulary. The Bridge
-never reaches for the Terminal's pid itself: the command layer passes it in,
-keeping the Backend from importing the Frontend.
+read: the Driver answers it in one query — the client's current window and that
+window's Agent fields together — and the Backend adds only the "no Terminal at
+all" case before the Driver is consulted. It returns the Agent, or `nil` plus
+one of the reasons in `config.lua` (`FOCUS_NO_TERMINAL`, `FOCUS_NO_CLIENT`,
+`FOCUS_NO_FOCUS`) or the Driver's own error. Callers report that string as-is;
+nothing branches on which reason it is, so the reasons are messages rather than
+a cause vocabulary. The Backend never reaches for the Terminal's pid itself:
+the command layer passes it in, keeping the Backend from importing the
+Frontend.
 
 A Tool's reference spelling is configuration, not Backend state:
 `Config.apply()` gives every surviving `cli.tools` entry a `format` (defaulting

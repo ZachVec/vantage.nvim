@@ -41,7 +41,7 @@ path under `shared`.
 
 A types-only file is a new kind of file here — nothing requires it — and the
 dependency verifier would file it under `shared` by default. It would also have
-to own contracts with no single layer: `vantage.Agent` is read by the Bridge,
+to own contracts with no single layer: `vantage.Agent` is read by the Backend,
 the tmux Driver, `frontend/entries.lua`, and three flows. The file would be a
 drawer, not a home.
 
@@ -70,5 +70,5 @@ contract, not the copies of the verb list.
 - `config.lua` holds the option table, its validation, and the reference
   spelling.
 - The Driver's verb list still appears in `driver/init.lua` (the type and
-  `REQUIRED`), `bridge.lua`'s forwards, and the conformance test — but the pair
+  `REQUIRED`), `backend/init.lua`'s forwards, and the conformance test — but the pair
   that must agree now sits in one file.

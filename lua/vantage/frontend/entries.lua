@@ -5,7 +5,7 @@
 --- entry, so a pane capture or a file read happens per highlight, never per
 --- entry. Each builder binds the preview for its kind; the functions are
 --- module-level, so no entry carries a closure of its own.
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Review = require("vantage.frontend.review")
 local Util = require("vantage.util")
 
@@ -68,7 +68,7 @@ end
 ---@param entry vantage.picker.AgentEntry
 ---@return string[]?
 local function agent_preview(entry)
-  local lines, err = Bridge.capture(entry.agent)
+  local lines, err = Backend.capture(entry.agent)
   if lines == nil then
     return { err or "failed to capture agent" }
   end

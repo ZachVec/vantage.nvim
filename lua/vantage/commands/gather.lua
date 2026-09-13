@@ -2,7 +2,7 @@
 --- files or buffers through the Picker and type their `<relpath>` references
 --- into the focused Agent's input through the shared send path. References
 --- are bare paths — the Tool's `format` hook owns the dialect decoration.
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
 local Picker = require("vantage.frontend.picker")
@@ -118,7 +118,7 @@ local SOURCES = {
 --- focused Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local agent, err = Bridge.focus(Terminal.pid())
+  local agent, err = Backend.focus(Terminal.pid())
   if not agent then
     Util.warn(err or "no focused agent")
     return
@@ -146,7 +146,7 @@ local function run(source)
         end
         refs[#refs + 1] = ref
       end
-      local ok, send_err = Bridge.send(agent, table.concat(refs, Config.options.gather.join) .. " ")
+      local ok, send_err = Backend.send(agent, table.concat(refs, Config.options.gather.join) .. " ")
       if not ok then
         Util.warn(send_err or "failed to send references")
       end

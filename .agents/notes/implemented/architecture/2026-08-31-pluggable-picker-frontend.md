@@ -22,7 +22,7 @@ selected via `setup { picker = … }` (default `native`).
 Flow-owned modules (`commands/attach.lua`, `commands/kill.lua`,
 `commands/review.lua`) build entries and preview content; implementations own
 only rendering, choice recovery, and the engine-specific binding of neutral
-Picker commands. Preview content reaches the Backend through the Bridge, so the
+Picker commands. Preview content reaches the Backend, so the
 Frontend never touches tmux directly. An entry's shape is one shared vocabulary
 ([picker entries are data](2026-09-13-picker-entries-are-data.md)).
 

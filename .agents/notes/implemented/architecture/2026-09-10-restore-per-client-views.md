@@ -22,7 +22,7 @@ Restore the tmux session-group model:
   the Anchor. The View is marked `@vantage-view 1`; its current window is
   independent from every other client's View.
 - `Driver.attach(agent)` creates a fresh View, selects the target Agent in it,
-  and returns `{ view, argv }`. `Bridge.attach(agent)` exposes that record to
+  and returns `{ view, argv }`. `Backend.attach(agent)` exposes that record to
   the Terminal flow; `kill_view(view)` cleans up a View when the terminal job
   cannot start.
 - Same-Group `retarget(pid, agent)` selects the Agent window in the client's
@@ -31,7 +31,7 @@ Restore the tmux session-group model:
   attached directly to an Anchor is migrated to a View before switching.
 - A global `client-detached` hook destroys a View when its client exits, so
   Views never accumulate. `kill_group` destroys the Anchor and every View.
-- `Bridge.focus(pid)` still derives the Focus from the client's current
+- `Backend.focus(pid)` still derives the Focus from the client's current
   window; with Views that window is per-client, so the Frontend stores no
   focus state.
 

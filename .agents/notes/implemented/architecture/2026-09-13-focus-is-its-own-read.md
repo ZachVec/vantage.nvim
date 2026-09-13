@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-`Bridge.agents(pid)` answered two different questions with one return value:
+`Backend.agents(pid)` answered two different questions with one return value:
 the live Agent inventory, and which Agent the Terminal's client is showing. The
 pid was therefore optional, and each caller had to know which half it wanted:
 
@@ -24,21 +24,19 @@ reader, and `frontend/review.lua` spelled the default form on its own).
 ## Decision
 
 **One read per question.** The Driver exposes `agents()` (the inventory, in
-creation order; a missing server reads as empty) and `client_window(pid)` (the
-window that client displays, as the Driver's own opaque id; no client with that
-pid is `nil, nil`, a missing server is `nil` plus the reason). `snapshot(pid)`
-is gone. The Bridge composes them:
+creation order; a missing server reads as empty) and `focus(pid)` (the Focus,
+answered in one query; a missing server is `nil` plus the reason).
+`snapshot(pid)` is gone. The split is:
 
-- `Bridge.inventory()` → `{ agents, groups }`: Groups derived from the Agents,
+- `Backend.inventory()` → `{ agents, groups }`: Groups derived from the Agents,
   each once, in the Agents' order. It never reads clients, so the kill flow and
   the Group prompt do not pay for a client query.
-- `Bridge.focus(pid?)` → `Agent?, string?`: the Focus. `nil` comes with the
-  reason — `Config.FOCUS_NO_TERMINAL`, `FOCUS_NO_CLIENT`, `FOCUS_NO_FOCUS`, or
-  the Driver's own error. Callers report that string as-is; nothing branches on
-  which reason it is, so the reasons stay messages rather than a cause
-  vocabulary.
-- `Bridge.client_window(pid)` passes the window read through for callers that
-  need the raw fact.
+- `Backend.focus(pid?)` → `Agent?, string?`: the Focus. `nil` comes with the
+  reason — `Config.FOCUS_NO_TERMINAL` (the Backend's own "no Terminal" case,
+  which short-circuits before the Driver), `FOCUS_NO_CLIENT`, `FOCUS_NO_FOCUS`
+  (the Driver's), or the Driver's own error. Callers report that string as-is;
+  nothing branches on which reason it is, so the reasons stay messages rather
+  than a cause vocabulary.
 
 The command layer passes the pid in (`Terminal.pid()`); the Backend never
 reaches for it, which keeps `frontend → backend` one-way.
@@ -55,7 +53,7 @@ hook" case any more; the spelling itself has one owner
 `commands/gather.lua` owns its own loop (spell each chosen path, join with
 `setup { gather = { join = … } }`, paste with a trailing space, drop the whole
 send when the hook drops one reference), and the other flows read the Focus and
-the Tool spelling through the Bridge and `Config`.
+the Tool spelling through the Backend and `Config`.
 
 **Focus is a term.** `docs/glossary.md` defines it: the Agent this Neovim
 instance's Terminal is showing, derived on every read, never stored.
@@ -86,10 +84,10 @@ came from the same instant — the reasoning in
 [shared-interpolation-and-backend-snapshot](../../archived/architecture/2026-09-07-shared-interpolation-and-backend-snapshot.md).
 What it cost was an interface where the pid was optional and the return value
 mixed two answers, so every caller re-derived its own half. The split is
-cheaper for the inventory-only callers (`kill`, the Group prompt), and the two
-reads a Focus costs are the same two queries the combined read ran. The
-caller-side simplification is worth the lost instant-coherence: the Focus and
-the row list are already a live view that can change under the picker.
+cheaper for the inventory-only callers (`kill`, the Group prompt), and a Focus
+costs one query instead of the combined read's two. The caller-side
+simplification is worth the lost instant-coherence: the Focus and the row list
+are already a live view that can change under the picker.
 
 ### Why not return a cause constant instead of a message?
 
@@ -104,8 +102,9 @@ change can promote the reasons to a typed shape.
 
 The fact being read — which tmux window a client displays — is multiplexer
 state, and the Backend already owns every other read of it. A Frontend module
-composing `Terminal.pid()` with two Bridge calls would move the matching rule
-out of the Backend and give the Frontend a reason to know about window ids.
+composing `Terminal.pid()` with the multiplexer's client read would move the
+matching rule out of the Backend and give the Frontend a reason to know about
+window ids.
 
 ### Why not give `Config.apply` a `formatter` concept instead of defaulting `format`?
 
@@ -118,6 +117,10 @@ only place it is applied.
 
 - One Focus read for every flow; no flow carries its own "no focused agent"
   check or message.
+- The Focus read moved from a Backend composition of `client_window(pid)` and
+  `agents()` to a single native Driver `focus(pid)` query
+  ([focus-is-one-driver-read](2026-09-13-focus-is-one-driver-read.md)); the
+  split into `inventory` and a separate Focus read is unchanged.
 - `commands/` contains only `init.lua` and flows; the shared send path is gone.
 - The reference-spelling default is configuration, resolved once at setup.
 - `vantage.Driver` has 12 verbs; the conformance list in

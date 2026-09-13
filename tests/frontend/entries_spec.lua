@@ -6,7 +6,7 @@ describe("vantage.frontend.entries", function()
   local Config
   local Entries
   local Review
-  local bridge
+  local backend
   local tmp
   local bufs = {}
 
@@ -43,15 +43,15 @@ describe("vantage.frontend.entries", function()
   setup(function()
     Helpers.reload_vantage()
     Config = require("vantage.config")
-    bridge = { captured = {} }
-    function bridge.capture(target)
-      bridge.captured[#bridge.captured + 1] = target.id
-      if bridge.capture_err then
-        return nil, bridge.capture_err
+    backend = { captured = {} }
+    function backend.capture(target)
+      backend.captured[#backend.captured + 1] = target.id
+      if backend.capture_err then
+        return nil, backend.capture_err
       end
       return { "pane line" }, nil
     end
-    package.loaded["vantage.backend.bridge"] = bridge
+    package.loaded["vantage.backend"] = backend
     Review = require("vantage.frontend.review")
     Review.setup()
     Entries = require("vantage.frontend.entries")
@@ -63,8 +63,8 @@ describe("vantage.frontend.entries", function()
   end)
 
   before_each(function()
-    bridge.captured = {}
-    bridge.capture_err = nil
+    backend.captured = {}
+    backend.capture_err = nil
     Config.options.reviews.item = "{lines} {note}"
     tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
@@ -118,9 +118,9 @@ describe("vantage.frontend.entries", function()
     local entry = Entries.agent(agent())
 
     assert.are.same({ "pane line" }, entry:preview())
-    assert.are.same({ "@1" }, bridge.captured)
+    assert.are.same({ "@1" }, backend.captured)
 
-    bridge.capture_err = "no server running"
+    backend.capture_err = "no server running"
     assert.are.same({ "no server running" }, entry:preview())
   end)
 

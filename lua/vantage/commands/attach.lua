@@ -4,7 +4,7 @@
 --- target. The Agent/Tool entries, Group choice, and creation handoff are
 --- local to this module because both flows are their only consumers.
 local Actions = require("vantage.commands.actions")
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
 local Picker = require("vantage.frontend.picker")
@@ -24,7 +24,7 @@ local PROMPT = Util.picker_prompt
 --- exist. The continuation is asynchronous.
 ---@param after fun(group: string)
 local function ask_group(after)
-  local inventory, err = Bridge.inventory()
+  local inventory, err = Backend.inventory()
   if inventory == nil then
     Util.warn(err or "failed to read agents")
     return
@@ -104,12 +104,12 @@ local function spec(pid, state)
   return {
     prompt = PROMPT,
     items_provider = function()
-      local inventory, err = Bridge.inventory()
+      local inventory, err = Backend.inventory()
       if inventory == nil then
         return {}, err
       end
       -- The Focus is a second read: the inventory never carries it.
-      local focused, _ = Bridge.focus(pid)
+      local focused, _ = Backend.focus(pid)
       state.focused = focused
       local items = build_items(inventory.agents, focused)
       if state.group_on and focused then
@@ -140,7 +140,7 @@ local function kill_agent(ctx)
     return false
   end
   ---@cast entry vantage.picker.AgentEntry
-  local ok, err = Bridge.kill_agent(entry.agent)
+  local ok, err = Backend.kill_agent(entry.agent)
   if not ok then
     Util.warn(err or "failed to kill agent")
     return false
@@ -166,7 +166,7 @@ local function pick(after, pid)
       end
       ---@cast entry vantage.picker.ToolEntry
       ask_group(function(group)
-        local agent, err = Bridge.create({ group = group, tool = entry.name, cwd = Util.cwd() })
+        local agent, err = Backend.create({ group = group, tool = entry.name, cwd = Util.cwd() })
         if not agent then
           Util.warn(err or "failed to create agent")
           return
@@ -202,7 +202,7 @@ end
 --- start, so a failed open leaves no session behind.
 ---@param agent vantage.Agent
 local function open_on(agent)
-  local attachment, err = Bridge.attach(agent)
+  local attachment, err = Backend.attach(agent)
   if not attachment then
     Util.warn(err or "failed to create terminal attachment")
     return
@@ -210,7 +210,7 @@ local function open_on(agent)
   if Terminal.open(attachment.argv) then
     Actions.apply(Terminal.buffer)
   else
-    Bridge.kill_view(attachment.view)
+    Backend.kill_view(attachment.view)
   end
 end
 
@@ -231,7 +231,7 @@ function M.switch()
   end
 
   pick(function(agent)
-    local ok, err = Bridge.retarget(pid, agent)
+    local ok, err = Backend.retarget(pid, agent)
     if not ok then
       Util.warn(err or "failed to switch agent")
     end

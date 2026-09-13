@@ -10,16 +10,16 @@ The copy could drift after an external tmux change or a retarget.
 
 ## Decision
 
-`Bridge.focus(pid)` returns the Agent currently shown by the client whose
+`Backend.focus(pid)` returns the Agent currently shown by the client whose
 terminal job has `pid`, or `nil` plus the reason. The Focus is derived on every
 read from the client's live window and the live inventory; the Frontend stores
 no domain focus state. The shape of that read is owned by
 [focus-is-its-own-read](2026-09-13-focus-is-its-own-read.md).
 
-`commands/attach.lua` reads `Bridge.inventory()` plus `Bridge.focus(pid)` for
+`commands/attach.lua` reads `Backend.inventory()` plus `Backend.focus(pid)` for
 the pinned Focus row and the group-scope command; `commands/prompt.lua`,
 `commands/gather.lua`, and `commands/review.lua` resolve their target through
-`Bridge.focus(pid)`.
+`Backend.focus(pid)`.
 
 ## Alternatives considered
 

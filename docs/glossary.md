@@ -34,22 +34,17 @@ _Avoid_: status
 
 ## Backend
 
-The plugin's Lua domain layer that owns Agent state and lifecycle logic and drives a terminal multiplexer. It is a Bridge over a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
+The plugin's Lua domain layer that owns Agent state and lifecycle logic and drives a terminal multiplexer through a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
 _Avoid_: api, server
-
-## Bridge
-
-The Backend's public surface that the Frontend consumes: domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`, `status`) and the entity lists built above them. It holds no state, knows no UI, and passes Driver results/errors through; every multiplexer detail is left to the Driver.
-_Avoid_: service, orchestrator
 
 ## Driver
 
-A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
+A concrete multiplexer implementation behind the Backend — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
 _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend through the Bridge; the Backend never imports the Frontend.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend; the Backend never imports the Frontend.
 _Avoid_: client, ui
 
 ## Terminal

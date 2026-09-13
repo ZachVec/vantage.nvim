@@ -1,7 +1,7 @@
 --- The prompt flow (terminal token): pick a Prompt, render it against the
 --- focused Agent's context, and type it into the Agent's input. The placeholder
 --- vocabulary is this module's own resolvers: one per known placeholder.
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
@@ -129,7 +129,7 @@ end
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local focused, err = Bridge.focus(Terminal.pid())
+  local focused, err = Backend.focus(Terminal.pid())
   if not focused then
     Util.warn(err or "no focused agent")
     return
@@ -140,7 +140,7 @@ local function send_prompt(name)
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
     return
   end
-  local ok, send_err = Bridge.send(focused, text)
+  local ok, send_err = Backend.send(focused, text)
   if not ok then
     Util.warn(("prompt '%s': %s"):format(name, send_err or "failed to send"))
     return

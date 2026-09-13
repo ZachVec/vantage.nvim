@@ -17,7 +17,7 @@ and flows own their items. Vantage also picked through a single-choice contract
 Two Terminal actions, `files` and `buffers`, owned by `commands/gather.lua`.
 Each lists candidates for the focused Agent's cwd, renders them as
 `<relpath>` references, and types them into the Agent's input through the
-Bridge — bracketed paste, no auto-submit, references joined with
+Backend — bracketed paste, no auto-submit, references joined with
 `setup { gather = { join = … } }` (default one per line), a trailing space
 after the last one, and no trailing newline.
 

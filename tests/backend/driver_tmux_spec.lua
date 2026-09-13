@@ -47,16 +47,11 @@ describe("vantage.backend.driver.tmux", function()
     return nil
   end
 
-  --- The Agent the client with `pid` displays, composed the way the Bridge
-  --- composes it: the client's window id matched against the inventory.
+  --- The Agent the client with `pid` displays: the Driver's own Focus read.
   ---@param pid integer
   ---@return vantage.Agent?
   local function focused_agent(pid)
-    local window = Backend.client_window(pid)
-    if not window then
-      return nil
-    end
-    return find_agent(window)
+    return Backend.focus(pid)
   end
 
   local function create(group, tag, cmd)
@@ -111,9 +106,9 @@ describe("vantage.backend.driver.tmux", function()
     assert.are.equal("tmux", vim.split(Backend.health()[1].message, " ", { plain = true })[1])
   end)
 
-  it("reports a missing server as a reason for a client window, not as a silent miss", function()
-    local window, window_err = Backend.client_window(123456789)
-    assert.are.equal(nil, window)
+  it("reports a missing server as a reason for a Focus read, not as a silent miss", function()
+    local agent, window_err = Backend.focus(123456789)
+    assert.are.equal(nil, agent)
     -- tmux says either "no server running" or "error connecting to <socket>".
     assert.is_not_nil(window_err)
     assert.is_true(
@@ -124,19 +119,33 @@ describe("vantage.backend.driver.tmux", function()
     assert.are.same({}, Backend.agents())
   end)
 
-  it("reports no window, and no error, for a pid the running server has no client for", function()
+  it("reports no focused agent when the server has no client for the pid", function()
     create("g-noclient", "codex") -- starts the server, so list-clients exits 0
 
-    local window, err = Backend.client_window(123456789)
-    assert.are.equal(nil, window)
-    assert.are.equal(nil, err)
+    local agent, reason = Backend.focus(123456789)
+    assert.are.equal(nil, agent)
+    assert.are.equal(Config.FOCUS_NO_CLIENT, reason)
+  end)
+
+  it("reports no focused agent when the client is not on an Agent window", function()
+    create("g-plain", "codex") -- starts the server
+    tmux("new-session", "-d", "-s", "plain-window")
+    local job = vim.fn.jobstart({ "tmux", "-L", socket, "attach-session", "-t", "plain-window" }, { pty = true })
+    assert.is_true(job > 0)
+    local pid = vim.fn.jobpid(job)
+
+    assert.is_true(wait_until(function()
+      local agent, reason = Backend.focus(pid)
+      return agent == nil and reason == Config.FOCUS_NO_FOCUS
+    end, 3000))
+    vim.fn.jobstop(job)
   end)
 
   it("implements the vantage.Driver surface", function()
     for _, name in ipairs({
       "create",
       "agents",
-      "client_window",
+      "focus",
       "retarget",
       "attach",
       "kill_view",

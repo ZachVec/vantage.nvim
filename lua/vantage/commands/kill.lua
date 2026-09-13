@@ -1,6 +1,6 @@
 --- The kill flow (`:Vantage kill`): pick an Agent or Group and kill it.
 --- The entry's `kind` says which of the two the flow kills.
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Entries = require("vantage.frontend.entries")
 local Picker = require("vantage.frontend.picker")
 local Util = require("vantage.util")
@@ -16,7 +16,7 @@ local function spec()
   return {
     prompt = PROMPT,
     items_provider = function()
-      local inventory, err = Bridge.inventory()
+      local inventory, err = Backend.inventory()
       if inventory == nil then
         return {}, err
       end
@@ -49,10 +49,10 @@ end
 local function kill(entry)
   if entry.kind == "group" then
     ---@cast entry vantage.picker.GroupEntry
-    return Bridge.kill_group(entry.group)
+    return Backend.kill_group(entry.group)
   end
   ---@cast entry vantage.picker.AgentEntry
-  return Bridge.kill_agent(entry.agent)
+  return Backend.kill_agent(entry.agent)
 end
 
 function M.run()

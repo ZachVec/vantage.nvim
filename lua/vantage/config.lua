@@ -132,13 +132,12 @@ local defaults = {
 M.options = vim.deepcopy(defaults)
 
 --- Why a Focus read came back empty, for the flows that warn about it. The
---- Bridge returns one of these as the second value of `focus(pid)`; callers
---- only report it, so the shapes are messages rather than a cause vocabulary
---- nobody branches on.
+--- Backend answers "no terminal" itself and the Driver answers the client and
+--- window reasons; callers only report them, so the shapes are messages rather
+--- than a cause vocabulary nobody branches on.
 M.FOCUS_NO_TERMINAL = "no terminal"
 M.FOCUS_NO_CLIENT = "no client for this terminal"
 M.FOCUS_NO_FOCUS = "no focused agent"
-M.FOCUS_SERVER_DOWN = "the vantage tmux server is not running"
 
 --- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),
 --- surfaced by :checkhealth.

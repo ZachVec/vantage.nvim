@@ -1,5 +1,5 @@
---- The Bridge: the Backend's public surface consumed by the Frontend. Pure
---- data and domain verbs over the Driver; it holds no state and knows no UI.
+--- The Backend's public surface: pure data and domain verbs over the pluggable
+--- Driver, consumed by the Frontend. Holds no state, knows no UI.
 local Config = require("vantage.config")
 local Driver = require("vantage.backend.driver")
 local Util = require("vantage.util")
@@ -27,19 +27,11 @@ function M.inventory()
   return { agents = agents, groups = groups }, nil
 end
 
---- The window the client with `pid` displays, matched against the inventory by
---- the caller (the id's format is the Driver's business).
----@param pid integer the terminal job's pid
----@return string?
----@return string?
-function M.client_window(pid)
-  return Driver.get().client_window(pid)
-end
-
 --- The Agent the Terminal (job pid) is currently showing: the Focus. Nil with
 --- a reason when there is none — no Terminal at all, a Terminal whose client is
 --- gone, or a client that is not on an Agent window. Read it fresh; it is never
---- stored.
+--- stored. "No Terminal at all" is the Frontend's own fact, so it short-circuits
+--- before the Driver; the Driver answers the multiplexer half in one query.
 ---@param pid? integer the terminal job's pid
 ---@return vantage.Agent?
 ---@return string?
@@ -47,23 +39,7 @@ function M.focus(pid)
   if pid == nil then
     return nil, Config.FOCUS_NO_TERMINAL
   end
-  local window, err = Driver.get().client_window(pid)
-  if err then
-    return nil, err
-  end
-  if not window then
-    return nil, Config.FOCUS_NO_CLIENT
-  end
-  local agents, agents_err = Driver.get().agents()
-  if not agents then
-    return nil, agents_err or Config.FOCUS_SERVER_DOWN
-  end
-  for _, agent in ipairs(agents) do
-    if agent.id == window then
-      return agent, nil
-    end
-  end
-  return nil, Config.FOCUS_NO_FOCUS
+  return Driver.get().focus(pid)
 end
 
 --- Create an Agent from a Tool entry: resolve the tool to its command, then

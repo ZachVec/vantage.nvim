@@ -5,7 +5,7 @@ local Helpers = require("helpers")
 describe("vantage.commands.attach", function()
   local Config
   local Attach
-  local bridge
+  local backend
   local picker
   local terminal
   local actions
@@ -86,15 +86,15 @@ describe("vantage.commands.attach", function()
       { group = "a", cwd = "/a", tool = "zeta", id = "@3", seq = 3, cmd = "zeta" },
       { group = "a", cwd = "/a", tool = "zeta", id = "@1", seq = 1, cmd = "zeta" },
     }
-    bridge = { created = {}, captured = {}, retargeted = nil, killed = {} }
-    function bridge.inventory()
+    backend = { created = {}, captured = {}, retargeted = nil, killed = {} }
+    function backend.inventory()
       return {
         agents = vim.deepcopy(agent_fixture),
         groups = { "a", "z" },
       }, nil
     end
-    function bridge.focus(pid)
-      -- The real Bridge answers "no terminal" for a nil pid; the flows under
+    function backend.focus(pid)
+      -- The real Backend answers "no terminal" for a nil pid; the flows under
       -- test only consume the Agent.
       if pid == nil then
         return nil, Config.FOCUS_NO_TERMINAL
@@ -104,27 +104,27 @@ describe("vantage.commands.attach", function()
       end
       return focused, nil
     end
-    function bridge.capture(agent)
-      bridge.captured[#bridge.captured + 1] = agent.id
+    function backend.capture(agent)
+      backend.captured[#backend.captured + 1] = agent.id
       return { "line" }, nil
     end
-    function bridge.create(opts)
-      bridge.created[#bridge.created + 1] = opts
+    function backend.create(opts)
+      backend.created[#backend.created + 1] = opts
       return { group = opts.group, tool = opts.tool, id = "@9", seq = 9 }, nil
     end
-    function bridge.attach(agent)
+    function backend.attach(agent)
       return { view = "view-1", argv = { "attach", agent.id } }, nil
     end
-    function bridge.kill_view(view)
-      bridge.killed_view = view
+    function backend.kill_view(view)
+      backend.killed_view = view
       return true, nil
     end
-    function bridge.retarget(pid, agent)
-      bridge.retargeted = { pid = pid, id = agent.id }
+    function backend.retarget(pid, agent)
+      backend.retargeted = { pid = pid, id = agent.id }
       return true, nil
     end
-    function bridge.kill_agent(agent)
-      bridge.killed[#bridge.killed + 1] = agent.id
+    function backend.kill_agent(agent)
+      backend.killed[#backend.killed + 1] = agent.id
       return true, nil
     end
 
@@ -163,7 +163,7 @@ describe("vantage.commands.attach", function()
     end
 
     actions = { applied = nil }
-    package.loaded["vantage.backend.bridge"] = bridge
+    package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = picker
     package.loaded["vantage.frontend.terminal"] = terminal
     package.loaded["vantage.commands.actions"] = {
@@ -180,11 +180,11 @@ describe("vantage.commands.attach", function()
 
   before_each(function()
     focused = nil
-    bridge.created = {}
-    bridge.captured = {}
-    bridge.retargeted = nil
-    bridge.killed_view = nil
-    bridge.killed = {}
+    backend.created = {}
+    backend.captured = {}
+    backend.retargeted = nil
+    backend.killed_view = nil
+    backend.killed = {}
     captured_spec = nil
     captured_opts = nil
     command_capable = true
@@ -249,7 +249,7 @@ describe("vantage.commands.attach", function()
 
     assert.are.same({ "line" }, entries[1]:preview())
     assert.are.equal(nil, items[#items]:preview())
-    assert.are.same({ "@1" }, bridge.captured)
+    assert.are.same({ "@1" }, backend.captured)
   end)
 
   it("creates the agent in the group chosen for a Tool entry", function()
@@ -258,8 +258,8 @@ describe("vantage.commands.attach", function()
 
     Attach.toggle()
 
-    assert.are.equal("zeta", bridge.created[1].tool)
-    assert.are.equal("z", bridge.created[1].group)
+    assert.are.equal("zeta", backend.created[1].tool)
+    assert.are.equal("z", backend.created[1].group)
     assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
 
@@ -270,7 +270,7 @@ describe("vantage.commands.attach", function()
 
     Attach.toggle()
 
-    assert.are.same({}, bridge.created)
+    assert.are.same({}, backend.created)
     assert.are.equal(nil, terminal.opened)
   end)
 
@@ -282,7 +282,7 @@ describe("vantage.commands.attach", function()
     Attach.toggle()
 
     assert.is_true(vim.endswith(tool.text, "zeta")) -- Tool entries sort by name
-    assert.are.equal("zeta", bridge.created[1].tool)
+    assert.are.equal("zeta", backend.created[1].tool)
     assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
 
@@ -290,7 +290,7 @@ describe("vantage.commands.attach", function()
     picker.auto_select = true
     Attach.switch()
 
-    assert.are.same({ pid = 42, id = "@1" }, bridge.retargeted)
+    assert.are.same({ pid = 42, id = "@1" }, backend.retargeted)
   end)
 
   it("kills a non-focused agent entry in place with <c-x>", function()
@@ -299,7 +299,7 @@ describe("vantage.commands.attach", function()
     local entry = items[2]
 
     assert.is_true(command_for("<C-x>")[2]({ item = entry, items = items }))
-    assert.are.same({ entry.agent.id }, bridge.killed)
+    assert.are.same({ entry.agent.id }, backend.killed)
   end)
 
   it("ignores <c-x> on the pinned focused entry and Tool entries", function()
@@ -309,7 +309,7 @@ describe("vantage.commands.attach", function()
 
     assert.is_false(command({ item = items[1], items = items }))
     assert.is_false(command({ item = items[#items], items = items }))
-    assert.are.same({}, bridge.killed)
+    assert.are.same({}, backend.killed)
   end)
 
   it("toggle opens the terminal and installs keys when no terminal exists", function()
@@ -326,7 +326,7 @@ describe("vantage.commands.attach", function()
     vim.notify = function(msg)
       notified[#notified + 1] = msg
     end
-    bridge.inventory = function()
+    backend.inventory = function()
       return nil, "no server running"
     end
 

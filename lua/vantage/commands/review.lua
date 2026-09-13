@@ -1,6 +1,6 @@
 --- The `:Vantage review` command and its sub-actions (add / list / clear):
 --- notes anchored to line ranges, batched through {reviews}.
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
 local Note = require("vantage.frontend.note")
@@ -18,7 +18,7 @@ local PROMPT = Util.picker_prompt
 --- renders the entry.
 ---@return string?
 local function focused_tool()
-  local agent = Bridge.focus(Terminal.pid())
+  local agent = Backend.focus(Terminal.pid())
   return agent and agent.tool
 end
 
