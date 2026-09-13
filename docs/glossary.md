@@ -82,6 +82,11 @@ _Avoid_: action, keybinding
 A named launch command (`name` → `cmd` array) offered when creating an Agent. Configured under `cli.tools`.
 _Avoid_: command, template
 
+## Reference
+
+A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered row. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it.
+_Avoid_: path, link, location string, 引用
+
 ## Prompt
 
 A named text template typed into a focused Agent's input. Two are built in — `{file}` and `{line}`, as identity templates — plus `{reviews}`, and user templates merge additively under `setup { prompts = { name = "…" } }` (a name you set overrides the built-in; unlisted defaults are kept). Rendered against the current context (`{file}`, `{line}`) or the accumulated Reviews (`{reviews}`) before being sent.

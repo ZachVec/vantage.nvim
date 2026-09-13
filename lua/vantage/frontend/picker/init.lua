@@ -1,5 +1,55 @@
 --- Picker frontend facade: resolve the configured implementation and own the
 --- capability/command negotiation shared by every pick.
+
+---@class vantage.PickSpec The selection contract passed to a picker
+--- implementation. Each field is an input to the picker: the items to render
+--- (`items_provider`) and the prompt glyph (`prompt`). Rows expose
+--- `format()` / `preview()`; commands are supplied through `PickOpts`.
+---@field prompt string
+---@field items_provider fun(): table[]
+
+---@class vantage.PickerCommandCtx
+---@field item any
+---@field items any[]
+
+---@class vantage.PickerCommand A keymap-shaped picker command:
+--- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
+--- when the item list may have changed.
+---@field [1] string lhs
+---@field [2] fun(ctx: vantage.PickerCommandCtx): boolean
+---@field desc? string
+
+---@class vantage.PickOpts
+---@field on_choice fun(item: any)
+---@field on_close? fun() run when the picker closes, whether chosen or cancelled
+---@field commands? vantage.PickerCommand[]
+
+---@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
+--- without the `multi` capability degrades to one choice, so `on_choices`
+--- always receives a list of at least one item.
+---@field on_choices fun(items: any[])
+---@field on_close? fun() run when the picker closes, whether chosen or cancelled
+
+---@class vantage.PlainSelectOpts Options for the plain-list select form
+--- (`pick_plain`), mirroring `vim.ui.select`'s opts.
+---@field prompt? string
+---@field format_item? fun(item: any): string
+
+---@class vantage.PickerCapabilities
+---@field preview boolean
+---@field command boolean
+---@field multi boolean
+
+---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
+--- snacks) rendering every Vantage selection on its own engine. The command
+--- flows assemble a PickSpec per flow; the implementations stay
+--- presentation-only and depend on nothing but their engine.
+---@field requires? string optional runtime module dependency
+---@field capabilities vantage.PickerCapabilities
+---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
+---@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean
+---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
+
 local Config = require("vantage.config")
 
 local M = {}

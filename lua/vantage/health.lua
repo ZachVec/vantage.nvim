@@ -6,32 +6,6 @@ local ok = vim.health.ok or vim.health.report_ok
 local warn = vim.health.warn or vim.health.report_warn
 local err = vim.health.error or vim.health.report_error
 
---- Validate configured prompt placeholders (name -> template).
-local function check_prompts()
-  local prompts = require("vantage.config").options.prompts or {}
-  local known = require("vantage.config").PROMPT_PLACEHOLDERS
-  local unknown = {}
-  for _, template in pairs(prompts) do
-    if type(template) == "string" then
-      for token in template:gmatch("{([%w_]+)}") do
-        if not known[token] then
-          unknown[token] = true
-        end
-      end
-    end
-  end
-  if next(unknown) ~= nil then
-    local names = {}
-    for token in pairs(unknown) do
-      names[#names + 1] = "{" .. token .. "}"
-    end
-    table.sort(names)
-    err(("prompts: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
-  else
-    ok("prompts: all placeholders known")
-  end
-end
-
 --- Validate the cli.tools configuration. Invalid entries are dropped at setup
 --- with a warning; this check surfaces what was dropped.
 local function check_tools()
@@ -93,7 +67,6 @@ function M.check()
   )
 
   check_tools()
-  check_prompts()
 end
 
 return M

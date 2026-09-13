@@ -25,7 +25,6 @@ local LISTERS = {
 ---@field cwd string focused Agent cwd (relativization base)
 ---@field format fun(self: vantage.GatherItem): string
 ---@field preview fun(self: vantage.GatherItem): string[]?
----@field reference fun(self: vantage.GatherItem): string
 
 --- The first PREVIEW_LINES lines of a file, or nil when it cannot be read.
 ---@param path string
@@ -57,10 +56,6 @@ function FileItem:preview()
   return file_preview(self.path)
 end
 
-function FileItem:reference()
-  return Util.relpath(self.cwd, self.path)
-end
-
 ---@class vantage.GatherBufferItem : vantage.GatherItem
 ---@field buf integer
 ---@field modified boolean
@@ -89,10 +84,6 @@ function BufferItem:preview()
   end
   local count = vim.api.nvim_buf_line_count(self.buf)
   return vim.api.nvim_buf_get_lines(self.buf, 0, math.min(count, PREVIEW_LINES), false)
-end
-
-function BufferItem:reference()
-  return Util.relpath(self.cwd, self.path)
 end
 
 --- Collect every readable file under `root` (absolute paths, `.git` skipped).
@@ -200,7 +191,6 @@ local function run(source)
     Util.warn(err or "no focused agent")
     return
   end
-  local format = Config.tool_format(agent.tool)
   local items = SOURCES[source].items(agent.cwd)
   local win = vim.api.nvim_get_current_win()
   local empty = Picker.pick_multi({
@@ -212,13 +202,13 @@ local function run(source)
     on_choices = function(chosen)
       -- Every chosen path is spelled through the Tool's dialect, joined with
       -- `setup { gather = { join = … } }`, and pasted with a trailing space so
-      -- continued typing stays off the last reference. A hook that drops one
-      -- reference drops the whole send. No trailing newline: a pasted trailing
+      -- continued typing stays off the last reference. A reference the hook
+      -- declines drops the whole send. No trailing newline: a pasted trailing
       -- newline shows as an empty line in the Agent's input.
       local refs = {}
       for _, item in ipairs(chosen) do
-        local ref = format(item:reference(), nil)
-        if ref == nil or ref == "" then
+        local ref = Config.tool_reference(agent.tool, agent.cwd, item.path)
+        if ref == nil then
           Util.warn("no references sent: dropped by its format hook")
           return
         end

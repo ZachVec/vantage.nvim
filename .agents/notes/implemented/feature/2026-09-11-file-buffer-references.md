@@ -104,6 +104,6 @@ unsaved edits are not on disk. Where content is genuinely wanted, Reviews'
 - Gathered references are bare paths; the Tool's `format` hook owns their
   dialect decoration and has to tell a rendered prompt from a lone reference.
 - Gathered references are joined and pasted by `commands/gather.lua` itself;
-  a Tool's reference spelling is read through `Config.tool_format`, the single
-  reader of the defaulted `format` hook (see
+  a Tool's reference spelling is spelled through `Config.tool_reference`, the
+  single owner of the defaulted `format` hook (see
   [focus-is-its-own-read](../architecture/2026-09-13-focus-is-its-own-read.md)).

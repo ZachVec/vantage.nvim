@@ -12,13 +12,13 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- The focused Agent's reference formatter when one exists, so note titles and
---- picker previews read exactly what a send would produce. Without a Focus the
---- plain spelling still renders the row.
----@return vantage.ReferenceFormat
-local function formatter()
+--- The focused Agent's Tool name, so note titles and picker previews read
+--- exactly what a send would produce. Without a Focus the plain spelling still
+--- renders the row.
+---@return string?
+local function focused_tool()
   local agent = Bridge.focus(Terminal.pid())
-  return agent and Config.tool_format(agent.tool) or Util.reference
+  return agent and agent.tool
 end
 
 --- Jump to the review's start line (first non-blank column).
@@ -58,7 +58,7 @@ local function open_note(review)
   local cwd = Util.cwd()
   Note.open({
     text = review.note,
-    title = ("Review %s"):format(Review.location(review, cwd, formatter())),
+    title = ("Review %s"):format(Review.location(review, cwd, focused_tool())),
     footer = "<Esc> save · empty deletes",
     style = note_style(),
     on_commit = function(note)
@@ -81,9 +81,9 @@ end
 --- itself only formats, previews, and deletes.
 ---@param review vantage.Review
 ---@param cwd string
----@param format vantage.ReferenceFormat
+---@param tool? string focused Tool's reference dialect; nil spells the default
 ---@return table
-local function review_row(review, cwd, format)
+local function review_row(review, cwd, tool)
   local path = Util.tilde(vim.api.nvim_buf_get_name(review.buf) or "")
   local first = (vim.split(review.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
   return {
@@ -92,7 +92,7 @@ local function review_row(review, cwd, format)
       return ("%s:L%d-%d  %s"):format(path, review.start_row, review.end_row, first)
     end,
     preview = function()
-      return vim.split(Review.render_item(review, cwd, format), "\n")
+      return vim.split(Review.render_item(review, cwd, tool), "\n")
     end,
     delete = function()
       Review.delete(review.buf, review.id)
@@ -108,10 +108,10 @@ local function spec()
     prompt = PROMPT,
     items_provider = function()
       local cwd = Util.cwd()
-      local format = formatter()
+      local tool = focused_tool()
       local items = {}
       for _, review in ipairs(Review.collect()) do
-        items[#items + 1] = review_row(review, cwd, format)
+        items[#items + 1] = review_row(review, cwd, tool)
       end
       return items
     end,

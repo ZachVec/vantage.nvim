@@ -20,8 +20,9 @@ nonzero exits, and `create` could leave a partially-marked window behind.
 **Composition and failure.** `init.lua` is the composition root. `setup()`
 calls `Config.apply(opts)`, resolves Driver and Picker once, then installs
 Prompt/Review hooks and `:Vantage`. `config.lua` keeps defaults, shared types,
-`Config.options`, `Config.PROMPT_PLACEHOLDERS`, and `sanitize_tools`; runtime
-lifecycle does not. Prompt's `WinEnter` tracking lives in `Prompt.setup()`.
+`Config.options`, and `sanitize_tools`; runtime lifecycle does not. Prompt's
+`WinEnter` tracking and its placeholder-vocabulary warning live in
+`Prompt.setup()`.
 Unknown or unavailable backend/picker implementations, and missing picker
 dependencies, fail fast before any command/autocmd side effect. `Driver.get()`
 and Picker `get()` are programming errors before setup; `health.lua` catches

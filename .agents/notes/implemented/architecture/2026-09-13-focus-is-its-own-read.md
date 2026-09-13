@@ -19,7 +19,7 @@ pid was therefore optional, and each caller had to know which half it wanted:
 Focus, hand out a Tool's reference spelling, and shape gathered references —
 even though `commands/` is where flows live. Its reference-spelling half
 duplicated what `Config` already owned (`vantage.Tool.format` had exactly one
-reader, and `frontend/review.lua` defaulted to `Util.reference` on its own).
+reader, and `frontend/review.lua` spelled the default form on its own).
 
 ## Decision
 
@@ -44,11 +44,12 @@ The command layer passes the pid in (`Terminal.pid()`); the Backend never
 reaches for it, which keeps `frontend → backend` one-way.
 
 **Reference spelling is configuration.** `Config.apply()` gives every surviving
-`cli.tools` entry a `format` (default `Util.reference`), and
-`Config.tool_format(name)` is the only reader — it falls back to
-`Util.reference` for a Tool name that is no longer configured, so an Agent
-created under a since-dropped Tool still renders. No caller carries the
-"user configured no hook" case any more.
+`cli.tools` entry a `format` (defaulting to config's own `reference`), and
+`Config.tool_reference` spells every location — it falls back to that default
+for a Tool name that is no longer configured, so an Agent created under a
+since-dropped Tool still renders. No caller carries the "user configured no
+hook" case any more; the spelling itself has one owner
+([reference-spelling-has-one-owner](2026-09-13-reference-spelling-has-one-owner.md)).
 
 **`commands/send.lua` is deleted.** `commands/` holds `init.lua` and flows:
 `commands/gather.lua` owns its own loop (spell each chosen path, join with
@@ -110,8 +111,8 @@ out of the Backend and give the Frontend a reason to know about window ids.
 
 A second name would keep the two-case lookup ("is a hook configured?") that the
 default removes. The default is also what makes the invariant checkable:
-`format` exists on every surviving Tool, and `Config.tool_format` is its only
-reader.
+`format` exists on every surviving Tool, and `Config.tool_reference` is the
+only place it is applied.
 
 ## Consequences
 
@@ -121,9 +122,8 @@ reader.
 - The reference-spelling default is configuration, resolved once at setup.
 - `vantage.Driver` has 12 verbs; the conformance list in
   `tests/backend/driver_tmux_spec.lua`, `driver/init.lua`'s `REQUIRED`, and
-  `config.lua`'s `vantage.Driver` type must stay in step (a known duplication,
-  owned by the record-shape work in `docs/architecture.md`).
+  `driver/init.lua`'s `vantage.Driver` type must stay in step (a known
+  duplication, owned by the record-shape work in `docs/architecture.md`).
 - `README.md` and `doc/vantage.nvim.txt` are unchanged: no user-visible
   command, option, default, or behavior moved.
-- The Focus read's reasons live in `config.lua` next to
-  `PROMPT_PLACEHOLDERS`, since both are contracts shared across layers.
+- The Focus read's reasons live in `config.lua` as the messages callers report.

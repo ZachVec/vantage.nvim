@@ -34,9 +34,9 @@ and spells every location through it:
 - every gathered `files`/`buffers` row (path only, `loc` nil), joined with
   `setup { gather = { join = … } }`.
 
-Without a hook, `Util.reference` spells `file` and, when there is a position,
-`file .. " " .. loc` (`src/a.lua :L42`), so no dialect is baked in, and the
-Claude dialect becomes one line of user config:
+Without a hook, config's default spelling renders `file` and, when there is a
+position, `file .. " " .. loc` (`src/a.lua :L42`), so no dialect is baked in,
+and the Claude dialect becomes one line of user config:
 
 ```lua
 format = function(file, loc)
@@ -46,6 +46,11 @@ end
 
 The review picker's previews and note titles resolve the focused Agent's
 formatter when there is one, so they read what a send would produce.
+
+The composition itself — relativization, the `:L` suffix, the default, and the
+one reading of a nil or "" return — lives in
+`Config.tool_reference`
+([reference-spelling-has-one-owner](../architecture/2026-09-13-reference-spelling-has-one-owner.md)).
 
 ## Alternatives considered
 

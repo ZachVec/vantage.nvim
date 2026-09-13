@@ -131,7 +131,6 @@ describe("vantage.commands.gather", function()
     local items = run("files")
     assert.are.equal(2, #items)
     assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("a.lua", items[1]:reference())
     assert.are.equal("sub/b.lua", items[2]:format())
     assert.are.same({ "a" }, items[1]:preview())
   end)
@@ -163,7 +162,6 @@ describe("vantage.commands.gather", function()
     assert.are.equal(2, #items)
     assert.are.equal("a.lua", items[1]:format())
     assert.are.equal("b.lua [+]", items[2]:format())
-    assert.are.equal("b.lua", items[2]:reference())
     assert.are.same({ "b", "b2" }, items[2]:preview())
   end)
 
@@ -213,17 +211,18 @@ describe("vantage.commands.gather", function()
 
   it("drops the send and warns when the format hook returns nothing", function()
     write("a.lua", { "a" })
-    Config.options.cli.tools = {
-      codex = {
-        cmd = { "codex" },
-        format = function()
-          return nil
-        end,
-      },
-    }
-
-    local items, opts = run("files")
-    opts.on_choices({ items[1] })
+    for _, declined in ipairs({
+      function()
+        return nil
+      end,
+      function()
+        return ""
+      end,
+    }) do
+      Config.options.cli.tools = { codex = { cmd = { "codex" }, format = declined } }
+      local items, opts = run("files")
+      opts.on_choices({ items[1] })
+    end
 
     assert.are.equal(0, #bridge.sent)
     assert.is_true(notified[1]:find("format hook", 1, true) ~= nil)

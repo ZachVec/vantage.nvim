@@ -45,7 +45,11 @@ graph; a module that imports against it fails the gate.
 - `shared` — `config.lua` and `util.lua`, importable by every category and
   importing nothing but itself. It is a dependency-checking category, not a
   domain term: the [glossary](glossary.md) is where domain words live. The
-  verifier files any module path it cannot classify here.
+  verifier files any module path it cannot classify here. A seam's contract
+  types live with their seam — `vantage.Driver` in `backend/driver/init.lua`,
+  the picker contract in `frontend/picker/init.lua`, `vantage.NoteOpts` in
+  `frontend/note.lua`; `config.lua` keeps the option types and the reference
+  spelling.
 - `health` — `health.lua`, the diagnostics adapter. It may inspect Backend and
   Frontend but never the command layer, and no module imports it: Neovim calls
   it through `:checkhealth`.
@@ -57,9 +61,10 @@ cached; `get()` before `setup()` is a programming error. `health.lua` catches
 that error and reports it.
 
 `Config.options` remains the global configuration singleton. `Config.apply()`
-owns defaults, merging, `cli.tools` validation, and the reference spelling of
-every surviving Tool (`Config.tool_format` is the only reader of a Tool's
-`format` hook); runtime lifecycle belongs to the composition root.
+owns defaults, merging, `cli.tools` validation, and the default reference
+spelling every surviving Tool without a `format` hook gets;
+`Config.tool_reference` is the only place a reference is spelled. Runtime
+lifecycle belongs to the composition root.
 
 ## The multiplexer substrate
 
@@ -155,11 +160,18 @@ keeping the Backend from importing the Frontend.
 
 A Tool's reference spelling is configuration, not Backend state:
 `Config.apply()` gives every surviving `cli.tools` entry a `format` (defaulting
-to `Util.reference`), and `Config.tool_format(name)` is the one reader — it
-falls back to `Util.reference` for a name that is no longer configured, which
-is how an Agent created under a since-dropped Tool still renders. The
-read-split and reference-spelling decisions are recorded in
-[focus-is-its-own-read](../.agents/notes/implemented/architecture/2026-09-13-focus-is-its-own-read.md).
+to config's own default), and `Config.tool_reference(tool, cwd, path,
+start_row, end_row)` is the one place a reference is spelled — it relativizes
+the path against the Agent's cwd, builds the `:L` suffix from the position,
+applies the hook, and reads a nil or "" return as "no reference". `tool` is nil
+with no Focus, or names a Tool a later setup dropped; both spell the default
+form, which is how an Agent created under a since-dropped Tool still renders.
+The read-split, the reference-spelling owner, and where seam types live are
+recorded in
+[focus-is-its-own-read](../.agents/notes/implemented/architecture/2026-09-13-focus-is-its-own-read.md),
+[reference-spelling-has-one-owner](../.agents/notes/implemented/architecture/2026-09-13-reference-spelling-has-one-owner.md),
+and
+[seam-types-live-with-their-seam](../.agents/notes/implemented/architecture/2026-09-13-seam-types-live-with-their-seam.md).
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
 starts the terminal job, `show`/`hide` manage the window without killing the
@@ -229,10 +241,11 @@ string when there is none.
 
 Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
 registry) and render through `setup { reviews = { item = … } }`; the Prompt
-vocabulary (`{file}`, `{line}`, `{reviews}`) lives in
-`config.lua` as a shared contract, health-checked at startup. Prompt text and
+vocabulary (`{file}`, `{line}`, `{reviews}`) is the prompt flow's own resolver
+keys, and `Prompt.setup()` warns about a configured template that names an
+unknown token — `health.lua` may not import the command layer. Prompt text and
 gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /
 `{file}`, and each gathered row — is spelled by the Focus's Tool through
-`Config.tool_format(name)` (default: `file` and its `loc` suffix separated by a
+`Config.tool_reference` (default: `file` and its `loc` suffix separated by a
 space), and `gather.join` decides how gathered references are joined.

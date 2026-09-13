@@ -42,7 +42,7 @@ dependency directions documented in [docs/architecture.md](docs/architecture.md)
 
 - Lua 5.1 / LuaJIT only — Neovim's runtime; no features newer than 5.1.
 - Every module is `local M = {}` … `return M`; imports use `require("vantage.…")`.
-- Public functions carry LuaLS annotations (`---@param`, `---@return`, `---@class`); shared types live in `config.lua`.
+- Public functions carry LuaLS annotations (`---@param`, `---@return`, `---@class`). A seam's contract types live in that seam's `init.lua` (`vantage.Driver` in `backend/driver/init.lua`, the picker contract in `frontend/picker/init.lua`); `config.lua` holds the option and domain types and `vantage.ReferenceFormat`.
 - The [domain glossary](docs/glossary.md) is authoritative — use each term and honor each `_Avoid:` exactly; add or rename a term only there.
 - Keep the public docs current in the same change: if a change makes [README.md](./README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **User-facing docs say what, not why.** [README.md](./README.md) and [doc/vantage.nvim.txt](doc/vantage.nvim.txt) describe only what a user does or sees: commands, options, defaults, install, and any user-facing trade-off, compressed to what the user decides. Never implementation mechanics, Neovim/engine internals, or historical rationale in them — that belongs in the Agent Note, code comments, or [developer docs](docs/architecture.md).

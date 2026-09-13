@@ -11,10 +11,12 @@ could drift apart.
 
 ## Decision
 
-`prompt.lua` exports the vocabulary as `M.PLACEHOLDERS` — the Prompt domain owns
-its placeholders, and `render_line` already consulted the same table.
-`health.lua` validates against `require("vantage.prompt").PLACEHOLDERS`, the
-single source of truth.
+`commands/prompt.lua` owns the vocabulary because it owns the resolvers: the
+Prompt domain defines and consumes the placeholder names. The vocabulary is the
+resolvers' own keys, and the check on user templates runs in `Prompt.setup()`
+([the resolver-keys note](2026-09-13-placeholder-vocabulary-is-the-resolvers-keys.md));
+`health.lua` validated against a copy while the health layer could not import
+the command layer.
 
 ## Alternatives considered
 
@@ -25,5 +27,6 @@ is the natural owner because it already defines and consumes the placeholders.
 
 ## Consequences
 
-- Adding or renaming a placeholder is a one-line change in `prompt.lua`.
-- `health.lua` can no longer drift from the runtime vocabulary.
+- Adding or renaming a placeholder is a one-line change in
+  `commands/prompt.lua`.
+- The vocabulary cannot drift from the runtime resolvers: it *is* their keys.

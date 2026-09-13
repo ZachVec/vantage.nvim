@@ -1,6 +1,6 @@
 --- The prompt flow (terminal token): pick a Prompt, render it against the
 --- focused Agent's context, and type it into the Agent's input. The placeholder
---- vocabulary is the shared contract in `config.PROMPT_PLACEHOLDERS`.
+--- vocabulary is this module's own resolvers: one per known placeholder.
 local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
 local Picker = require("vantage.frontend.picker")
@@ -15,14 +15,40 @@ local M = {}
 ---@field row integer 1-based cursor row
 ---@field cwd string focused Agent cwd (relativization base)
 
---- Known placeholder names. Anything else is left literal (health flags it).
-local PLACEHOLDERS = Config.PROMPT_PLACEHOLDERS
-
 --- Monotonic stamp for the most-recently-visited window, read by context
 --- resolution.
 local visit_counter = 0
 
---- Track the last non-terminal window for Prompt context resolution.
+--- One resolver per placeholder. `tool` is the focused Tool's reference
+--- dialect; nil spells the default. A nil result fails the render.
+---@type table<string, fun(ctx: vantage.PromptCtx, tool: string?): string?>
+local resolvers = {
+  file = function(ctx, tool)
+    return Config.tool_reference(tool, ctx.cwd, vim.api.nvim_buf_get_name(ctx.buf))
+  end,
+  line = function(ctx, tool)
+    return Config.tool_reference(tool, ctx.cwd, vim.api.nvim_buf_get_name(ctx.buf), ctx.row)
+  end,
+  reviews = function(ctx, tool)
+    return Review.render(ctx.cwd, tool)
+  end,
+}
+
+--- The placeholder vocabulary: the resolvers' own keys, so a name can never be
+--- known without something to resolve it. `Util.interpolate` leaves an unknown
+--- token literal; `setup` warns about a configured template that names one.
+---@type table<string, boolean>
+local PLACEHOLDERS = {}
+for name in pairs(resolvers) do
+  PLACEHOLDERS[name] = true
+end
+
+--- Track the last non-terminal window for Prompt context resolution, and warn
+--- about a configured template naming a placeholder no resolver knows
+--- (`Util.interpolate` would type it literally). The vocabulary is the
+--- resolvers' keys, and `health.lua` may not import this layer, so the check
+--- runs here, on the applied config. A non-string template is not this check's
+--- business; it fails when it is sent.
 function M.setup()
   visit_counter = 0
   vim.api.nvim_create_augroup("VantageWinVisit", { clear = true })
@@ -33,6 +59,24 @@ function M.setup()
       vim.w[vim.api.nvim_get_current_win()].vantage_visit = visit_counter
     end,
   })
+
+  local unknown = {}
+  for _, template in pairs(Config.options.prompts) do
+    if type(template) == "string" then
+      for token in template:gmatch("{([%w_]+)}") do
+        if not PLACEHOLDERS[token] then
+          unknown[token] = true
+        end
+      end
+    end
+  end
+  local names = vim.tbl_map(function(token)
+    return "{" .. token .. "}"
+  end, vim.tbl_keys(unknown))
+  if #names > 0 then
+    table.sort(names)
+    Util.warn(("prompts: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
+  end
 end
 
 --- The most-recently-visited non-terminal window, tracked by the `WinEnter`
@@ -58,59 +102,20 @@ function M.context(agent)
   return { buf = buf, row = cursor[1], cwd = agent.cwd }
 end
 
---- `path` relative to `cwd`; absolute when `path` escapes `cwd`.
----@param cwd string base directory
----@param path string absolute file path
----@return string
-local function loc_file(cwd, path)
-  return Util.relpath(cwd, path)
-end
-
----@param ctx vantage.PromptCtx
----@param format vantage.ReferenceFormat
----@return string?
-local function resolve_file(ctx, format)
-  local name = vim.api.nvim_buf_get_name(ctx.buf)
-  if name == nil or name == "" then
-    return nil
-  end
-  return format(loc_file(ctx.cwd, name), nil)
-end
-
----@param ctx vantage.PromptCtx
----@param format vantage.ReferenceFormat
----@return string?
-local function resolve_line(ctx, format)
-  local name = vim.api.nvim_buf_get_name(ctx.buf)
-  if name == nil or name == "" then
-    return nil
-  end
-  return format(loc_file(ctx.cwd, name), (":L%d"):format(ctx.row))
-end
-
-local resolvers = {
-  file = resolve_file,
-  line = resolve_line,
-  reviews = function(ctx, format)
-    return Review.render(ctx.cwd, format)
-  end,
-}
-
 --- Render a template against `ctx`, spelling every location reference through
---- `format` (the focused Tool's dialect, defaulting to the plain
---- `file` and space-joined `loc` form). Returns the rendered text, or nil
---- (with the failing placeholder name) when any placeholder resolved empty.
+--- the focused Tool's `format` hook (defaulting to the plain `file` and
+--- space-joined `loc` form). Returns the rendered text, or nil (with the
+--- failing placeholder name) when any placeholder resolved empty.
 ---@param template string
 ---@param ctx vantage.PromptCtx
----@param format? vantage.ReferenceFormat
+---@param tool? string the focused Tool's reference dialect; nil spells the default
 ---@return string?
 ---@return string?
-function M.render(template, ctx, format)
-  format = format or Util.reference
+function M.render(template, ctx, tool)
   local out = {}
   for _, line in ipairs(vim.split(template, "\n", { plain = true })) do
     local rendered, failed = Util.interpolate(line, PLACEHOLDERS, function(name)
-      return resolvers[name](ctx, format)
+      return resolvers[name](ctx, tool)
     end)
     if rendered == nil then
       return nil, failed
@@ -119,10 +124,6 @@ function M.render(template, ctx, format)
   end
   return table.concat(out, "\n")
 end
-
---- The known placeholder names — the Prompt vocabulary. health.lua validates
---- user templates against this single source of truth.
-M.PLACEHOLDERS = PLACEHOLDERS
 
 --- Render a prompt against the focused Agent's context and type it into the
 --- Agent's input (no auto-submit).
@@ -134,7 +135,7 @@ local function send_prompt(name)
     return
   end
   local template = Config.options.prompts[name]
-  local text, failed = M.render(template, M.context(focused), Config.tool_format(focused.tool))
+  local text, failed = M.render(template, M.context(focused), focused.tool)
   if text == nil then
     Util.warn(("prompt '%s' skipped: {%s} resolved empty"):format(name, failed))
     return
