@@ -34,9 +34,11 @@ stylua --check .      # Lua format check
 ```
 
 Tests live in `tests/**/*_spec.lua` and run with `make test`; the tmux backend
-specs require tmux and use a private per-run socket. `make check` runs
-lua-language-server when installed; `make architecture` enforces the module
-dependency directions documented in [docs/architecture.md](docs/architecture.md).
+specs require tmux and a private per-run unix socket, so `make test` must run
+outside a sandbox that blocks sockets — see [docs/gotchas.md](docs/gotchas.md).
+`make check` runs lua-language-server when installed; `make architecture`
+enforces the module dependency directions documented in
+[docs/architecture.md](docs/architecture.md).
 
 ## Conventions
 

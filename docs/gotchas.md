@@ -4,6 +4,28 @@ Behaviors of external tools (tmux, claude/codex, fzf-lua, snacks, Neovim) that
 surprised us during feature work and caused bugs. Read this before building
 anything that interacts with these tools.
 
+## Tooling · sandboxed test runners
+
+### `make test` needs a real tmux socket
+
+The tmux backend specs drive tmux over a private unix socket under
+`/tmp/tmux-<uid>/vantage-test-<pid>`. A sandbox that blocks socket creation or
+`connect()` — the Codex workspace sandbox (seccomp) does — makes every tmux
+operation fail with `error connecting to
+/tmp/tmux-<uid>/vantage-test-<pid> (Operation not permitted)`. The suite never
+reports that as a permission error: the specs fail deeper, with `attempt to
+index local 'agent' (a nil value)` in `tests/backend/driver_tmux_spec.lua` or
+`no such group '<name>'`. In-sandbox results are not trustworthy in either
+direction — the same suite passed once and failed on the next run — so treat
+only an unsandboxed `make test` result as authoritative.
+
+A brand-new socket name reproduces the denial on its own:
+
+```sh
+tmux -L vantage-probe new-session -d -s probe
+# error connecting to /tmp/tmux-<uid>/vantage-probe (Operation not permitted)
+```
+
 ## Backend · tmux · agent CLI
 
 ### Clients attached to one session share its current window
