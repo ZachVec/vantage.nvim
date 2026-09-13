@@ -112,13 +112,13 @@ press `i`, or invoke from terminal input state or a plain window.
 
 ## Picker · snacks
 
-### Picker items must not carry a `resolve` field
+### Picker entries must not carry a `resolve` field
 
 snacks' picker resolves any item with a `resolve` function during formatting —
-`item.resolve(item)`, then sets `item.resolve = nil` — for lazy items. A row
-whose action method is named `resolve` therefore gets called by the picker
-itself, with the row as its only argument. Vantage row action methods avoid
-the name (the switch flow uses `target(done)`).
+`item.resolve(item)`, then sets `item.resolve = nil` — for lazy items. An entry
+field named `resolve` therefore gets called by the picker itself, with the entry
+as its only argument. Vantage's entry vocabulary (`frontend/entries.lua`) fixes
+which fields an entry carries, so the shipped flows stay clear of the name.
 
 ### Closing returns to Normal mode — not your previous terminal mode
 
@@ -141,7 +141,7 @@ terminal mode (`startinsert`, scheduled for the next tick — `close()` has
 already returned focus synchronously and its teardown only destroys the
 picker's own windows, never touching the mode) whenever the picker closes back
 onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
-both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
+both an Esc cancel and the no-op confirm of the pinned `(focused)` entry. The
 same scheduled close handler also re-asserts the terminal window itself:
 Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
 window when that float is already gone, so closing the picker floats from a
@@ -156,7 +156,7 @@ handler) keeps the scheduler alive while its `c` mode is active: a re-entry
 check queued after the handler would see `c`, skip, and strand the terminal in
 Normal once the prompt closes. Queued first, the `startinsert` stays pending
 across the cmdline and lands when it closes (verified on nvim 0.12.3). A
-Tool-row creation through `:Vantage toggle` ends in terminal mode via the
+Tool-entry creation through `:Vantage toggle` ends in terminal mode via the
 toggle tail's `Terminal.open` (`startinsert`) and skips the re-entry; a
 `switch` re-points without showing (`retarget`), so it depends
 on the `on_close`/wrapped re-entry above.

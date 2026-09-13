@@ -1,6 +1,7 @@
---- snacks picker implementation. Drives snacks.picker directly; previewable
---- rows format via `item:format()`. `confirm` receives the original item and
---- must close the picker itself.
+--- snacks picker implementation. Drives snacks.picker directly; an entry's
+--- `text` is what snack matches on and renders, and its preview title comes
+--- from the same field. `confirm` receives the original entry and must close
+--- the picker itself.
 local M = {}
 
 ---@type string
@@ -25,8 +26,8 @@ local function pick(opts)
   return require("snacks.picker").pick(opts)
 end
 
---- Preview the current item's content (pane lines or rendered review)
---- through the item's `preview()`; nil means "nothing to preview".
+--- Preview the current entry's content (pane lines or rendered review) through
+--- the entry's `preview()`; nil means "nothing to preview".
 ---@return fun(ctx: vantage.SnacksPreviewCtx)
 local function preview()
   return function(ctx)
@@ -39,7 +40,7 @@ local function preview()
     if not lines then
       return
     end
-    ctx.preview:set_title(item:format())
+    ctx.preview:set_title(item.text)
     ctx.preview:set_lines(lines)
   end
 end
@@ -108,17 +109,8 @@ end
 function M.pick(spec, opts)
   local terminal_win = terminal_window()
 
-  ---@param items any[]
-  ---@return any[]
-  local function prepare(items)
-    for _, item in ipairs(items) do
-      item.text = item:format()
-    end
-    return items
-  end
-
   local function read()
-    return prepare(spec.items_provider())
+    return spec.items_provider()
   end
 
   local list = read()
@@ -184,8 +176,8 @@ function M.pick(spec, opts)
   return false
 end
 
---- Render a multi-selection pick: rows are marked in the list (`<Tab>` by
---- default) and Enter confirms every marked row, falling back to the row
+--- Render a multi-selection pick: entries are marked in the list (`<Tab>` by
+--- default) and Enter confirms every marked entry, falling back to the entry
 --- under the cursor when nothing is marked.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
@@ -193,9 +185,6 @@ end
 function M.pick_multi(spec, opts)
   local terminal_win = terminal_window()
   local items = spec.items_provider()
-  for _, item in ipairs(items) do
-    item.text = item:format()
-  end
   if #items == 0 then
     return true
   end
@@ -207,8 +196,8 @@ function M.pick_multi(spec, opts)
     preview = preview(),
     on_close = close_handler(terminal_win, opts.on_close),
     confirm = function(picker)
-      -- `selected` returns copies of the rows, but a deep copy keeps its
-      -- metatable, so the flow-owned row methods survive.
+      -- `selected` returns copies of the entries; an entry is plain data, so
+      -- the flow-owned fields survive the copy.
       local chosen = picker:selected({ fallback = true })
       picker:close()
       if #chosen > 0 then

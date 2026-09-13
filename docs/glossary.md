@@ -64,7 +64,7 @@ _Avoid_: current agent, active agent, last agent, focused agent
 
 ## Terminal action
 
-A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick rows through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
 _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
@@ -77,6 +77,11 @@ _Avoid_: launcher
 A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
+## Entry
+
+One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. The Picker reads only the text and previews only the highlighted Entry; it decides nothing about what choosing one means. Every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
+_Avoid_: row
+
 ## Tool
 
 A named launch command (`name` → `cmd` array) offered when creating an Agent. Configured under `cli.tools`.
@@ -84,7 +89,7 @@ _Avoid_: command, template
 
 ## Reference
 
-A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered row. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it.
+A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered entry. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it.
 _Avoid_: path, link, location string, 引用
 
 ## Prompt

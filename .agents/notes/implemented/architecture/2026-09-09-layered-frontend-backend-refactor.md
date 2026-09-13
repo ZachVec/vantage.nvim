@@ -63,19 +63,19 @@ Frontend:
   and `TermClose` closes the window, deletes the buffer, and resets state — the
   attachment's lifecycle is the terminal's lifecycle. It stores no domain
   state and never resolves the Focus (that is derived per `Bridge.focus`).
-- Each command defines its own row classes behind a local protocol: the attach
-  flow's `AgentEntry`/`ToolEntry` resolve rows (`select()` → a selection the
-  flow applies), the kill
-  flow's `KillAgentEntry`/`KillGroupEntry` delete rows (`delete()`), and the
-  review flow's rows open notes; every row renders through `format()` /
-  `preview()`. No entry carries a flow action: the attach flow's `<c-x>` kill
-  and `<c-g>` scope toggle are flow-owned picker commands, not row methods.
-  The `<c-x>` command kills the row's Agent in place; the pinned `(focused)`
-  row and Tool rows are no-ops, with the behavior owned by the
+- Each command offers its own entries: the attach flow Agent and Tool
+  entries, the kill flow Agent and Group entries, the review flow Review
+  entries — all built by the shared vocabulary in `frontend/entries.lua`,
+  whose `kind` the flow branches on
+  ([picker entries are data](2026-09-13-picker-entries-are-data.md)). No entry
+  carries a flow action: the attach flow's `<c-x>` kill and `<c-g>` scope
+  toggle are flow-owned picker commands, not entry methods. The `<c-x>` command
+  kills the entry's Agent in place; the pinned `(focused)` entry and Tool
+  entries are no-ops, with the behavior owned by the
   [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md).
-- Picker implementations stay pure renderers (format/preview/on_choice,
-  optional in-place delete where the flow enables it, optional `<c-g>` scope
-  toggle reading the `group` field). The `from_terminal` flag is deleted: a
+- Picker implementations stay pure renderers (text/preview/on_choice, optional
+  in-place delete where the flow enables it, optional `<c-g>` scope toggle
+  reading the entry the flow built). The `from_terminal` flag is deleted: a
   picker detects the terminal window at open time by filetype.
 
 Commands:
@@ -107,17 +107,21 @@ session can look at different windows — the two properties Anchor+Views were
 built to provide. Deleting them also deletes the client-detached hook and the
 View-relocation machinery.
 
-### Why not dispatch on a `kind` field instead of entry methods?
+### Why not keep entry methods (`resolve()`, `delete()`) instead of a `kind`?
 
-`resolve()`/`delete()` keep each flow's choice handler to one polymorphic line;
-the uniform nil/false protocol means neither flows nor pickers ever test which
-methods an entry has.
+They kept each flow's choice handler to one polymorphic line, but the price was
+a second contract behind the Picker's: each flow declared its own classes, the
+same Agent text and pane preview existed twice, and an implementation could
+write into the flow's own entry. The `kind` field the flows already needed for
+their own dispatch keeps one surface
+([picker entries are data](2026-09-13-picker-entries-are-data.md)).
 
 ### Why not keep `activate(after)` with an injected flow tail?
 
 Injection makes an entry's behavior depend on which flow built it and, for Tool
-rows, smuggles a picker sub-flow into a method. `resolve()` inverts the
-direction: the entry returns its target and each flow applies its own tail.
+entries, smuggles a picker sub-flow into a method. The flow's own handler
+inverts the direction: it reads the entry's target off the data and applies its
+own tail.
 
 ### Why not rename kill to delete?
 

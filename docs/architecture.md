@@ -12,7 +12,7 @@ lua/vantage/
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
 ├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
-├── frontend/           terminal, display, note, review, picker/
+├── frontend/           terminal, entries, note, review, picker/
 └── commands/           dispatch + flows (attach, gather, kill, prompt, review)
 ```
 
@@ -183,9 +183,20 @@ Commands call `Picker.pick(spec, opts)`, `Picker.pick_multi(spec, opts)`, or
 `Picker.pick_plain(...)`; `get()` is internal. A picker declares exactly three
 capabilities:
 
-- `preview` — it can render `item:preview()`.
+- `preview` — it can render an Entry's `preview`.
 - `command` — it can bind the flow's picker commands.
-- `multi` — it can confirm several rows at once.
+- `multi` — it can confirm several entries at once.
+
+What a pick offers is a list of Entries — the shared type is
+`vantage.picker.Entry` in `frontend/picker/init.lua`, and the vocabulary that
+builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.group`,
+`.file`, `.buffer`, `.review`). An Entry carries `text` (the line the
+implementation renders), `kind` (the flow's own name for it), `preview`
+(computed only for the highlighted Entry), and whatever fields the flow put
+there. Each builder binds the preview for its kind — one module-level function
+per kind, so an Entry never allocates a closure. Implementations read `text`
+and call `preview`; they never write to an Entry, and the flow — not the Entry
+— decides what choosing one means.
 
 A picker without `multi` renders a multi-selection request as a single choice,
 so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
@@ -203,12 +214,11 @@ ordinary command, not a Picker concept.
 ## Flows and the command surface
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
-  Agent/Tool rows, Group choice, creation handoff, and the `<c-g>` scope and
-  `<c-x>` kill commands. A row is data: choosing one returns a selection
-  (`focused`, an Agent, or a Tool to create from), and the flow — not the row —
-  creates, retargets, or opens the Terminal. `toggle` and `switch` each keep
-  their own tail; only the "attach and install the terminal keymaps" step is
-  shared.
+  Agent/Tool entries, Group choice, creation handoff, and the `<c-g>` scope and
+  `<c-x>` kill commands. An Entry is data: its `kind` (`focused`, `agent`,
+  `tool`) says what choosing it means, and the flow — not the Entry — creates,
+  retargets, or opens the Terminal. `toggle` and `switch` each keep their own
+  tail; only the "attach and install the terminal keymaps" step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
   lists candidates under the Focus's cwd (fd → ripgrep → a Lua walk), spells
   every chosen `<relpath>` through the Tool's `format`, joins the results with
@@ -218,7 +228,7 @@ ordinary command, not a Picker concept.
   `files`, `buffers`) to command functions and installs `cli.win.keys` into the
   terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
-  (Tool rows create one) and open the Terminal on it.
+  (Tool entries create one) and open the Terminal on it.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
 - `:Vantage detach` destroys the Terminal; Agents and Groups survive.
 - `:Vantage status` shows the Driver's session/client summary.
@@ -228,7 +238,7 @@ ordinary command, not a Picker concept.
 - Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`, `files`,
   `buffers`.
 
-Creating an Agent from a Tool row resolves the tool to its command, uses the
+Creating an Agent from a Tool entry resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the
 Terminal's client by the terminal job's pid, which the command layer reads from
 the Terminal and passes in.
@@ -246,6 +256,6 @@ keys, and `Prompt.setup()` warns about a configured template that names an
 unknown token — `health.lua` may not import the command layer. Prompt text and
 gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /
-`{file}`, and each gathered row — is spelled by the Focus's Tool through
+`{file}`, and each gathered entry — is spelled by the Focus's Tool through
 `Config.tool_reference` (default: `file` and its `loc` suffix separated by a
 space), and `gather.join` decides how gathered references are joined.

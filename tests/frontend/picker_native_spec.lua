@@ -19,8 +19,10 @@ describe("vantage.frontend.picker.native", function()
 
   it("runs on_close after a single choice", function()
     local item = {
-      format = function()
-        return "row"
+      kind = "agent",
+      text = "an entry",
+      preview = function()
+        return nil
       end,
     }
     vim.ui.select = function(_, _, on_choice)
@@ -35,8 +37,8 @@ describe("vantage.frontend.picker.native", function()
         return { item }
       end,
     }, {
-      on_choice = function(row)
-        chosen = row
+      on_choice = function(entry)
+        chosen = entry
       end,
       on_close = function()
         closed = true

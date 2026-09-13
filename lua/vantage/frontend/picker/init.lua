@@ -1,16 +1,26 @@
 --- Picker frontend facade: resolve the configured implementation and own the
 --- capability/command negotiation shared by every pick.
 
+---@class vantage.picker.Entry One selectable thing a pick offers: the line the
+--- implementation renders (`text`) and the flow's own name for it (`kind`).
+--- The flow owns every other field; an implementation reads `text` and calls
+--- `preview`, and never writes to an entry.
+---@field text string the line the implementation renders
+---@field kind string flow-owned kind, read by the flow's own callbacks
+---@field preview fun(entry: vantage.picker.Entry): string[]? lazily computed
+--- preview lines; every entry shares the one implementation, so a pick only
+--- pays for the highlighted entry
+
 ---@class vantage.PickSpec The selection contract passed to a picker
 --- implementation. Each field is an input to the picker: the items to render
---- (`items_provider`) and the prompt glyph (`prompt`). Rows expose
---- `format()` / `preview()`; commands are supplied through `PickOpts`.
+--- (`items_provider`) and the prompt glyph (`prompt`). Commands are supplied
+--- through `PickOpts`.
 ---@field prompt string
----@field items_provider fun(): table[]
+---@field items_provider fun(): vantage.picker.Entry[]
 
 ---@class vantage.PickerCommandCtx
----@field item any
----@field items any[]
+---@field item vantage.picker.Entry? the highlighted entry, when there is one
+---@field items vantage.picker.Entry[]
 
 ---@class vantage.PickerCommand A keymap-shaped picker command:
 --- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
@@ -20,14 +30,14 @@
 ---@field desc? string
 
 ---@class vantage.PickOpts
----@field on_choice fun(item: any)
+---@field on_choice fun(item: vantage.picker.Entry)
 ---@field on_close? fun() run when the picker closes, whether chosen or cancelled
 ---@field commands? vantage.PickerCommand[]
 
 ---@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
 --- without the `multi` capability degrades to one choice, so `on_choices`
 --- always receives a list of at least one item.
----@field on_choices fun(items: any[])
+---@field on_choices fun(items: vantage.picker.Entry[])
 ---@field on_close? fun() run when the picker closes, whether chosen or cancelled
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form

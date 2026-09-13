@@ -22,7 +22,7 @@ function M.pick(spec, opts)
   vim.ui.select(items, {
     prompt = spec.prompt,
     format_item = function(item)
-      return item:format()
+      return item.text
     end,
   }, function(item)
     if item then

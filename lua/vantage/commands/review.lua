@@ -2,6 +2,7 @@
 --- notes anchored to line ranges, batched through {reviews}.
 local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
+local Entries = require("vantage.frontend.entries")
 local Note = require("vantage.frontend.note")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
@@ -14,7 +15,7 @@ local PROMPT = Util.picker_prompt
 
 --- The focused Agent's Tool name, so note titles and picker previews read
 --- exactly what a send would produce. Without a Focus the plain spelling still
---- renders the row.
+--- renders the entry.
 ---@return string?
 local function focused_tool()
   local agent = Bridge.focus(Terminal.pid())
@@ -77,30 +78,6 @@ local function open_note(review)
   })
 end
 
---- A Review row. The flow opens the note float from the row's data; the row
---- itself only formats, previews, and deletes.
----@param review vantage.Review
----@param cwd string
----@param tool? string focused Tool's reference dialect; nil spells the default
----@return table
-local function review_row(review, cwd, tool)
-  local path = Util.tilde(vim.api.nvim_buf_get_name(review.buf) or "")
-  local first = (vim.split(review.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
-  return {
-    review = review,
-    format = function()
-      return ("%s:L%d-%d  %s"):format(path, review.start_row, review.end_row, first)
-    end,
-    preview = function()
-      return vim.split(Review.render_item(review, cwd, tool), "\n")
-    end,
-    delete = function()
-      Review.delete(review.buf, review.id)
-      return true
-    end,
-  }
-end
-
 --- Reviews, sorted by (buffer name, start row). May be empty.
 ---@return vantage.PickSpec
 local function spec()
@@ -111,24 +88,35 @@ local function spec()
       local tool = focused_tool()
       local items = {}
       for _, review in ipairs(Review.collect()) do
-        items[#items + 1] = review_row(review, cwd, tool)
+        items[#items + 1] = Entries.review(review, cwd, tool)
       end
       return items
     end,
   }
 end
 
+--- Delete the Review the entry names. Returns true when the list may have
+--- changed.
+---@param entry vantage.picker.Entry
+---@return boolean
+local function delete_review(entry)
+  ---@cast entry vantage.picker.ReviewEntry
+  Review.delete(entry.review.buf, entry.review.id)
+  return true
+end
+
 --- Open the review picker; selecting a review opens its note float.
 local function review_list()
   local empty = Picker.pick(spec(), {
     on_choice = function(entry)
+      ---@cast entry vantage.picker.ReviewEntry
       open_note(entry.review)
     end,
     commands = {
       {
         "<C-x>",
         function(ctx)
-          return ctx.item ~= nil and ctx.item:delete()
+          return ctx.item ~= nil and delete_review(ctx.item)
         end,
         desc = "delete review",
       },

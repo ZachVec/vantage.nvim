@@ -11,17 +11,13 @@ describe("vantage.frontend.picker.fzf_lua", function()
     Helpers.reload_vantage()
     items = {
       {
-        format = function()
-          return "first"
-        end,
+        text = "first",
         preview = function()
           return { "one" }
         end,
       },
       {
-        format = function()
-          return "second"
-        end,
+        text = "second",
         preview = function()
           return { "two" }
         end,
@@ -64,8 +60,8 @@ describe("vantage.frontend.picker.fzf_lua", function()
     end)
 
     assert.are.equal(2, #chosen)
-    assert.are.equal("second", chosen[1]:format())
-    assert.are.equal("first", chosen[2]:format())
+    assert.are.equal("second", chosen[1].text)
+    assert.are.equal("first", chosen[2].text)
   end)
 
   it("previews the entry under the cursor", function()
@@ -101,6 +97,6 @@ describe("vantage.frontend.picker.fzf_lua", function()
       return chosen ~= nil
     end)
 
-    assert.are.equal("second", chosen:format())
+    assert.are.equal("second", chosen.text)
   end)
 end)

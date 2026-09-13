@@ -56,17 +56,17 @@ a query is typed):
   `no agents and no tools configured (cli.tools)` and returns when the list
   is empty (no Agents running and no Tools configured). Zero Agents with
   Tools configured opens the picker listing only Tool rows.
-- **Scope.** The kill list keeps its order and its plain rows (no glyphs,
-  no `(focused)` marker). The shared choice type widens from
-  `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
-  focused? }` across `config.lua`, the three picker implementations, and
-  `commands/attach.lua`.
+- **Scope.** The kill list keeps its order and its plain entries (no glyphs,
+  no `(focused)` marker). What a chosen entry means is the entry's own `kind` —
+  `focused` / `agent` / `tool` in the Agent list — read by
+  `commands/attach.lua`
+  ([picker entries are data](../architecture/2026-09-13-picker-entries-are-data.md)).
 
 The Agent row string itself is the
 [entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
-`format_agent`, updated in this change from the bracketed `[group] tool ·
-cwd` layout to `tool · group · cwd` — unbracketed group moved between the
-tool name and the `~`-folded cwd, a single ` · ` between the three segments.
+Agent text, updated in this change from the bracketed `[group] tool · cwd`
+layout to `tool · group · cwd` — unbracketed group moved between the tool name
+and the `~`-folded cwd, a single ` · ` between the three segments.
 The Agent list's rows prefix that string with the Agent glyph and a
 two-space gap, and suffix ` (focused)` only on the pinned row; kill rows
 carry the same plain string.

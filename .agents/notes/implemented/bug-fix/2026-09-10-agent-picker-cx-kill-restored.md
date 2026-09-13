@@ -16,18 +16,18 @@ pressing `<c-x>` did nothing while the Review list's `<c-x>` still deleted.
 ## Decision
 
 `commands/attach.lua` carries `<c-x>` as a flow-owned picker command beside
-`<c-g>`: it kills the current row's Agent through `Bridge.kill_agent` and
+`<c-g>`: it kills the current entry's Agent through `Bridge.kill_agent` and
 returns true, so the picker re-reads `items_provider` in place and closes when
-the list empties. Row scope is the archived decision's: the pinned
-`(focused)` row — the Agent the Terminal is attached to — and Tool rows are
+the list empties. Entry scope is the archived decision's: the pinned
+`(focused)` entry — the Agent the Terminal is attached to — and Tool entries are
 no-ops, and `:Vantage kill` remains the path that can kill the focused Agent.
 
 This note owns that behavior in the active tree because the original
 [kill note](../../archived/feature/2026-09-05-agent-picker-cx-kill.md) is
 archived and frozen. Its mechanism moved with the refactor, but its row scope
-and rationale (no focused-row kill, batch refresh, no confirmation) still
-bind; the command stays a flow decision ("does the row carry an Agent, is it
-the pinned one?") rather than a row method, matching the
+and rationale (no focused-entry kill, batch refresh, no confirmation) still
+bind; the command stays a flow decision ("does the entry carry an Agent, is it
+the pinned one?") rather than an entry method, matching the
 [picker-pure-renderers boundary](../architecture/2026-09-05-picker-pure-renderers.md).
 
 ## Alternatives considered
@@ -44,10 +44,10 @@ That note owns the picker-command mechanism; the kill's row scope is a
 user-facing behavior with its own alternatives, and its `<c-g>` sibling has a
 feature owner. A clause in the architecture note would not carry that scope.
 
-### Why not restore `PickSpec.on_delete` or give the row a `delete()`?
+### Why not restore `PickSpec.on_delete` or give the entry a `delete()`?
 
 `opts.commands` is the refactor's single in-flight-action contract and already
-carries `<c-g>`; a second contract or a row method would split one picker
+carries `<c-g>`; a second contract or an entry method would split one picker
 surface across two mechanisms.
 
 ## Consequences
@@ -64,6 +64,6 @@ surface across two mechanisms.
 ## Verification
 
 `tests/commands/attach_spec.lua` calls the registered `<c-x>` command on a
-non-focused Agent row (kills it, returns true) and on the pinned focused row
-and a Tool row (no kill, returns false). `make test` runs the suite and
+non-focused Agent entry (kills it, returns true) and on the pinned focused
+entry and a Tool entry (no kill, returns false). `make test` runs the suite and
 `make check` gates the docs and this note.

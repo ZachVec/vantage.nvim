@@ -15,15 +15,16 @@ The Picker is a pluggable Frontend interface that mirrors the Backend seam.
 `lua/vantage/frontend/picker/init.lua` resolves the configured implementation
 through a whitelist registry (a raw user string is never `require`d) and
 exposes the `Picker.pick(spec, opts)` / `Picker.pick_plain(...)` facade. Each
-implementation — `native`, `fzf-lua`, `snacks` — declares `preview` and
-`command` capabilities and renders the same neutral `PickSpec`; selected via
-`setup { picker = … }` (default `native`).
+implementation — `native`, `fzf-lua`, `snacks` — declares `preview`,
+`command`, and `multi` capabilities and renders the same neutral `PickSpec`;
+selected via `setup { picker = … }` (default `native`).
 
 Flow-owned modules (`commands/attach.lua`, `commands/kill.lua`,
-`commands/review.lua`) build rows and preview content; implementations own only
-rendering, choice recovery, and the engine-specific binding of neutral Picker
-commands. Preview content reaches the Backend through the Bridge, so the
-Frontend never touches tmux directly.
+`commands/review.lua`) build entries and preview content; implementations own
+only rendering, choice recovery, and the engine-specific binding of neutral
+Picker commands. Preview content reaches the Backend through the Bridge, so the
+Frontend never touches tmux directly. An entry's shape is one shared vocabulary
+([picker entries are data](2026-09-13-picker-entries-are-data.md)).
 
 - `native` drives `vim.ui.select` directly (respecting any global
   `vim.ui.select` override the user already has).

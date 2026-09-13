@@ -130,8 +130,8 @@ describe("vantage.commands.gather", function()
 
     local items = run("files")
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("sub/b.lua", items[2]:format())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("sub/b.lua", items[2].text)
     assert.are.same({ "a" }, items[1]:preview())
   end)
 
@@ -147,8 +147,8 @@ describe("vantage.commands.gather", function()
 
     assert.is_true(ok)
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("sub/b.lua", items[2]:format())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("sub/b.lua", items[2].text)
   end)
 
   it("lists on-disk listed buffers and marks modified ones", function()
@@ -160,8 +160,8 @@ describe("vantage.commands.gather", function()
 
     local items = run("buffers")
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("b.lua [+]", items[2]:format())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("b.lua [+]", items[2].text)
     assert.are.same({ "b", "b2" }, items[2]:preview())
   end)
 
@@ -172,7 +172,7 @@ describe("vantage.commands.gather", function()
 
     local items = run("buffers")
     assert.are.equal(1, #items)
-    assert.are.equal("a.lua", items[1]:format())
+    assert.are.equal("a.lua", items[1].text)
   end)
 
   it("sends chosen references one per line with a trailing space", function()
@@ -193,7 +193,7 @@ describe("vantage.commands.gather", function()
       codex = {
         cmd = { "codex" },
         format = function(file, loc)
-          assert.are.equal(nil, loc) -- gathered rows are whole-file references
+          assert.are.equal(nil, loc) -- gathered entries are whole-file references
           return "@" .. file
         end,
       },

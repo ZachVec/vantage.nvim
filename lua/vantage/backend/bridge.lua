@@ -66,7 +66,7 @@ function M.focus(pid)
   return nil, Config.FOCUS_NO_FOCUS
 end
 
---- Create an Agent from a Tool row: resolve the tool to its command, then
+--- Create an Agent from a Tool entry: resolve the tool to its command, then
 --- delegate. The Group is created implicitly when it does not exist.
 ---@param opts { group: string, tool: string, cwd: string }
 ---@return vantage.Agent?

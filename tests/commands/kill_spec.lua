@@ -6,6 +6,7 @@ describe("vantage.commands.kill", function()
   local Kill
   local bridge
   local captured_spec
+  local captured_opts
 
   setup(function()
     Helpers.reload_vantage()
@@ -31,8 +32,9 @@ describe("vantage.commands.kill", function()
 
     package.loaded["vantage.backend.bridge"] = bridge
     package.loaded["vantage.frontend.picker"] = {
-      pick = function(spec)
+      pick = function(spec, opts)
         captured_spec = spec
+        captured_opts = opts
         return false
       end,
     }
@@ -43,15 +45,21 @@ describe("vantage.commands.kill", function()
     Helpers.reload_vantage()
   end)
 
-  it("lists agents in window order then groups in name order, and deletes them", function()
+  it("lists agents in window order then groups in name order, and kills them", function()
     captured_spec = nil
     Kill.run()
     assert.is_not_nil(captured_spec)
     local items = captured_spec.items_provider()
 
     assert.are.equal(4, #items)
-    for _, item in ipairs(items) do
-      assert.are.equal(true, item:delete())
+    assert.are.same(
+      { "agent", "agent", "group", "group" },
+      vim.tbl_map(function(entry)
+        return entry.kind
+      end, items)
+    )
+    for _, entry in ipairs(items) do
+      captured_opts.on_choice(entry)
     end
     assert.are.same({ "@1", "@4" }, bridge.killed_agents)
     assert.are.same({ "a", "b" }, bridge.killed_groups)

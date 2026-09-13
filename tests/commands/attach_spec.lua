@@ -15,19 +15,19 @@ describe("vantage.commands.attach", function()
   local focused
   local agent_fixture
 
-  --- The Agent a row names when chosen, or nil for the pinned Focus row and
-  --- for Tool rows (which create instead of naming).
-  ---@param item vantage.AgentPickerAgentEntry|vantage.AgentPickerToolEntry
+  --- The Agent an entry names when chosen, or nil for the pinned Focus entry
+  --- and for Tool entries (which create instead of naming).
+  ---@param entry vantage.picker.Entry
   ---@return vantage.Agent?
-  local function resolved(item)
-    return item:select().agent
+  local function resolved(entry)
+    return entry.kind == "agent" and entry.agent or nil
   end
 
-  local function agent_rows(items)
+  local function agent_entries(items)
     local out = {}
-    for _, item in ipairs(items) do
-      if item.group ~= nil then
-        out[#out + 1] = item
+    for _, entry in ipairs(items) do
+      if entry.agent ~= nil then
+        out[#out + 1] = entry
       end
     end
     return out
@@ -35,9 +35,9 @@ describe("vantage.commands.attach", function()
 
   local function tool_names(items)
     local out = {}
-    for _, item in ipairs(items) do
-      if item.group == nil then
-        out[#out + 1] = item:format():match("%S+$")
+    for _, entry in ipairs(items) do
+      if entry.kind == "tool" then
+        out[#out + 1] = entry.text:match("%S+$")
       end
     end
     return out
@@ -194,29 +194,29 @@ describe("vantage.commands.attach", function()
     actions.applied = nil
   end)
 
-  it("orders agent rows by group, cwd, tool, then creation seq, and tools by name", function()
+  it("orders agent entries by group, cwd, tool, then creation seq, and tools by name", function()
     local items = items_for(nil)
-    local rows = agent_rows(items)
+    local entries = agent_entries(items)
 
     assert.are.same(
       { "@1", "@3", "@2", "@4" },
       vim.tbl_map(function(r)
         return resolved(r).id
-      end, rows)
+      end, entries)
     )
     assert.are.same({ "alpha", "zeta" }, tool_names(items))
   end)
 
-  it("pins the focused agent first, excluded from the sorted rows, and choosing it names nothing", function()
+  it("pins the focused agent first, excluded from the sorted entries, and choosing it names nothing", function()
     focused = agent_fixture[2]
     command_capable = false
     local items = items_for(42)
 
-    assert.is_true(vim.endswith(items[1]:format(), "(focused)"))
+    assert.is_true(vim.endswith(items[1].text, "(focused)"))
     assert.are.equal(nil, resolved(items[1]))
     local rest = {}
     for i = 2, #items do
-      if items[i].group ~= nil then
+      if items[i].agent ~= nil then
         rest[#rest + 1] = items[i]
       end
     end
@@ -228,31 +228,31 @@ describe("vantage.commands.attach", function()
     )
   end)
 
-  it("scopes the list to the focused agent's group, keeping tool rows", function()
+  it("scopes the list to the focused agent's group, keeping tool entries", function()
     focused = agent_fixture[2]
     local items = items_for(42)
 
     assert.are.equal(5, #items) -- pinned + 2 group-mates + 2 tools
-    assert.are.equal(3, #agent_rows(items))
+    assert.are.equal(3, #agent_entries(items))
   end)
 
-  it("formats rows with tool, group, and cwd", function()
-    local item = items_for(nil)[1]
-    assert.are.equal("zeta · a · /a", item:format():gsub("^.*  ", ""))
+  it("formats entries with tool, group, and cwd", function()
+    local entry = items_for(nil)[1]
+    assert.are.equal("zeta · a · /a", entry.text:gsub("^.*  ", ""))
   end)
 
-  it("previews agent panes and returns nil for tool rows", function()
+  it("previews agent panes and returns nil for tool entries", function()
     local items = items_for(nil)
-    local rows = agent_rows(items)
+    local entries = agent_entries(items)
 
-    assert.are.same({ "line" }, rows[1]:preview())
+    assert.are.same({ "line" }, entries[1]:preview())
     assert.are.equal(nil, items[#items]:preview())
     assert.are.same({ "@1" }, bridge.captured)
   end)
 
-  it("creates the agent in the group chosen for a Tool row", function()
+  it("creates the agent in the group chosen for a Tool entry", function()
     local items = items_for(42)
-    picker.auto_select = #items -- the last row is a Tool row
+    picker.auto_select = #items -- the last entry is a Tool entry
 
     Attach.toggle()
 
@@ -272,14 +272,14 @@ describe("vantage.commands.attach", function()
     assert.are.equal(nil, terminal.opened)
   end)
 
-  it("opens a Terminal on an Agent created from a Tool row when the list has no Focus", function()
+  it("opens a Terminal on an Agent created from a Tool entry when the list has no Focus", function()
     local items = items_for(nil)
     local tool = items[#items]
     picker.auto_select = #items
 
     Attach.toggle()
 
-    assert.is_true(vim.endswith(tool:format(), "zeta")) -- Tool rows sort by name
+    assert.is_true(vim.endswith(tool.text, "zeta")) -- Tool entries sort by name
     assert.are.equal("zeta", bridge.created[1].tool)
     assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
@@ -291,16 +291,16 @@ describe("vantage.commands.attach", function()
     assert.are.same({ pid = 42, id = "@1" }, bridge.retargeted)
   end)
 
-  it("kills a non-focused agent row in place with <c-x>", function()
+  it("kills a non-focused agent entry in place with <c-x>", function()
     focused = agent_fixture[2]
     local items = items_for(42)
-    local row = items[2]
+    local entry = items[2]
 
-    assert.is_true(command_for("<C-x>")[2]({ item = row, items = items }))
-    assert.are.same({ row.agent.id }, bridge.killed)
+    assert.is_true(command_for("<C-x>")[2]({ item = entry, items = items }))
+    assert.are.same({ entry.agent.id }, bridge.killed)
   end)
 
-  it("ignores <c-x> on the pinned focused row and Tool rows", function()
+  it("ignores <c-x> on the pinned focused entry and Tool entries", function()
     focused = agent_fixture[2]
     local items = items_for(42)
     local command = command_for("<C-x>")[2]

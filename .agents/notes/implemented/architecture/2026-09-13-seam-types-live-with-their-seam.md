@@ -42,7 +42,7 @@ path under `shared`.
 A types-only file is a new kind of file here — nothing requires it — and the
 dependency verifier would file it under `shared` by default. It would also have
 to own contracts with no single layer: `vantage.Agent` is read by the Bridge,
-the tmux Driver, `frontend/display.lua`, and three flows. The file would be a
+the tmux Driver, `frontend/entries.lua`, and three flows. The file would be a
 drawer, not a home.
 
 ### Why not keep everything in `config.lua`?
