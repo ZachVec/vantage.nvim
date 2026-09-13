@@ -94,11 +94,13 @@ M.capabilities = {
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
-  local state = { items = spec.items_provider() }
-  if #state.items == 0 then
-    return true
+  local items, err = spec.items_provider()
+  if #items == 0 then
+    return true, err
   end
+  local state = { items = items }
 
   local function content(cb)
     emit(state.items, cb)
@@ -127,6 +129,8 @@ function M.pick(spec, opts)
           items = state.items,
         })
         if changed then
+          -- A re-read that fails answers with an empty list: the picker exits,
+          -- and the opening read's reason is already on its way back.
           state.items = spec.items_provider()
           if #state.items == 0 then
             fzf().utils.fzf_exit()
@@ -153,7 +157,7 @@ function M.pick(spec, opts)
       return table.concat(lines, "\n")
     end,
   })
-  return false
+  return false, nil
 end
 
 --- Open an fzf picker with `--multi`: tab marks entries and Enter confirms the
@@ -161,10 +165,11 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
-  local items = spec.items_provider()
+  local items, err = spec.items_provider()
   if #items == 0 then
-    return true
+    return true, err
   end
 
   fzf().fzf_exec(function(cb)
@@ -194,7 +199,7 @@ function M.pick_multi(spec, opts)
       return table.concat(lines, "\n")
     end,
   })
-  return false
+  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own

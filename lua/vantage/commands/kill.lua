@@ -9,18 +9,16 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- Agents (creation order) then Groups (sorted). May be empty.
----@param state? { error?: string }
+--- Agents (creation order) then Groups (sorted), or an empty list plus the
+--- Driver's reason when the inventory could not be read.
 ---@return vantage.PickSpec
-local function spec(state)
-  state = state or {}
+local function spec()
   return {
     prompt = PROMPT,
     items_provider = function()
       local inventory, err = Bridge.inventory()
-      state.error = err
       if inventory == nil then
-        return {}
+        return {}, err
       end
       local agents = inventory.agents
       local groups = inventory.groups
@@ -58,17 +56,16 @@ local function kill(entry)
 end
 
 function M.run()
-  local state = {}
-  local empty = Picker.pick(spec(state), {
+  local empty, err = Picker.pick(spec(), {
     on_choice = function(entry)
-      local ok, err = kill(entry)
+      local ok, kill_err = kill(entry)
       if not ok then
-        Util.warn(err or "failed to kill")
+        Util.warn(kill_err or "failed to kill")
       end
     end,
   })
-  if state.error then
-    Util.warn(state.error)
+  if err then
+    Util.warn(err)
   elseif empty then
     Util.warn("nothing to kill")
   end

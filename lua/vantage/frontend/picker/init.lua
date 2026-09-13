@@ -12,11 +12,17 @@
 --- pays for the highlighted entry
 
 ---@class vantage.PickSpec The selection contract passed to a picker
---- implementation. Each field is an input to the picker: the items to render
+--- implementation. Each field is an input to the picker: the entries to render
 --- (`items_provider`) and the prompt glyph (`prompt`). Commands are supplied
 --- through `PickOpts`.
+---
+--- `items_provider` always answers with a list; when it could not read one the
+--- list is empty and the second value is the reason. Only the read that
+--- decides whether a pick opens carries that reason back to the flow
+--- (`vantage.PickerImpl.pick`); a re-read from a Picker command answers with
+--- an empty list, which closes the picker.
 ---@field prompt string
----@field items_provider fun(): vantage.picker.Entry[]
+---@field items_provider fun(): vantage.picker.Entry[], string?
 
 ---@class vantage.PickerCommandCtx
 ---@field item vantage.picker.Entry? the highlighted entry, when there is one
@@ -59,10 +65,15 @@
 --- loses either. A flow therefore never restores a window or a mode.
 --- `native` delegates this, like everything else, to the global
 --- `vim.ui.select`.
+---
+--- `pick` and `pick_multi` answer `empty, err`: `empty` says that no pick
+--- opened — the list held nothing, or the opening read failed — and `err` is
+--- that failure's reason, so a flow reports one of them without a side
+--- channel.
 ---@field requires? string optional runtime module dependency
 ---@field capabilities vantage.PickerCapabilities
----@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
----@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean
+---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean, string?
+---@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean, string?
 ---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
 
 local Config = require("vantage.config")
@@ -163,6 +174,7 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
   local impl = get()
   if type(opts.on_choice) ~= "function" then
@@ -172,10 +184,11 @@ function M.pick(spec, opts)
   if commands and not impl.capabilities.command then
     commands = nil
   end
-  return impl.pick(spec, {
+  local empty, err = impl.pick(spec, {
     on_choice = opts.on_choice,
     commands = commands,
   })
+  return empty, err
 end
 
 --- Render a multi-selection pick through the configured implementation. A
@@ -184,21 +197,24 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
   local impl = get()
   if type(opts.on_choices) ~= "function" then
     error("vantage: picker opts.on_choices must be a function", 0)
   end
   if impl.capabilities.multi then
-    return impl.pick_multi(spec, {
+    local empty, err = impl.pick_multi(spec, {
       on_choices = opts.on_choices,
     })
+    return empty, err
   end
-  return impl.pick(spec, {
+  local empty, err = impl.pick(spec, {
     on_choice = function(item)
       opts.on_choices({ item })
     end,
   })
+  return empty, err
 end
 
 --- Render a plain selection through the configured implementation.

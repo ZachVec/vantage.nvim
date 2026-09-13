@@ -35,7 +35,10 @@ describe("vantage.commands.kill", function()
       pick = function(spec, opts)
         captured_spec = spec
         captured_opts = opts
-        return false
+        -- Answer the way an implementation does: the opening read carries the
+        -- reason when the list could not be read.
+        local items, err = spec.items_provider()
+        return #items == 0, err
       end,
     }
     Kill = require("vantage.commands.kill")
@@ -63,5 +66,21 @@ describe("vantage.commands.kill", function()
     end
     assert.are.same({ "@1", "@4" }, bridge.killed_agents)
     assert.are.same({ "a", "b" }, bridge.killed_groups)
+  end)
+
+  it("warns the read's reason instead of the empty list message", function()
+    local notified = {}
+    local original_notify = vim.notify
+    vim.notify = function(msg)
+      notified[#notified + 1] = msg
+    end
+    bridge.inventory = function()
+      return nil, "no server running"
+    end
+
+    Kill.run()
+    vim.notify = original_notify
+
+    assert.are.same({ "vantage: no server running" }, notified)
   end)
 end)

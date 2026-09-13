@@ -102,6 +102,7 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
   local terminal_win = terminal_window()
 
@@ -109,13 +110,15 @@ function M.pick(spec, opts)
     return spec.items_provider()
   end
 
-  local list = read()
+  local list, err = read()
   if #list == 0 then
-    return true
+    return true, err
   end
 
   local function refresh(picker, reread)
     if reread then
+      -- A re-read that fails answers with an empty list: the picker closes, and
+      -- the opening read's reason is already on its way back.
       list = read()
     end
     if #list == 0 then
@@ -169,7 +172,7 @@ function M.pick(spec, opts)
   pick_opts.win = win
 
   pick(pick_opts)
-  return false
+  return false, nil
 end
 
 --- Render a multi-selection pick: entries are marked in the list (`<Tab>` by
@@ -178,11 +181,12 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
   local terminal_win = terminal_window()
-  local items = spec.items_provider()
+  local items, err = spec.items_provider()
   if #items == 0 then
-    return true
+    return true, err
   end
 
   pick({
@@ -207,7 +211,7 @@ function M.pick_multi(spec, opts)
     end,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
   })
-  return false
+  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select

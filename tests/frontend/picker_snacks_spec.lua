@@ -94,4 +94,21 @@ describe("vantage.frontend.picker.snacks", function()
     assert.are.equal(1, #chosen)
     assert.are.equal("agent row", chosen[1].text)
   end)
+
+  it("answers empty, with the read's reason, without opening", function()
+    captured = nil
+
+    local empty, err = Snacks.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}, "no server running"
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+    assert.is_nil(captured)
+  end)
 end)

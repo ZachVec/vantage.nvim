@@ -209,10 +209,19 @@ else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
 mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
 fzf-lua's own `set_current_win(src_winid)` on the other).
 
+A pick answers with `empty, err`. `empty` says that no pick opened — the entry
+list held nothing, or its opening read failed — and `err` is that failure's
+reason, so a flow reports one of the two without a side channel.
+`items_provider` always answers with a list; on failure the list is empty and
+the reason rides the second value. Only the read that decides whether a pick
+opens carries that reason back to the flow: a re-read triggered by a Picker
+command answers with an empty list, which closes the picker.
+
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
 `true` when the item list may have changed. A true result re-reads
-`items_provider` and refreshes (or closes on an empty result). Commands are
+`items_provider` and refreshes (or closes on an empty result, a failed read
+included). Commands are
 global to the picker UI; the facade rejects duplicate `lhs` values and drops
 commands for a picker without the `command` capability. Group scoping is an
 ordinary command, not a Picker concept.

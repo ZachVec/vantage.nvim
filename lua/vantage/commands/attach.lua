@@ -18,7 +18,6 @@ local PROMPT = Util.picker_prompt
 
 ---@class vantage.AgentPickerState
 ---@field group_on boolean
----@field error? string
 ---@field focused? vantage.Agent
 
 --- Ask for a Group through the picker, or straight through input() when none
@@ -106,9 +105,8 @@ local function spec(pid, state)
     prompt = PROMPT,
     items_provider = function()
       local inventory, err = Bridge.inventory()
-      state.error = err
       if inventory == nil then
-        return {}
+        return {}, err
       end
       -- The Focus is a second read: the inventory never carries it.
       local focused, _ = Bridge.focus(pid)
@@ -156,7 +154,7 @@ end
 ---@param pid? integer the terminal job's pid (nil = no focused Agent)
 local function pick(after, pid)
   local state = { group_on = Picker.capabilities().command }
-  local empty = Picker.pick(spec(pid, state), {
+  local empty, err = Picker.pick(spec(pid, state), {
     on_choice = function(entry)
       if entry.kind == "focused" then
         return
@@ -192,8 +190,8 @@ local function pick(after, pid)
       },
     },
   })
-  if state.error then
-    Util.warn(state.error)
+  if err then
+    Util.warn(err)
   elseif empty then
     Util.warn("no agents and no tools configured (cli.tools)")
   end

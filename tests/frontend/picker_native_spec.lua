@@ -32,7 +32,7 @@ describe("vantage.frontend.picker.native", function()
     end
 
     local chosen
-    local empty = Native.pick({
+    local empty, err = Native.pick({
       prompt = "pick",
       items_provider = function()
         return { item }
@@ -44,26 +44,28 @@ describe("vantage.frontend.picker.native", function()
     })
 
     assert.is_false(empty)
+    assert.is_nil(err)
     assert.are.equal("an entry", formatted)
     assert.are.equal(item, chosen)
   end)
 
-  it("answers empty without opening when the list is empty", function()
+  it("answers empty, with the read's reason, without opening", function()
     local opened = false
     vim.ui.select = function()
       opened = true
     end
 
-    local empty = Native.pick({
+    local empty, err = Native.pick({
       prompt = "pick",
       items_provider = function()
-        return {}
+        return {}, "no server running"
       end,
     }, {
       on_choice = function() end,
     })
 
     assert.is_true(empty)
+    assert.are.equal("no server running", err)
     assert.is_false(opened)
   end)
 end)

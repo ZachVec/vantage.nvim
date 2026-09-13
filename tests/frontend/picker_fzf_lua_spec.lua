@@ -97,4 +97,21 @@ describe("vantage.frontend.picker.fzf_lua", function()
 
     assert.are.equal("second", chosen.text)
   end)
+
+  it("answers empty, with the read's reason, without opening", function()
+    captured = nil
+
+    local empty, err = Fzf.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}, "no server running"
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+    assert.is_nil(captured)
+  end)
 end)

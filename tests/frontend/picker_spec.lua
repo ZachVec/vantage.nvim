@@ -209,18 +209,19 @@ describe("vantage.frontend.picker", function()
       end,
       pick_multi = function(_, opts)
         received = opts
-        return false
+        return false, "boom"
       end,
       pick_plain = function() end,
     }
     Config.options.picker = "native"
     Picker.setup()
 
-    local empty = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
+    local empty, err = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
       on_choices = function() end,
     })
 
     assert.is_false(empty)
+    assert.are.equal("boom", err)
     assert.are.equal("function", type(received.on_choices))
     assert.is_nil(received.on_close)
   end)
@@ -247,5 +248,43 @@ describe("vantage.frontend.picker", function()
     received.on_choice("row")
 
     assert.are.same({ "row" }, chosen)
+  end)
+
+  it("hands an implementation's empty answer, and its reason, back", function()
+    package.loaded["vantage.frontend.picker.native"] = {
+      capabilities = { preview = false, command = false, multi = false },
+      pick = function()
+        return true, "no server running"
+      end,
+      pick_plain = function() end,
+    }
+    Config.options.picker = "native"
+    Picker.setup()
+
+    local empty, err = Picker.pick({ prompt = "pick", items_provider = function() end }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+  end)
+
+  it("hands the reason back from a degraded multi pick", function()
+    package.loaded["vantage.frontend.picker.native"] = {
+      capabilities = { preview = false, command = false, multi = false },
+      pick = function()
+        return true, "no server running"
+      end,
+      pick_plain = function() end,
+    }
+    Config.options.picker = "native"
+    Picker.setup()
+
+    local empty, err = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
+      on_choices = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
   end)
 end)

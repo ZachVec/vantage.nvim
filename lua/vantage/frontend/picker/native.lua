@@ -14,10 +14,11 @@ M.capabilities = {
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
-  local items = spec.items_provider()
+  local items, err = spec.items_provider()
   if #items == 0 then
-    return true
+    return true, err
   end
   vim.ui.select(items, {
     prompt = spec.prompt,
@@ -29,7 +30,7 @@ function M.pick(spec, opts)
       opts.on_choice(item)
     end
   end)
-  return false
+  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: the live global
