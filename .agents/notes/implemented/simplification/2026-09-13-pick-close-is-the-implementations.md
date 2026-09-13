@@ -106,5 +106,6 @@ re-entry still rests on the real-UI reproduction in
 [float client loses window focus when a snacks pick closes](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md)
 and on the snacks behaviours recorded in `docs/gotchas.md`. A manual pass with
 the real snacks and fzf-lua plugins over the `float`, `full`, and split
-layouts is what closes this: nothing else exercises the engines' own close
-paths.
+layouts closes it: focus and terminal mode both come back to the terminal
+window on every path a flow picks from, which is the behaviour the deleted
+flow code was duplicating.
