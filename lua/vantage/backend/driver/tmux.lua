@@ -440,7 +440,8 @@ function M.focus(pid)
         cwd = fields[5],
         tool = fields[6],
         state = (fields[7] ~= "" and fields[7]) or nil,
-      }, nil
+      },
+        nil
     end
   end
   return nil, Config.FOCUS_NO_CLIENT
