@@ -28,9 +28,6 @@ function M.pick(spec, opts)
     if item then
       opts.on_choice(item)
     end
-    if opts.on_close then
-      opts.on_close()
-    end
   end)
   return false
 end

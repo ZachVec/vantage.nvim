@@ -200,8 +200,14 @@ and call `preview`; they never write to an Entry, and the flow — not the Entry
 
 A picker without `multi` renders a multi-selection request as a single choice,
 so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
-optional `commands`/`on_close`; `PickMultiOpts` carries `on_choices` and the
-same optional `on_close`, run whenever the picker closes.
+optional `commands`; `PickMultiOpts` carries `on_choices`. An implementation
+owns what its own close does: it leaves the window the pick was invoked from
+current, with that window's mode intact, and compensates for its own teardown
+whenever its engine loses either — so no flow restores a window or a mode, and
+no flow passes a close callback. `native` delegates that, like everything
+else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
+mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
+fzf-lua's own `set_current_win(src_winid)` on the other).
 
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns

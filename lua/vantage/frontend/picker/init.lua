@@ -31,14 +31,12 @@
 
 ---@class vantage.PickOpts
 ---@field on_choice fun(item: vantage.picker.Entry)
----@field on_close? fun() run when the picker closes, whether chosen or cancelled
 ---@field commands? vantage.PickerCommand[]
 
 ---@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
 --- without the `multi` capability degrades to one choice, so `on_choices`
 --- always receives a list of at least one item.
 ---@field on_choices fun(items: vantage.picker.Entry[])
----@field on_close? fun() run when the picker closes, whether chosen or cancelled
 
 ---@class vantage.PlainSelectOpts Options for the plain-list select form
 --- (`pick_plain`), mirroring `vim.ui.select`'s opts.
@@ -54,6 +52,13 @@
 --- snacks) rendering every Vantage selection on its own engine. The command
 --- flows assemble a PickSpec per flow; the implementations stay
 --- presentation-only and depend on nothing but their engine.
+---
+--- An implementation owns what its own close does: it leaves the window the
+--- pick was invoked from current when the picker closes, with that window's
+--- mode intact, and compensates for its own teardown whenever its engine
+--- loses either. A flow therefore never restores a window or a mode.
+--- `native` delegates this, like everything else, to the global
+--- `vim.ui.select`.
 ---@field requires? string optional runtime module dependency
 ---@field capabilities vantage.PickerCapabilities
 ---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
@@ -169,7 +174,6 @@ function M.pick(spec, opts)
   end
   return impl.pick(spec, {
     on_choice = opts.on_choice,
-    on_close = opts.on_close,
     commands = commands,
   })
 end
@@ -188,14 +192,12 @@ function M.pick_multi(spec, opts)
   if impl.capabilities.multi then
     return impl.pick_multi(spec, {
       on_choices = opts.on_choices,
-      on_close = opts.on_close,
     })
   end
   return impl.pick(spec, {
     on_choice = function(item)
       opts.on_choices({ item })
     end,
-    on_close = opts.on_close,
   })
 end
 

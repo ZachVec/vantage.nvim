@@ -147,19 +147,20 @@ Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
 window when that float is already gone, so closing the picker floats from a
 floating Terminal lands the focus on the editor behind it — the handler
 re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The preview-capable `Picker.pick` path
-passes an `on_close` handler; `Picker.pick_plain` (the Agent-creation Group step and
-`:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,
-because snacks' own `ui_select` shim owns `on_close` there — and because the
-new-Group name prompt (a cmdline `input()` scheduled from inside the choice
-handler) keeps the scheduler alive while its `c` mode is active: a re-entry
-check queued after the handler would see `c`, skip, and strand the terminal in
-Normal once the prompt closes. Queued first, the `startinsert` stays pending
-across the cmdline and lands when it closes (verified on nvim 0.12.3). A
-Tool-entry creation through `:Vantage toggle` ends in terminal mode via the
-toggle tail's `Terminal.open` (`startinsert`) and skips the re-entry; a
-`switch` re-points without showing (`retarget`), so it depends
-on the `on_close`/wrapped re-entry above.
+the terminal mode re-entry follows. The engine hooks its own close on both
+paths, and no flow takes part in it: the preview-capable `Picker.pick` passes
+the handler as `on_close`, while `Picker.pick_plain` (the Agent-creation Group
+step and `:Vantage prompt`) wraps its `on_choice` *before* the flow's choice
+handler runs, because the plain select call hands the implementation no close
+hook of its own — and because the new-Group name prompt (a cmdline `input()`
+scheduled from inside the choice handler) keeps the scheduler alive while its
+`c` mode is active: a re-entry check queued after the handler would see `c`,
+skip, and strand the terminal in Normal once the prompt closes. Queued first,
+the `startinsert` stays pending across the cmdline and lands when it closes
+(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage toggle`
+ends in terminal mode via the toggle tail's `Terminal.open` (`startinsert`)
+and skips the re-entry; a `switch` re-points without showing (`retarget`), so
+it depends on the implementation's close handler above.
 
 ### Finder signature is `fun(opts, ctx): result`
 

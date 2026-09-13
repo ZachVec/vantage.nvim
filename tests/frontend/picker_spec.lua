@@ -155,6 +155,8 @@ describe("vantage.frontend.picker", function()
     })
 
     assert.are.same({ command }, received.commands)
+    -- The close belongs to the implementation: the facade passes no callback.
+    assert.is_nil(received.on_close)
   end)
 
   it("rejects duplicate command lhs values", function()
@@ -214,15 +216,13 @@ describe("vantage.frontend.picker", function()
     Config.options.picker = "native"
     Picker.setup()
 
-    local on_close = function() end
     local empty = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
       on_choices = function() end,
-      on_close = on_close,
     })
 
     assert.is_false(empty)
     assert.are.equal("function", type(received.on_choices))
-    assert.are.equal(on_close, received.on_close)
+    assert.is_nil(received.on_close)
   end)
 
   it("degrades a multi pick to one choice without the multi capability", function()

@@ -140,7 +140,6 @@ function M.pick(spec, opts)
   fzf().fzf_exec(content, {
     prompt = spec.prompt,
     fzf_opts = PREFIX_HIDDEN,
-    winopts = { on_close = opts.on_close },
     actions = actions,
     preview = function(selected)
       local item = item_of(selected)
@@ -173,7 +172,6 @@ function M.pick_multi(spec, opts)
   end, {
     prompt = spec.prompt,
     fzf_opts = vim.tbl_extend("force", { ["--multi"] = true }, PREFIX_HIDDEN),
-    winopts = { on_close = opts.on_close },
     actions = {
       ["default"] = function(selected)
         local chosen = items_of(items, selected)

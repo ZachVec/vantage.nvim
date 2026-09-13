@@ -37,9 +37,10 @@ after the last one, and no trailing newline.
   through the numeric-prefix round-trip, and native — which has no
   multi-select — degrades to a single choice, so `on_choices` always receives
   a list.
-- **`PickOpts`/`PickMultiOpts` carry an optional `on_close`**, run whenever the
-  picker closes, on confirm or cancel, so gather can restore the invoking
-  window after the engine's own teardown.
+- **The pick's close belongs to the implementation**, not to the flow: gather
+  passes no close callback, because the snacks Picker's own close handler
+  already returns focus to the terminal the pick was invoked from (see
+  [the pick-close note](../simplification/2026-09-13-pick-close-is-the-implementations.md)).
 - **References are spelled by the Tool's `format(file, loc)` hook, applied per
   row**: a gathered row has no position, so `loc` is nil, and the results are
   joined with `gather.join`. A hook returning nil or "" drops the send, so each

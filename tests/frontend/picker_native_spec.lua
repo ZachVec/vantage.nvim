@@ -17,7 +17,7 @@ describe("vantage.frontend.picker.native", function()
     Helpers.reload_vantage()
   end)
 
-  it("runs on_close after a single choice", function()
+  it("renders an entry's text and returns the choice", function()
     local item = {
       kind = "agent",
       text = "an entry",
@@ -25,12 +25,13 @@ describe("vantage.frontend.picker.native", function()
         return nil
       end,
     }
-    vim.ui.select = function(_, _, on_choice)
-      on_choice(item)
+    local formatted
+    vim.ui.select = function(items, opts, on_choice)
+      formatted = opts.format_item(items[1])
+      on_choice(items[1])
     end
 
     local chosen
-    local closed = false
     local empty = Native.pick({
       prompt = "pick",
       items_provider = function()
@@ -40,13 +41,29 @@ describe("vantage.frontend.picker.native", function()
       on_choice = function(entry)
         chosen = entry
       end,
-      on_close = function()
-        closed = true
-      end,
     })
 
     assert.is_false(empty)
+    assert.are.equal("an entry", formatted)
     assert.are.equal(item, chosen)
-    assert.is_true(closed)
+  end)
+
+  it("answers empty without opening when the list is empty", function()
+    local opened = false
+    vim.ui.select = function()
+      opened = true
+    end
+
+    local empty = Native.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.is_false(opened)
   end)
 end)

@@ -85,18 +85,14 @@ M.capabilities = {
   multi = true,
 }
 
---- The engine's `on_close`: re-enter the terminal the pick opened from, then
---- hand the close back to the flow.
+--- The engine's own `on_close`: re-enter the terminal the pick opened from.
+--- The flow takes no part in the close (see `vantage.PickerImpl`).
 ---@param terminal_win? integer
----@param on_close? fun()
 ---@return fun()
-local function close_handler(terminal_win, on_close)
+local function close_handler(terminal_win)
   return function()
     if terminal_win then
       restore_terminal_mode(terminal_win)
-    end
-    if on_close then
-      on_close()
     end
   end
 end
@@ -134,7 +130,7 @@ function M.pick(spec, opts)
       return { { item.text, "" } }
     end,
     preview = preview(),
-    on_close = close_handler(terminal_win, opts.on_close),
+    on_close = close_handler(terminal_win),
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -194,7 +190,7 @@ function M.pick_multi(spec, opts)
       return { { item.text, "" } }
     end,
     preview = preview(),
-    on_close = close_handler(terminal_win, opts.on_close),
+    on_close = close_handler(terminal_win),
     confirm = function(picker)
       -- `selected` returns copies of the entries; an entry is plain data, so
       -- the flow-owned fields survive the copy.

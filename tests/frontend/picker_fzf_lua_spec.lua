@@ -37,7 +37,6 @@ describe("vantage.frontend.picker.fzf_lua", function()
 
   it("maps every returned entry back to its item for a multi pick", function()
     local chosen
-    local on_close = function() end
     Fzf.pick_multi({
       prompt = "pick",
       items_provider = function()
@@ -47,13 +46,12 @@ describe("vantage.frontend.picker.fzf_lua", function()
       on_choices = function(rows)
         chosen = rows
       end,
-      on_close = on_close,
     })
 
     assert.is_true(captured.fzf_opts["--multi"])
     assert.are.equal("2..", captured.fzf_opts["--with-nth"])
     assert.is_nil(captured.fzf_opts["--nth"])
-    assert.are.equal(on_close, captured.winopts.on_close)
+    assert.is_nil(captured.winopts)
     captured.actions.default({ "2. second", "1. first" })
     vim.wait(500, function()
       return chosen ~= nil

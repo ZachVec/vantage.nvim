@@ -124,7 +124,6 @@ local function run(source)
     return
   end
   local items = SOURCES[source].items(agent.cwd)
-  local win = vim.api.nvim_get_current_win()
   local empty = Picker.pick_multi({
     prompt = SOURCES[source].prompt,
     items_provider = function()
@@ -151,15 +150,6 @@ local function run(source)
       if not ok then
         Util.warn(send_err or "failed to send references")
       end
-    end,
-    -- Restore the invoking window once the picker engine has finished
-    -- closing its own; a synchronous restore can fight that teardown.
-    on_close = function()
-      vim.schedule(function()
-        if vim.api.nvim_win_is_valid(win) then
-          vim.api.nvim_set_current_win(win)
-        end
-      end)
     end,
   })
   if empty then

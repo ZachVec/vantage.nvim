@@ -151,8 +151,8 @@ local function send_prompt(name)
 end
 
 --- Pick a prompt name through the Picker's plain-select form and send it to
---- the focused Agent. The current window is restored afterwards so the cursor
---- stays where it was (e.g. the terminal).
+--- the focused Agent. Handing the window back when the pick closes is the
+--- Picker implementation's job (see `vantage.PickerImpl`).
 function M.run()
   local names = {}
   for name in pairs(Config.options.prompts) do
@@ -163,19 +163,10 @@ function M.run()
     end
   end
   table.sort(names)
-  local win = vim.api.nvim_get_current_win()
-  local function restore()
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_set_current_win(win)
-    end
-  end
   Picker.pick_plain(names, { prompt = "Prompt: " }, function(name)
     if name then
       send_prompt(name)
     end
-    -- Restore after the picker engine has finished closing its window; a
-    -- synchronous restore can fight the engine's own teardown.
-    vim.schedule(restore)
   end)
 end
 
