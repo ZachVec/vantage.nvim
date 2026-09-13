@@ -10,7 +10,7 @@ describe("vantage.commands.kill", function()
   setup(function()
     Helpers.reload_vantage()
     bridge = { killed_agents = {}, killed_groups = {} }
-    function bridge.agents()
+    function bridge.inventory()
       return {
         agents = {
           { group = "a", id = "@1", seq = 1, tool = "codex", cwd = "/a" },

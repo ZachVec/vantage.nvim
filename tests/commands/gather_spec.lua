@@ -63,8 +63,14 @@ describe("vantage.commands.gather", function()
     notified = {}
 
     bridge = { sent = {} }
-    function bridge.agents()
-      return { agents = {}, groups = {}, focused = focused }, nil
+    function bridge.focus(pid)
+      if pid == nil then
+        return nil, Config.FOCUS_NO_TERMINAL
+      end
+      if focused == nil then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return focused, nil
     end
     function bridge.send(agent, text)
       bridge.sent[#bridge.sent + 1] = { agent = agent, text = text }
@@ -83,6 +89,12 @@ describe("vantage.commands.gather", function()
 
     package.loaded["vantage.backend.bridge"] = bridge
     package.loaded["vantage.frontend.picker"] = picker
+    -- Only the job pid is needed; the flows read the Focus through the Bridge.
+    package.loaded["vantage.frontend.terminal"] = {
+      pid = function()
+        return 42
+      end,
+    }
     Gather = require("vantage.commands.gather")
   end)
 

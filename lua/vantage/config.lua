@@ -4,7 +4,7 @@
 
 ---@class vantage.Tool A launch command (name -> cmd array).
 ---@field cmd string[]
----@field format? vantage.ReferenceFormat per-Agent reference dialect; without it a reference is `file` plus a space-separated `loc`
+---@field format? vantage.ReferenceFormat per-Agent reference dialect; optional in user config, always set by `Config.apply` (default `Util.reference`: `file` plus a space-separated `loc`). Read it through `Config.tool_format`, never directly.
 
 ---@class vantage.Agent A running coding-agent process.
 ---@field id string opaque Driver identity
@@ -21,7 +21,8 @@
 
 ---@class vantage.Driver The multiplexer contract behind the Bridge.
 ---@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
----@field snapshot fun(pid?: integer): { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?, string?
+---@field agents fun(): vantage.Agent[]?, string?
+---@field client_window fun(pid: integer): string?, string?
 ---@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
 ---@field attach fun(agent: vantage.Agent): vantage.Attachment?, string?
 ---@field kill_view fun(view: string): boolean, string?
@@ -207,6 +208,15 @@ M.PROMPT_PLACEHOLDERS = {
   reviews = true,
 }
 
+--- Why a Focus read came back empty, for the flows that warn about it. The
+--- Bridge returns one of these as the second value of `focus(pid)`; callers
+--- only report it, so the shapes are messages rather than a cause vocabulary
+--- nobody branches on.
+M.FOCUS_NO_TERMINAL = "no terminal"
+M.FOCUS_NO_CLIENT = "no client for this terminal"
+M.FOCUS_NO_FOCUS = "no focused agent"
+M.FOCUS_SERVER_DOWN = "the vantage tmux server is not running"
+
 --- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),
 --- surfaced by :checkhealth.
 ---@type table<string, string>
@@ -241,11 +251,31 @@ function M.sanitize_tools(tools, dropped)
   return tools
 end
 
+--- The reference spelling of the Tool named `name`: its `format` hook (always
+--- set after `apply`), or the plain `Util.reference` when no such Tool is
+--- configured — an Agent may name a Tool that a later setup dropped.
+---@param name string
+---@return vantage.ReferenceFormat
+function M.tool_format(name)
+  local tool = M.options.cli.tools[name]
+  if tool and type(tool.format) == "function" then
+    return tool.format
+  end
+  return Util.reference
+end
+
 ---@param opts? vantage.Config
 function M.apply(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   local dropped = {}
   M.sanitize_tools(M.options.cli.tools, dropped)
+  -- Every surviving Tool gets a reference spelling, so no caller has to carry
+  -- the "user configured no hook" case.
+  for _, tool in pairs(M.options.cli.tools) do
+    if type(tool.format) ~= "function" then
+      tool.format = Util.reference
+    end
+  end
   M.dropped_tools = dropped
   for name, reason in pairs(dropped) do
     Util.warn(("dropping invalid cli.tools entry '%s' (%s)"):format(name, reason))

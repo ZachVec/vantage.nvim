@@ -25,18 +25,22 @@ local PROMPT = Util.picker_prompt
 ---@field group string?
 ---@field format fun(self: vantage.AgentPickerEntry): string
 ---@field preview fun(self: vantage.AgentPickerEntry): string[]?
----@field target fun(self: vantage.AgentPickerEntry, done: fun(agent: vantage.Agent))
+
+---@class vantage.AgentSelection What choosing an Agent-list row means.
+---@field kind "focused"|"agent"|"new"
+---@field agent? vantage.Agent the Agent to act on ("focused" and "agent"); the
+--- Tool to create from travels in the row, not here
 
 --- Ask for a Group through the picker, or straight through input() when none
 --- exist. The continuation is asynchronous.
 ---@param after fun(group: string)
 local function ask_group(after)
-  local snapshot, err = Bridge.agents(nil)
-  if snapshot == nil then
+  local inventory, err = Bridge.inventory()
+  if inventory == nil then
     Util.warn(err or "failed to read agents")
     return
   end
-  local names = snapshot.groups
+  local names = inventory.groups
   local function prompt_name()
     vim.schedule(function()
       local name = vim.trim(vim.fn.input({ prompt = "Group name: " }))
@@ -95,10 +99,14 @@ function AgentEntry:preview()
   return lines
 end
 
-function AgentEntry:target(done)
-  if not self.focused then
-    done(self.agent)
+--- Choosing an Agent row names that Agent. The pinned Focus row is already the
+--- attached one, so it names nothing.
+---@return vantage.AgentSelection
+function AgentEntry:select()
+  if self.focused then
+    return { kind = "focused" }
   end
+  return { kind = "agent", agent = self.agent }
 end
 
 ---@class vantage.AgentPickerToolEntry : vantage.AgentPickerEntry
@@ -123,16 +131,12 @@ function ToolEntry:preview()
   return nil
 end
 
-function ToolEntry:target(done)
-  local function create(group)
-    local agent, err = Bridge.create({ group = group, tool = self.name, cwd = Util.cwd() })
-    if not agent then
-      Util.warn(err or "failed to create agent")
-      return
-    end
-    done(agent)
-  end
-  ask_group(create)
+--- Choosing a Tool row asks for a Group to create the Agent in. The row names
+--- the Tool; the flow reads it and owns creation, so a cancelled Group choice
+--- ends there.
+---@return vantage.AgentSelection
+function ToolEntry:select()
+  return { kind = "new" }
 end
 
 --- The Agent rows' ascending order: group, cwd, tool name, then creation seq.
@@ -184,14 +188,15 @@ local function spec(pid, state)
   return {
     prompt = PROMPT,
     items_provider = function()
-      local snapshot, err = Bridge.agents(pid)
+      local inventory, err = Bridge.inventory()
       state.error = err
-      if snapshot == nil then
+      if inventory == nil then
         return {}
       end
-      state.focused = snapshot.focused
-      local items = build_items(snapshot.agents, snapshot.focused)
-      local focused = snapshot.focused
+      -- The Focus is a second read: the inventory never carries it.
+      local focused, _ = Bridge.focus(pid)
+      state.focused = focused
+      local items = build_items(inventory.agents, focused)
       if state.group_on and focused then
         return vim
           .iter(items)
@@ -223,14 +228,30 @@ local function kill_agent(ctx)
   return true
 end
 
---- Pick an Agent to act on, creating one from a Tool row when needed.
+--- Pick an Agent to act on, resolving the chosen row's selection (creating an
+--- Agent from a Tool row when that is what was chosen).
 ---@param after fun(agent: vantage.Agent)
 ---@param pid? integer the terminal job's pid (nil = no focused Agent)
 local function pick(after, pid)
   local state = { group_on = Picker.capabilities().command }
   local empty = Picker.pick(spec(pid, state), {
     on_choice = function(entry)
-      entry:target(after)
+      local selection = entry:select()
+      if selection.kind == "focused" then
+        return
+      end
+      if selection.kind == "agent" then
+        after(selection.agent)
+        return
+      end
+      ask_group(function(group)
+        local agent, err = Bridge.create({ group = group, tool = entry.name, cwd = Util.cwd() })
+        if not agent then
+          Util.warn(err or "failed to create agent")
+          return
+        end
+        after(agent)
+      end)
     end,
     commands = {
       {
@@ -255,24 +276,29 @@ local function pick(after, pid)
   end
 end
 
+--- Attach a new Terminal client to `agent` and install the terminal keymaps.
+--- The View the Backend created is removed again when the terminal cannot
+--- start, so a failed open leaves no session behind.
+---@param agent vantage.Agent
+local function open_on(agent)
+  local attachment, err = Bridge.attach(agent)
+  if not attachment then
+    Util.warn(err or "failed to create terminal attachment")
+    return
+  end
+  if Terminal.open(attachment.argv) then
+    Actions.apply(Terminal.buffer)
+  else
+    Bridge.kill_view(attachment.view)
+  end
+end
+
 --- Toggle Terminal presence; with no Terminal, pick an Agent and open it.
 function M.toggle()
   if Terminal.toggle() then
     return
   end
-
-  pick(function(agent)
-    local attachment, err = Bridge.attach(agent)
-    if not attachment then
-      Util.warn(err or "failed to create terminal attachment")
-      return
-    end
-    if Terminal.open(attachment.argv) then
-      Actions.apply(Terminal.buffer)
-    else
-      Bridge.kill_view(attachment.view)
-    end
-  end)
+  pick(open_on)
 end
 
 --- Re-point the live Terminal to another Agent.

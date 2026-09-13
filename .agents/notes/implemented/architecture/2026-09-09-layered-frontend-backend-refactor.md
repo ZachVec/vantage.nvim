@@ -23,13 +23,15 @@ and imports `frontend/` and `backend/`; `frontend/` imports `backend/`;
 Backend:
 
 - `backend/bridge.lua` is the bridge: pure-data domain verbs
-  (`agents(pid)` → the flat inventory `{ agents, groups, focused }`, `create`, `retarget`,
+  (`inventory()` → the flat Agents plus the Groups derived from them,
+  `focus(pid)` → the Focus or the reason it is missing, `client_window(pid)`,
+  `create`, `retarget`,
   `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
   `status`).
   It knows no UI and holds no state.
 - `backend/driver/` is the pluggable seam: `init.lua` resolves the configured
   driver (whitelist + fallback to tmux), `tmux.lua` is pure tmux mapping with
-  the domain-shaped verbs `create`, `snapshot(pid)`, `retarget(pid, agent)`,
+  the domain-shaped verbs `create`, `agents()`, `client_window(pid)`, `retarget(pid, agent)`,
   `attach`, `kill_view`, `kill_agent`, `kill_group`, `send_keys`, `capture_pane`,
   `status`, `health`. zellij remains a distant seam only; no compatibility
   promise hardens the interface for it.
@@ -47,9 +49,9 @@ Domain model:
 - The server starts on the first `create` (`new-session`, which applies the
   global config exactly once per server start); no verb re-checks it. External
   kills surface as warnings on the next operation; there is no watchdog or
-  reconciliation. `snapshot(pid)` is one bash process chaining
-  `list-windows` + `list-clients`, so listings and the focused Agent cost one
-  fork.
+  reconciliation. `agents()` reads `list-windows` and `client_window(pid)`
+  reads `list-clients`, so a caller that needs only the inventory never pays
+  for the client query; the Bridge composes the two into the Focus read.
 - `retarget(pid, agent)` is the single switch verb (`switch-client`), handling
   same-Group window changes and cross-Group relocation alike; the terminal's
   client is identified by the terminal job's pid.
@@ -60,9 +62,10 @@ Frontend:
   terminal job and returns its pid, `show`/`hide`/`destroy` manage the window,
   and `TermClose` closes the window, deletes the buffer, and resets state — the
   attachment's lifecycle is the terminal's lifecycle. It stores no domain
-  state and never resolves the focused Agent (that is derived per `snapshot`).
+  state and never resolves the Focus (that is derived per `Bridge.focus`).
 - Each command defines its own row classes behind a local protocol: the attach
-  flow's `AgentEntry`/`ToolEntry` resolve rows (`target(done)`), the kill
+  flow's `AgentEntry`/`ToolEntry` resolve rows (`select()` → a selection the
+  flow applies), the kill
   flow's `KillAgentEntry`/`KillGroupEntry` delete rows (`delete()`), and the
   review flow's rows open notes; every row renders through `format()` /
   `preview()`. No entry carries a flow action: the attach flow's `<c-x>` kill

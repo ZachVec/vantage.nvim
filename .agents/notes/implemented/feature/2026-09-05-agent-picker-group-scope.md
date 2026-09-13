@@ -25,7 +25,7 @@ command:
 }
 ```
 
-The flow's `items_provider` reads the live snapshot on every refresh and
+The flow's `items_provider` reads the live inventory and Focus on every refresh and
 applies the filter when `state.group_on` is true. Tool rows always remain
 visible; with no focused Agent, the whole list shows. Because the scope is a
 normal `command`, a renderer without the `command` capability simply omits
@@ -41,7 +41,7 @@ the command that toggles it.
 
 ### Why not derive the scope Group from the pinned row?
 
-The pin and the filter are both derived from the same live snapshot, but the
+The pin and the filter are both derived from the same live reads, but the
 filter needs a stable `state.group_on` value across refreshes. The flow owns
 that boolean explicitly.
 

@@ -15,15 +15,12 @@ describe("vantage.commands.attach", function()
   local focused
   local agent_fixture
 
-  --- Capture what a row hands to its target continuation.
-  ---@param item vantage.AgentPickerEntry
+  --- The Agent a row names when chosen, or nil for the pinned Focus row and
+  --- for Tool rows (which create instead of naming).
+  ---@param item vantage.AgentPickerAgentEntry|vantage.AgentPickerToolEntry
   ---@return vantage.Agent?
   local function resolved(item)
-    local agent
-    item:target(function(a)
-      agent = a
-    end)
-    return agent
+    return item:select().agent
   end
 
   local function agent_rows(items)
@@ -90,13 +87,22 @@ describe("vantage.commands.attach", function()
       { group = "a", cwd = "/a", tool = "zeta", id = "@1", seq = 1, cmd = "zeta" },
     }
     bridge = { created = {}, captured = {}, retargeted = nil, killed = {} }
-    function bridge.agents(pid)
+    function bridge.inventory()
       return {
         agents = vim.deepcopy(agent_fixture),
         groups = { "a", "z" },
-        focused = (pid ~= nil and focused) or nil,
-      },
-        nil
+      }, nil
+    end
+    function bridge.focus(pid)
+      -- The real Bridge answers "no terminal" for a nil pid; the flows under
+      -- test only consume the Agent.
+      if pid == nil then
+        return nil, Config.FOCUS_NO_TERMINAL
+      end
+      if focused == nil then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return focused, nil
     end
     function bridge.capture(agent)
       bridge.captured[#bridge.captured + 1] = agent.id
@@ -131,14 +137,15 @@ describe("vantage.commands.attach", function()
       captured_opts = opts
       if picker.auto_select then
         local items = spec.items_provider()
-        if #items > 0 then
-          opts.on_choice(items[1])
+        local index = picker.auto_select == true and 1 or picker.auto_select
+        if items[index] then
+          opts.on_choice(items[index])
         end
       end
       return false
     end
     function picker.pick_plain(_, _, on_choice)
-      on_choice("z")
+      on_choice(picker.plain_choice)
     end
 
     terminal = { buffer = 77, pid_value = 42, toggle_result = false, opened = nil }
@@ -180,6 +187,7 @@ describe("vantage.commands.attach", function()
     captured_opts = nil
     command_capable = true
     picker.auto_select = false
+    picker.plain_choice = "z"
     terminal.pid_value = 42
     terminal.toggle_result = false
     terminal.opened = nil
@@ -199,7 +207,7 @@ describe("vantage.commands.attach", function()
     assert.are.same({ "alpha", "zeta" }, tool_names(items))
   end)
 
-  it("pins the focused agent first, excluded from the sorted rows, and its resolve no-ops", function()
+  it("pins the focused agent first, excluded from the sorted rows, and choosing it names nothing", function()
     focused = agent_fixture[2]
     command_capable = false
     local items = items_for(42)
@@ -242,11 +250,38 @@ describe("vantage.commands.attach", function()
     assert.are.same({ "@1" }, bridge.captured)
   end)
 
-  it("tool rows ask for a group and create the agent there", function()
+  it("creates the agent in the group chosen for a Tool row", function()
     local items = items_for(42)
-    local tool = items[#items]
-    assert.are.equal("z", resolved(tool).group)
+    picker.auto_select = #items -- the last row is a Tool row
+
+    Attach.toggle()
+
+    assert.are.equal("zeta", bridge.created[1].tool)
     assert.are.equal("z", bridge.created[1].group)
+    assert.are.same({ "attach", "@9" }, terminal.opened)
+  end)
+
+  it("creates nothing when the Group choice is cancelled", function()
+    local items = items_for(42)
+    picker.auto_select = #items
+    picker.plain_choice = nil
+
+    Attach.toggle()
+
+    assert.are.same({}, bridge.created)
+    assert.are.equal(nil, terminal.opened)
+  end)
+
+  it("opens a Terminal on an Agent created from a Tool row when the list has no Focus", function()
+    local items = items_for(nil)
+    local tool = items[#items]
+    picker.auto_select = #items
+
+    Attach.toggle()
+
+    assert.is_true(vim.endswith(tool:format(), "zeta")) -- Tool rows sort by name
+    assert.are.equal("zeta", bridge.created[1].tool)
+    assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
 
   it("switch retargets the selected agent", function()

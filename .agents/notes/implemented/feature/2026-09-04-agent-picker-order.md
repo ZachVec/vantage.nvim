@@ -21,7 +21,7 @@ a query is typed):
 
 - **Focused-Agent pin.** When the caller supplies the Terminal's job pid
   (`switch`, which is terminal-only), the Agent that terminal shows
-  (`Bridge.agents(pid).focused`) is pinned first,
+  (`Bridge.focus(pid)`) is pinned first,
   exempt from the ordering.
   Its row text gains a ` (focused)` suffix. Confirming it does nothing:
   `commands/attach.lua` filters on the item's `focused` field and

@@ -6,14 +6,64 @@ local Util = require("vantage.util")
 
 local M = {}
 
---- The live inventory — flat Agents (creation order), derived Groups, and the
---- Agent the terminal (job pid) is currently showing. One aggregated read;
---- grouping is a caller concern.
----@param pid? integer the terminal job's pid
----@return { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?
+--- The live inventory: flat Agents in creation order plus the Groups derived
+--- from them (each Group once, in the Agents' order). No Focus read — a caller
+--- that does not care what the Terminal shows does not pay for it.
+---@return { agents: vantage.Agent[], groups: string[] }?
 ---@return string?
-function M.agents(pid)
-  return Driver.get().snapshot(pid)
+function M.inventory()
+  local agents, err = Driver.get().agents()
+  if not agents then
+    return nil, err
+  end
+  local seen = {}
+  local groups = {}
+  for _, agent in ipairs(agents) do
+    if not seen[agent.group] then
+      seen[agent.group] = true
+      groups[#groups + 1] = agent.group
+    end
+  end
+  return { agents = agents, groups = groups }, nil
+end
+
+--- The window the client with `pid` displays, matched against the inventory by
+--- the caller (the id's format is the Driver's business).
+---@param pid integer the terminal job's pid
+---@return string?
+---@return string?
+function M.client_window(pid)
+  return Driver.get().client_window(pid)
+end
+
+--- The Agent the Terminal (job pid) is currently showing: the Focus. Nil with
+--- a reason when there is none — no Terminal at all, a Terminal whose client is
+--- gone, or a client that is not on an Agent window. Read it fresh; it is never
+--- stored.
+---@param pid? integer the terminal job's pid
+---@return vantage.Agent?
+---@return string?
+function M.focus(pid)
+  if pid == nil then
+    return nil, Config.FOCUS_NO_TERMINAL
+  end
+  local window, err = Driver.get().client_window(pid)
+  if err then
+    return nil, err
+  end
+  if not window then
+    return nil, Config.FOCUS_NO_CLIENT
+  end
+  local agents, agents_err = Driver.get().agents()
+  if not agents then
+    return nil, agents_err or Config.FOCUS_SERVER_DOWN
+  end
+  for _, agent in ipairs(agents) do
+    if agent.id == window then
+      return agent, nil
+    end
+  end
+  return nil, Config.FOCUS_NO_FOCUS
 end
 
 --- Create an Agent from a Tool row: resolve the tool to its command, then

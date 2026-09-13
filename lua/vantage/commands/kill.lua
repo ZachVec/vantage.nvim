@@ -73,13 +73,13 @@ local function spec(state)
   return {
     prompt = PROMPT,
     items_provider = function()
-      local snapshot, err = Bridge.agents(nil)
+      local inventory, err = Bridge.inventory()
       state.error = err
-      if snapshot == nil then
+      if inventory == nil then
         return {}
       end
-      local agents = snapshot.agents
-      local groups = snapshot.groups
+      local agents = inventory.agents
+      local groups = inventory.groups
       local items = vim
         .iter(agents)
         :map(function(agent)

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-13
+
 ## Problem
 
 Prompt and Review each had their own `{placeholder}` interpolation loop, the

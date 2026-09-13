@@ -16,8 +16,8 @@ and flows own their items. Vantage also picked through a single-choice contract
 
 Two Terminal actions, `files` and `buffers`, owned by `commands/gather.lua`.
 Each lists candidates for the focused Agent's cwd, renders them as
-`<relpath>` references, and types them into the Agent's input through
-`commands/send.lua` — bracketed paste, no auto-submit, references joined with
+`<relpath>` references, and types them into the Agent's input through the
+Bridge — bracketed paste, no auto-submit, references joined with
 `setup { gather = { join = … } }` (default one per line), a trailing space
 after the last one, and no trailing newline.
 
@@ -103,5 +103,7 @@ unsaved edits are not on disk. Where content is genuinely wanted, Reviews'
   degradation.
 - Gathered references are bare paths; the Tool's `format` hook owns their
   dialect decoration and has to tell a rendered prompt from a lone reference.
-- The prompt and gather flows share `commands/send.lua`, the one place that
-  decides what a Tool sees and how text is shaped before `Bridge.send`.
+- Gathered references are joined and pasted by `commands/gather.lua` itself;
+  a Tool's reference spelling is read through `Config.tool_format`, the single
+  reader of the defaulted `format` hook (see
+  [focus-is-its-own-read](../architecture/2026-09-13-focus-is-its-own-read.md)).

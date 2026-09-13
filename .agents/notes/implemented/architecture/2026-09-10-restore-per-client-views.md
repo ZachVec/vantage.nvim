@@ -31,7 +31,7 @@ Restore the tmux session-group model:
   attached directly to an Anchor is migrated to a View before switching.
 - A global `client-detached` hook destroys a View when its client exits, so
   Views never accumulate. `kill_group` destroys the Anchor and every View.
-- `snapshot(pid)` still derives the focused Agent from the client's current
+- `Bridge.focus(pid)` still derives the Focus from the client's current
   window; with Views that window is per-client, so the Frontend stores no
   focus state.
 

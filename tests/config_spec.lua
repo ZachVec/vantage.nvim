@@ -80,4 +80,46 @@ describe("vantage.config", function()
     assert.are.equal("{lines} {note} custom", Config.options.reviews.item)
     assert.are.equal("float", Config.options.cli.win.layout)
   end)
+
+  it("apply gives every surviving tool a reference spelling", function()
+    local util = require("vantage.util")
+    local original_warn = util.warn
+    util.warn = function() end
+    local custom = function(file)
+      return "@" .. file
+    end
+    Config.apply({
+      cli = {
+        tools = {
+          plain = { cmd = { "codex" } },
+          dialect = { cmd = { "codex" }, format = custom },
+        },
+      },
+    })
+    util.warn = original_warn
+
+    assert.are.equal(util.reference, Config.options.cli.tools.plain.format)
+    assert.are.equal(custom, Config.options.cli.tools.dialect.format)
+  end)
+
+  it("tool_format resolves a tool's spelling and falls back for an unknown name", function()
+    local util = require("vantage.util")
+    local original_warn = util.warn
+    util.warn = function() end
+    local custom = function(file)
+      return "@" .. file
+    end
+    Config.apply({
+      cli = {
+        tools = {
+          dialect = { cmd = { "codex" }, format = custom },
+        },
+      },
+    })
+    util.warn = original_warn
+
+    assert.are.equal(custom, Config.tool_format("dialect"))
+    assert.are.equal(util.reference, Config.tool_format("dropped-in-a-later-setup"))
+    assert.are.equal("src/a.lua :L4", Config.tool_format("dropped-in-a-later-setup")("src/a.lua", ":L4"))
+  end)
 end)

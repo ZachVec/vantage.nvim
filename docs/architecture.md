@@ -13,20 +13,42 @@ lua/vantage/
 ├── health.lua          diagnostics adapter
 ├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
 ├── frontend/           terminal, display, note, review, picker/
-└── commands/           dispatch + actions, attach, flows
+└── commands/           dispatch + flows (attach, gather, kill, prompt, review)
 ```
 
-- `init.lua` is the composition root. `setup()` applies configuration, resolves
-  the configured Driver and Picker, then installs Prompt/Review hooks and the
-  `:Vantage` command.
-- `commands/` orchestrates flows and imports `frontend/`, `backend/`, and
-  shared modules.
-- `frontend/` imports `backend/` (through the Bridge) and its own pieces.
-- `backend/` imports only shared modules.
-- `health.lua` is a diagnostics adapter: it may inspect Backend and Frontend,
-  but never the command layer.
-- `make check` runs `scripts/verify-architecture.lua`, which rejects reverse
-  module dependencies.
+Six categories, each with a fixed set of things it may import. `make check`
+runs `scripts/verify-architecture.lua`, whose `ALLOWED` table is exactly this
+graph; a module that imports against it fails the gate.
+
+```
+                 composition (init.lua)
+                   │
+      ┌────────────┼───────────────┐
+      ▼            ▼               ▼
+  commands ──▶ frontend ──────▶ backend
+      │            │               │
+      └────────────┴───────┬───────┘
+                           ▼
+                        shared (config, util)
+
+  health ──▶ backend, frontend, shared        (nothing imports health)
+```
+
+- `composition` — `init.lua`. The only module that reaches every other
+  category, and the only one nothing imports. `setup()` applies configuration,
+  resolves the configured Driver and Picker, then installs Prompt/Review hooks
+  and the `:Vantage` command.
+- `commands` — orchestrates flows and imports `frontend/`, `backend/`, its own
+  pieces, and shared modules.
+- `frontend` — imports `backend/` (through the Bridge) and its own pieces.
+- `backend` — imports only shared modules.
+- `shared` — `config.lua` and `util.lua`, importable by every category and
+  importing nothing but itself. It is a dependency-checking category, not a
+  domain term: the [glossary](glossary.md) is where domain words live. The
+  verifier files any module path it cannot classify here.
+- `health` — `health.lua`, the diagnostics adapter. It may inspect Backend and
+  Frontend but never the command layer, and no module imports it: Neovim calls
+  it through `:checkhealth`.
 
 Configuration is fail-fast. An unknown backend/picker name, an unavailable
 implementation, or a missing picker dependency raises during `setup()`; no
@@ -35,8 +57,9 @@ cached; `get()` before `setup()` is a programming error. `health.lua` catches
 that error and reports it.
 
 `Config.options` remains the global configuration singleton. `Config.apply()`
-owns defaults, merging, and `cli.tools` validation; runtime lifecycle belongs
-to the composition root.
+owns defaults, merging, `cli.tools` validation, and the reference spelling of
+every surviving Tool (`Config.tool_format` is the only reader of a Tool's
+`format` hook); runtime lifecycle belongs to the composition root.
 
 ## The multiplexer substrate
 
@@ -76,8 +99,8 @@ inventory; other operation failures return their real error.
   Driver.
 - The **attachment** is the Terminal's client pointed at a View. Opening the
   Terminal creates the View and starts the attach command; closing it (or the
-  client exiting) ends the attachment. The focused Agent is derived from the
-  live state on every `snapshot`, never stored Neovim-side.
+  client exiting) ends the attachment. The [Focus](glossary.md#focus) is
+  derived from the live state on every read, never stored Neovim-side.
 
 ## Seams and contracts
 
@@ -87,8 +110,12 @@ whitelist):
 - `create({ group, cmd, cwd, tool })` → `Agent, nil` or `nil, err`; creating
   the Group (and on the first creation the server and its config). Metadata
   failures roll back the partial Agent.
-- `snapshot(pid?)` → `{ agents, groups, focused? }, nil` or `nil, err` from one
-  shell process (two chained multiplexer commands).
+- `agents()` → `Agent[], nil` or `nil, err`: the live inventory in creation
+  order. A missing server reads as an empty inventory, not as an error.
+- `client_window(pid)` → `window, nil`, `nil, nil`, or `nil, err`: the window
+  the client with that pid displays, as the Driver's own opaque id. No client
+  with that pid is `nil, nil` (a normal answer); a missing server is `nil` plus
+  the reason, so "no Terminal client" and "nothing is running" stay distinct.
 - `retarget(pid, agent)` → `true` or `false, err`; same-Group switching selects
   a window in the client's own View, while cross-Group switching creates a
   fresh View, moves the client, and destroys the old View.
@@ -107,11 +134,32 @@ The Driver returns errors and never notifies the user. The Bridge passes
 results through; command flows decide how to report them.
 
 **Bridge** (`backend/bridge.lua`) is the Frontend's only door to the Backend:
-`agents(pid)`, `create`, `retarget(pid, agent)`, `send(agent, text)`,
-`capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
-`kill_group`, `status`. It holds no state and does no UI; the prompt flow
-resolves the focused Agent and renders templates, then hands the Bridge the
-final text.
+`inventory()`, `focus(pid?)`, `client_window(pid)`, `create`, `retarget(pid,
+agent)`, `send(agent, text)`, `capture(agent)`, `attach(agent)`,
+`kill_view(view)`, `kill_agent`, `kill_group`, `status`. It holds no state and
+does no UI; the prompt flow resolves the Focus and renders templates, then
+hands the Bridge the final text.
+
+The two reads are separate because they answer different questions.
+`inventory()` returns the flat Agent list plus the Groups derived from it (each
+Group once, in the Agents' order) and never reads the clients, so a caller that
+does not care what the Terminal shows — the kill flow, the Group prompt — does
+not pay for the extra multiplexer query. `focus(pid)` is the [Focus](glossary.md#focus)
+read: it matches `client_window(pid)` against the inventory and returns the
+Agent, or `nil` plus one of the reasons in `config.lua` (`FOCUS_NO_TERMINAL`,
+`FOCUS_NO_CLIENT`, `FOCUS_NO_FOCUS`, `FOCUS_SERVER_DOWN`) or the Driver's own
+error. Callers report that string as-is; nothing branches on which reason it
+is, so the reasons are messages rather than a cause vocabulary. The Bridge
+never reaches for the Terminal's pid itself: the command layer passes it in,
+keeping the Backend from importing the Frontend.
+
+A Tool's reference spelling is configuration, not Backend state:
+`Config.apply()` gives every surviving `cli.tools` entry a `format` (defaulting
+to `Util.reference`), and `Config.tool_format(name)` is the one reader — it
+falls back to `Util.reference` for a name that is no longer configured, which
+is how an Agent created under a since-dropped Tool still renders. The
+read-split and reference-spelling decisions are recorded in
+[focus-is-its-own-read](../.agents/notes/implemented/architecture/2026-09-13-focus-is-its-own-read.md).
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
 starts the terminal job, `show`/`hide` manage the window without killing the
@@ -144,12 +192,16 @@ ordinary command, not a Picker concept.
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
   Agent/Tool rows, Group choice, creation handoff, and the `<c-g>` scope and
-  `<c-x>` kill commands.
+  `<c-x>` kill commands. A row is data: choosing one returns a selection
+  (`focused`, an Agent, or a Tool to create from), and the flow — not the row —
+  creates, retargets, or opens the Terminal. `toggle` and `switch` each keep
+  their own tail; only the "attach and install the terminal keymaps" step is
+  shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
-  lists candidates under the focused Agent's cwd (fd → ripgrep → a Lua walk),
-  renders `<relpath>` references, and sends them through `commands/send.lua`,
-  which runs each reference through the Tool's `format` and joins them with
-  `setup { gather = { join = … } }`.
+  lists candidates under the Focus's cwd (fd → ripgrep → a Lua walk), spells
+  every chosen `<relpath>` through the Tool's `format`, joins the results with
+  `setup { gather = { join = … } }`, and pastes them with a trailing space. One
+  reference dropped by the hook drops the whole send.
 - `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`,
   `files`, `buffers`) to command functions and installs `cli.win.keys` into the
   terminal buffer.
@@ -166,7 +218,12 @@ ordinary command, not a Picker concept.
 
 Creating an Agent from a Tool row resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the
-Terminal's client by the terminal job's pid.
+Terminal's client by the terminal job's pid, which the command layer reads from
+the Terminal and passes in.
+
+`:Vantage` subcommands are dispatched from `commands/init.lua`; the prompts,
+gather, and review flows resolve the Focus before acting and warn the reason
+string when there is none.
 
 ## Review and Prompt
 
@@ -176,6 +233,6 @@ vocabulary (`{file}`, `{line}`, `{reviews}`) lives in
 `config.lua` as a shared contract, health-checked at startup. Prompt text and
 gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /
-`{file}`, and each gathered row — is spelled by the focused Tool's
-`format(file, loc)` hook (default: `file` and its `loc` suffix separated by a
+`{file}`, and each gathered row — is spelled by the Focus's Tool through
+`Config.tool_format(name)` (default: `file` and its `loc` suffix separated by a
 space), and `gather.join` decides how gathered references are joined.

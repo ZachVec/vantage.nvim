@@ -2,8 +2,10 @@
 --- files or buffers through the Picker and type their `<relpath>` references
 --- into the focused Agent's input through the shared send path. References
 --- are bare paths — the Tool's `format` hook owns the dialect decoration.
+local Bridge = require("vantage.backend.bridge")
+local Config = require("vantage.config")
 local Picker = require("vantage.frontend.picker")
-local Send = require("vantage.commands.send")
+local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
@@ -193,11 +195,12 @@ local SOURCES = {
 --- Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local agent, err = Send.focused()
+  local agent, err = Bridge.focus(Terminal.pid())
   if not agent then
-    Util.warn(err or "failed to resolve the focused agent")
+    Util.warn(err or "no focused agent")
     return
   end
+  local format = Config.tool_format(agent.tool)
   local items = SOURCES[source].items(agent.cwd)
   local win = vim.api.nvim_get_current_win()
   local empty = Picker.pick_multi({
@@ -207,11 +210,21 @@ local function run(source)
     end,
   }, {
     on_choices = function(chosen)
+      -- Every chosen path is spelled through the Tool's dialect, joined with
+      -- `setup { gather = { join = … } }`, and pasted with a trailing space so
+      -- continued typing stays off the last reference. A hook that drops one
+      -- reference drops the whole send. No trailing newline: a pasted trailing
+      -- newline shows as an empty line in the Agent's input.
       local refs = {}
       for _, item in ipairs(chosen) do
-        refs[#refs + 1] = item:reference()
+        local ref = format(item:reference(), nil)
+        if ref == nil or ref == "" then
+          Util.warn("no references sent: dropped by its format hook")
+          return
+        end
+        refs[#refs + 1] = ref
       end
-      local ok, send_err = Send.references(agent, refs)
+      local ok, send_err = Bridge.send(agent, table.concat(refs, Config.options.gather.join) .. " ")
       if not ok then
         Util.warn(send_err or "failed to send references")
       end

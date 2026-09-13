@@ -1,10 +1,11 @@
 --- The `:Vantage review` command and its sub-actions (add / list / clear):
 --- notes anchored to line ranges, batched through {reviews}.
+local Bridge = require("vantage.backend.bridge")
 local Config = require("vantage.config")
 local Note = require("vantage.frontend.note")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
-local Send = require("vantage.commands.send")
+local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
@@ -12,11 +13,12 @@ local M = {}
 local PROMPT = Util.picker_prompt
 
 --- The focused Agent's reference formatter when one exists, so note titles and
---- picker previews read exactly what a send would produce.
+--- picker previews read exactly what a send would produce. Without a Focus the
+--- plain spelling still renders the row.
 ---@return vantage.ReferenceFormat
 local function formatter()
-  local agent = Send.focused()
-  return agent and Send.formatter(agent) or Util.reference
+  local agent = Bridge.focus(Terminal.pid())
+  return agent and Config.tool_format(agent.tool) or Util.reference
 end
 
 --- Jump to the review's start line (first non-blank column).

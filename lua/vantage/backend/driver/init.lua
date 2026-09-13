@@ -12,7 +12,8 @@ local REGISTRY = {
 
 local REQUIRED = {
   "create",
-  "snapshot",
+  "agents",
+  "client_window",
   "retarget",
   "attach",
   "kill_view",

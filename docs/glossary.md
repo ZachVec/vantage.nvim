@@ -57,6 +57,11 @@ _Avoid_: client, ui
 The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command for a per-client View produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes and its View is destroyed, and hiding it keeps the attachment alive.
 _Avoid_: client, screen, window
 
+## Focus
+
+The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Backend's `focus(pid)` read answers with the Agent, or with `nil` plus the reason (`no terminal`, `no client for this terminal`, `no focused agent`, or the multiplexer's own error). Prompt, gather, and review read it; each flow decides how to report a missing Focus.
+_Avoid_: current agent, active agent, last agent, focused agent
+
 ## Terminal action
 
 A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick rows through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.

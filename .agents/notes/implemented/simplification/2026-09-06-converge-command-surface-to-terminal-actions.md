@@ -36,7 +36,7 @@ is fixed by construction, that probe has nothing left to decide.
 - The `invoked_from_terminal()` probe was deleted at the time of this note.
   The later layered refactor removed the caller-declared `from_terminal` field
   too: the snacks renderer detects the Terminal by buffer filetype at pick
-  open time, and the focused row comes from the live `snapshot(pid)`.
+  open time, and the focused row comes from the live `Bridge.focus(pid)` read.
 - `switch` warns when there is no Terminal; `Bridge.retarget` reports a
   missing client through the Driver result contract.
 
