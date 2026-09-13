@@ -76,7 +76,7 @@ function M.cwd()
 end
 
 --- Path relative to `cwd`, or absolute when it escapes `cwd` or relativizing
---- fails. Used by Prompt location references and Annotation `{file}`/`{lines}`.
+--- fails. Used by Prompt location references and Review `{file}`/`{lines}`.
 ---@param cwd string base directory
 ---@param path string absolute file path
 ---@return string
