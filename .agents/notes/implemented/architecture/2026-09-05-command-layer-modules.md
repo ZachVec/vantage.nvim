@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 `lua/vantage/commands.lua` held every subcommand's logic in one ~470-line file:
-Agent lifecycle (create, switch, kill), Prompt, Annotation, and the dispatch
+Agent lifecycle (create, switch, kill), Prompt, Review, and the dispatch
 itself. The concerns were unrelated except that all hung off the single
 `:Vantage` user command, so the file grew past any one concern and made each
 flow harder to find.
@@ -13,7 +13,7 @@ flow harder to find.
 ## Decision
 
 The command layer is a directory mirroring the repo's existing
-`init.lua`-plus-per-concern pattern (`picker/`, `backend/`):
+`init.lua`-plus-per-concern pattern (`frontend/picker/`, `backend/`):
 
 - `commands/init.lua` is the dispatch only: `run` maps a subcommand name to one
   function call, `complete` answers completion, and the few one-line commands
@@ -46,10 +46,10 @@ Seven subcommands would produce several ~10-line files plus a shared creation
 flow that both switch and toggle need, forcing a `create.lua` anyway. Three
 domain modules match the domain's own seams and the repo's directory pattern.
 
-### Why not nest annotation under prompt (`commands/prompt/annotation.lua`)?
+### Why not nest Review under Prompt (`commands/prompt/review.lua`)?
 
-The domain glossary already defines Prompt and Annotation as independent terms;
-the dependency is `prompt → annotation` (via `{annotations}`), a "uses"
+The domain glossary already defines Prompt and Review as independent terms;
+the dependency is `prompt → review` (via `{reviews}`), a "uses"
 relationship, not subordination. Nesting would encode a domain change in the
 file tree and require re-terming the glossary. If `:Vantage prompt` ever gains
 sub-actions, `prompt.lua` can be promoted to `prompt/init.lua` then — the same
@@ -58,7 +58,7 @@ move as this one.
 ### Why a thin if-chain over a handler table?
 
 Each branch is already a single function call; a table needs wrapper closures
-for `annotate` (which needs `line1`/`line2`) and the no-arg commands, adding
+for `review` (which needs `line1`/`line2`) and the no-arg commands, adding
 noise for no readability gain.
 
 ## Consequences

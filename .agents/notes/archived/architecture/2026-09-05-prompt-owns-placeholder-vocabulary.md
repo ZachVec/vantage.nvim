@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-14
+
 ## Problem
 
 The known placeholder names were duplicated: `prompt.lua` held `PLACEHOLDERS`

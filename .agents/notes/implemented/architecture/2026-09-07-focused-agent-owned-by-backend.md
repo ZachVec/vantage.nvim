@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The old Frontend Client stored `last_agent` and exposed `last_agent_alive()`.
+The old Frontend stored a `last_agent` copy and exposed `last_agent_alive()`.
 That duplicated state tmux already owns: the attached client's active window.
 The copy could drift after an external tmux change or a retarget.
 
@@ -17,7 +17,7 @@ no domain focus state. The shape of that read is owned by
 [focus-is-its-own-read](2026-09-13-focus-is-its-own-read.md).
 
 `commands/attach.lua` reads `Backend.inventory()` plus `Backend.focus(pid)` for
-the pinned Focus row and the group-scope command; `commands/prompt.lua`,
+the pinned Focus entry and the group-scope command; `commands/prompt.lua`,
 `commands/gather.lua`, and `commands/review.lua` resolve their target through
 `Backend.focus(pid)`.
 
@@ -38,7 +38,7 @@ records why the read stopped sharing a return value with the inventory.
 
 - `frontend/terminal.lua` stores only terminal job/buffer/window state, never
   the Focus.
-- A stale Client-side focus copy is impossible; external tmux changes are
+- A stale Frontend-side focus copy is impossible; external tmux changes are
   reflected on the next read.
 - Driver integration tests derive the Focus before and after
   retarget.

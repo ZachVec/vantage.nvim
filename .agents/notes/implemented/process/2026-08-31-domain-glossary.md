@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The domain terms (Group, Anchor, Agent, View, Backend, Driver, Frontend, Client, Picker, Tool) carry precise meanings, and near-synonyms (workspace, session, status, terminal) keep creeping into prose and would blur the model.
+The domain terms (Group, Anchor, Agent, View, Backend, Driver, Frontend, Terminal, Picker, Tool) carry precise meanings, and near-synonyms (workspace, session, client) keep creeping into prose and would blur the model.
 
 ## Decision
 

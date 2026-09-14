@@ -4,22 +4,22 @@ Status: implemented
 
 ## Problem
 
-Every flow that offered a pick built its own class of selectable rows.
+Every flow that offered a pick built its own class of selectable entries.
 `commands/attach.lua` and `commands/kill.lua` each declared metatable classes
 carrying `format` / `preview` plus their own verb (`select`, `delete`),
 `commands/gather.lua` declared `FileItem` and `BufferItem`, and
 `commands/review.lua` returned a table of closures. The interface was as wide
 as the implementation: the Picker only ever needed one line of text and, for
-the highlighted row, some preview lines, yet each flow had to know the whole
+the highlighted entry, some preview lines, yet each flow had to know the whole
 protocol — and the same Agent text plus pane capture existed twice, once in the
 Agent list and once in the kill list.
 
-The coupling ran both ways. `snacks` wrote `item.text` into the flow's own row
+The coupling ran both ways. `snacks` wrote `item.text` into the flow's own entry
 to satisfy its matcher and would call any field named `resolve`, so one
-implementation's internals decided what a row's fields could be called — the
+implementation's internals decided what an entry's fields could be called — the
 hazard [Picker implementations are pure renderers](2026-09-05-picker-pure-renderers.md)
 recorded as a gotcha instead of a contract. `docs/architecture.md` already said
-a row is data, which was true of the flow's intent and false of its shape.
+the entries were data, which was true of the flow's intent and false of its shape.
 
 ## Decision
 
@@ -116,7 +116,7 @@ neutral parameter name.
   function, the pane-capture failure line, and the nil cases; the flow specs
   read fields; `tests/frontend/picker_snacks_spec.lua` pins the read-only
   contract by asserting the implementation leaves the entry alone.
-- The `Entry` term now lives in the [domain glossary](../../../docs/glossary.md),
+- The `Entry` term now lives in the [domain glossary](../../../../docs/glossary.md),
   with `row` retired as prose.
 - The Agent entry's text is unchanged and still one builder
   ([agent-picker-entry-format](../feature/2026-09-04-agent-picker-entry-format.md));

@@ -56,19 +56,21 @@ send when the hook drops one reference), and the other flows read the Focus and
 the Tool spelling through the Backend and `Config`.
 
 **Focus is a term.** `docs/glossary.md` defines it: the Agent this Neovim
-instance's Terminal is showing, derived on every read, never stored.
+instance's Terminal is showing, derived on every read, never stored — the
+guarantee [Focused Agent is Backend-owned state](2026-09-07-focused-agent-owned-by-backend.md)
+owns, with this note owning the shape of the read.
 
 **The dependency categories are written down.** `docs/architecture.md` names
 all six categories the gate enforces (`composition`, `commands`, `frontend`,
 `backend`, `shared`, `health`) and their directions, and states that `shared`
 is a dependency-checking category rather than a domain term.
 
-### Why the picker's row protocol changed with it
+### Why the picker's entry protocol changed with it
 
-Choosing an Agent-list row used to run flow code from inside the row
-(`target(done)`), which made a Tool row start a second picker and create the
+Choosing an Agent-list entry used to run flow code from inside the entry
+(`target(done)`), which made a Tool entry start a second picker and create the
 Agent itself, and made a cancelled Group choice end the whole flow silently.
-Rows are now data: `select()` returns `{ kind = "focused" | "agent" | "new" }`,
+Entries are now data: `select()` returns `{ kind = "focused" | "agent" | "new" }`,
 and the flow — which owns creation, `retarget`, and opening the Terminal —
 applies it. This is the shape
 [layered-frontend-backend-refactor](2026-09-09-layered-frontend-backend-refactor.md)
@@ -86,7 +88,7 @@ What it cost was an interface where the pid was optional and the return value
 mixed two answers, so every caller re-derived its own half. The split is
 cheaper for the inventory-only callers (`kill`, the Group prompt), and a Focus
 costs one query instead of the combined read's two. The caller-side
-simplification is worth the lost instant-coherence: the Focus and the row list
+simplification is worth the lost instant-coherence: the Focus and the entry list
 are already a live view that can change under the picker.
 
 ### Why not return a cause constant instead of a message?

@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The Client terminal's default window layout was `float` (`cli.win.layout =
+The Terminal's default window layout was `float` (`cli.win.layout =
 "float"`, a rounded near-full-editor-size floating window), and typing inside
 it flickered: on every Agent-TUI repaint the `:terminal` cursor redrew
 mid-screen, jumping to the middle of the editor while the user typed. Neovim
@@ -23,8 +23,8 @@ layout opt-in note](2026-09-05-float-terminal-layout-opt-in.md)) and then
 became the default (see the [float terminal layout default
 note](2026-09-05-float-terminal-layout-default.md)); this note's flicker
 rationale still governs why `full` exists as the opt-out, but `full` is no
-longer the default. `full` opens the Client
-terminal in a dedicated tab — `tab split`
+longer the default. `full` opens the Terminal
+in a dedicated tab — `tab split`
 duplicates the current window into the new tab, then `nvim_win_set_buf` swaps
 the terminal buffer in — giving one normal (non-floating) window at the full
 editor size. Because no floating window is ever created for the terminal, the
@@ -34,13 +34,13 @@ terminal alongside the current window.
 
 Agent info is no longer carried by the terminal buffer name: `retitle()` in
 `lua/vantage/frontend/terminal.lua` was removed — see the [tmux pane border
-note](../../feature/2026-09-06-tmux-pane-status.md) — and the buffer keeps
+note](2026-09-06-tmux-pane-status.md) — and the buffer keeps
 Neovim's default name. The focused Agent's Tool, cwd, and per-Group State
 counts now show in the pane's top tmux border instead. While it existed, it
 named the buffer `<tool> · <cwd>` (tool first, e.g. `claude ·
 /home/zach/vantage`, falling back to `vantage`, dropping the `· <cwd>` suffix
 when the Agent had no working
-directory) on both focus paths — re-targeting an already-attached Client and
+directory) on both focus paths — re-targeting an already-attached Terminal and
 attaching a fresh one — per-focus only, never polling or mirroring
 `@agent-state` for the title.
 
@@ -78,7 +78,7 @@ tool's external callback script — a new polling or mirroring mechanism over an
 external write path. Deferred: the name already updates whenever the user
 switches the terminal to another Agent, which is when the title matters. The
 deferred surface later moved out of Neovim entirely — the [tmux pane border
-note](../../feature/2026-09-06-tmux-pane-status.md) surfaces `@agent-state`
+note](2026-09-06-tmux-pane-status.md) surfaces `@agent-state`
 through per-tick read-only aggregation instead of mirroring it in the client.
 
 ## Consequences
@@ -99,9 +99,9 @@ through per-tick read-only aggregation instead of mirroring it in the client.
   buffer and tmux client survive, so the next `show` reopens the same terminal
   in a fresh dedicated tab.
 - The terminal buffer name no longer carries Agent info (see the [tmux pane
-  border note](../../feature/2026-09-06-tmux-pane-status.md)); the pane
+  border note](2026-09-06-tmux-pane-status.md)); the pane
   border's cwd is live (`pane_current_path`) and its State counts re-derive
   per tick, so the display never mirrors cached state.
-- The Client stays the single re-targeted terminal of the
-  [single-Client-terminal decision](../architecture/2026-08-31-single-terminal-frontend.md);
+- The Terminal stays the single re-targeted `:terminal` of the
+  [single-Terminal decision](../architecture/2026-08-31-single-terminal-frontend.md);
   this note only decides how that one window is presented and named.

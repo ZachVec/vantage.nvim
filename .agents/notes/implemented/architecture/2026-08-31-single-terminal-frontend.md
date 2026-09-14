@@ -1,4 +1,4 @@
-# Agent Note: Single re-targeted :terminal client, pluggable picker, no default keymaps
+# Agent Note: Single re-targeted Terminal, pluggable picker, no default keymaps
 
 Status: implemented
 
@@ -8,7 +8,7 @@ The Frontend needs to display agents and let the user switch, create, and kill t
 
 ## Decision
 
-- Exactly one Neovim `:terminal` (filetype `vantage_terminal`) is the Client; focus re-targets that same terminal to the chosen agent instead of opening new ones.
+- Exactly one Neovim `:terminal` (filetype `vantage_terminal`) is the Terminal; focus re-targets that same terminal to the chosen Agent instead of opening new ones.
 - Selection goes through the pluggable [Picker](2026-08-31-pluggable-picker-frontend.md) (`native` / `fzf-lua` / `snacks`), chosen via `setup { picker = … }`.
 - No keymaps are added by default, and `cli.tools` is empty — the user provides tools (`name → cmd array`) and keymaps via `cli.win.keys` or a `FileType` autocmd.
 

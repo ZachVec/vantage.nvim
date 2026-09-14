@@ -6,7 +6,7 @@ Status: implemented
 
 Vantage shipped with no automated tests. The highest-risk surface — the tmux
 Driver's domain operations and the pure Lua helpers around config, prompts,
-annotations, and picker row assembly — had no regression net, and
+Reviews, and picker entry assembly — had no regression net, and
 `AGENTS.md` still described a future suite rather than a current one.
 
 ## Decision
@@ -19,11 +19,10 @@ Adopt a snacks.nvim-style headless suite:
   `nvim --headless -l tests/minit.lua --minitest`.
 - Specs use mini.test's busted-style `describe`/`it` with `luassert`
   assertions, mirroring snacks.nvim's test layout.
-- The current inventory is `util_spec`, `config_spec`, `init_spec`,
-  `commands/{toggle,prompt,kill,attach}_spec`,
-  `frontend/{review,picker,picker_snacks,terminal,note}_spec`,
-  `backend/backend_spec`, and `backend/driver_tmux_spec` (65 cases). Unit specs
-  exercise real buffers where the behavior is buffer-bound and fake
+- The suite is every `tests/**/*_spec.lua`: `util_spec`, `config_spec`, and
+  `init_spec` beside the runner, one file per flow under `tests/commands/` and
+  per Frontend module under `tests/frontend/`, and the two Backend specs. Unit
+  specs exercise real buffers where the behavior is buffer-bound and fake
   Backend/Picker/Driver modules where a flow only needs the seam's contract.
 - `backend_tmux_spec` runs against a per-process private socket
   (`vantage-test-<pid>`), kills stale state before each case, and kills the
@@ -53,7 +52,7 @@ the bundled Lua 5.1 build).
 
 ### Why not full headless UI/client tests in this round?
 
-The Client is a `:terminal` and its cross-Group relocation needs a real
+The Terminal is a `:terminal` and its cross-Group relocation needs a real
 attached tmux client. Building that fixture now would add a pty/process layer
 the suite does not yet need; the backend spec pins the no-client failure path
 instead, and client relocation is left to a future UI-testing round.

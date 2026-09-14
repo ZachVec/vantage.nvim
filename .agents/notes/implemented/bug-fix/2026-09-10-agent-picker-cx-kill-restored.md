@@ -24,7 +24,7 @@ no-ops, and `:Vantage kill` remains the path that can kill the focused Agent.
 
 This note owns that behavior in the active tree because the original
 [kill note](../../archived/feature/2026-09-05-agent-picker-cx-kill.md) is
-archived and frozen. Its mechanism moved with the refactor, but its row scope
+archived and frozen. Its mechanism moved with the refactor, but its entry scope
 and rationale (no focused-entry kill, batch refresh, no confirmation) still
 bind; the command stays a flow decision ("does the entry carry an Agent, is it
 the pinned one?") rather than an entry method, matching the
@@ -35,12 +35,12 @@ the pinned one?") rather than an entry method, matching the
 ### Why a new note instead of editing the archived one?
 
 Archived notes are frozen by the Agent Note rules, so only an active note can
-own current behavior. The archived note's negative guarantee — the pinned row
+own current behavior. The archived note's negative guarantee — the pinned entry
 is not killable — was still load-bearing, which the regression demonstrated.
 
 ### Why not leave the kill in the refactor note's command-surface clause?
 
-That note owns the picker-command mechanism; the kill's row scope is a
+That note owns the picker-command mechanism; the kill's entry scope is a
 user-facing behavior with its own alternatives, and its `<c-g>` sibling has a
 feature owner. A clause in the architecture note would not carry that scope.
 

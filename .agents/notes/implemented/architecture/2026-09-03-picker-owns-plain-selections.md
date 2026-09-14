@@ -37,7 +37,7 @@ never mixes renderer families:
   homogeneous with that renderer by construction. The residual boundary (a
   terminal-style override plus a Normal-mode terminal trigger) is documented
   in `docs/gotchas.md`, not patched in code.
-- Light two-choice confirmations (delete-annotation, clear-all) leave the
+- Light two-choice confirmations (delete-Review, clear-all) leave the
   selection path entirely and use Neovim's built-in `confirm()` dialog.
 - `lua/vantage/select.lua` is deleted: the Agent-creation Group-step assembly
   and the new-Group cmdline name prompt live in
@@ -88,9 +88,9 @@ select implementations cover every current configuration with far less code.
   Picker as owning every selection.
 
 This supersedes the
-[plain-selection note](../archived/architecture/2026-09-02-plain-selection-via-ui-select.md)
+[plain-selection note](../../archived/architecture/2026-09-02-plain-selection-via-ui-select.md)
 (for the Tool/Group and prompt flows) and the
-[isolation note](../archived/bug-fix/2026-09-03-isolate-wizard-selection-opens.md)
+[isolation note](../../archived/bug-fix/2026-09-03-isolate-wizard-selection-opens.md)
 (which records the superseded development-time wait attempt; its analysis of
 the teardown window remains the reference for the residual boundary), both
 archived; the Picker seam itself is [the

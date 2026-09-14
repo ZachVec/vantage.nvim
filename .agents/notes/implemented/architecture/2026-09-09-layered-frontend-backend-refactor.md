@@ -29,8 +29,9 @@ Backend:
   `status`).
   It knows no UI and holds no state.
 - `backend/driver/` is the pluggable seam: `init.lua` resolves the configured
-  driver (whitelist + fallback to tmux), `tmux.lua` is pure tmux mapping with
-  the domain-shaped verbs `create`, `agents()`, `focus(pid)`,
+  driver (a whitelist; an unknown or unavailable name fails fast at `setup()`,
+  per [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md)),
+  `tmux.lua` is pure tmux mapping with the domain-shaped verbs `create`, `agents()`, `focus(pid)`,
   `retarget(pid, agent)`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
   `send_keys`, `capture_pane`, `status`, `health`. zellij remains a distant
   seam only; no compatibility promise hardens the interface for it.
@@ -72,10 +73,13 @@ Frontend:
   kills the entry's Agent in place; the pinned `(focused)` entry and Tool
   entries are no-ops, with the behavior owned by the
   [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md).
-- Picker implementations stay pure renderers (text/preview/on_choice, optional
-  in-place delete where the flow enables it, optional `<c-g>` scope toggle
-  reading the entry the flow built). The `from_terminal` flag is deleted: a
-  picker detects the terminal window at open time by filetype.
+- Picker implementations stay pure renderers over the flow's entries and
+  flow-owned commands: text, preview, and `on_choice`, with the `<c-x>`
+  kill/delete and the `<c-g>` scope toggle arriving as the `{ lhs, rhs, desc }`
+  descriptors the
+  [composition root](2026-09-10-composition-root-and-neutral-seams.md) owns.
+  The `from_terminal` flag is deleted: a picker detects the terminal window at
+  open time by filetype.
 
 Commands:
 
@@ -139,8 +143,11 @@ caller-declared parameter and the restore-mode branching that followed it.
 - `setup{}` keys and defaults are preserved except `annotations` → `reviews`
   (an intentional exception to the keep-the-keys rule); `cli.win.keys` tokens
   become `switch`/`prompt`/`toggle`.
-- The Agent list no longer offers in-place `<c-x>` kill (kill is a command);
-  the Review list keeps `<c-x>` deletion through `delete()`.
+- The Agent list's in-place `<c-x>` kill was later restored under flow-owned
+  commands (the
+  [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md));
+  the Review list's `<c-x>` deletion is the same shape — a flow-owned picker
+  command, not an entry method.
 - Each nvim instance has at most one terminal, whose client is identified by
   the terminal job's pid. The later
   [restore-per-client-views](2026-09-10-restore-per-client-views.md) note

@@ -75,5 +75,6 @@ site. The callback result channel keeps each engine's native async shape.
   preview-capable path via `on_close`, and `pick_plain` via its wrapped
   `on_choice`, preserving the terminal-window re-entry described in
   [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
-- The interface and failure semantics are current as of
+- The capability set above is this note's; the commands contract and the
+  facade's failure semantics are current as of
   [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).

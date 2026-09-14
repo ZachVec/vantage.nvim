@@ -26,7 +26,7 @@ command:
 ```
 
 The flow's `items_provider` reads the live inventory and Focus on every refresh and
-applies the filter when `state.group_on` is true. Tool rows always remain
+applies the filter when `state.group_on` is true. Tool entries always remain
 visible; with no focused Agent, the whole list shows. Because the scope is a
 normal `command`, a renderer without the `command` capability simply omits
 the toggle and shows the unscoped list.
@@ -39,7 +39,7 @@ That made the Picker interface grow with a flow concept. The current Picker
 knows only `preview` and `command`; the flow owns both the filter state and
 the command that toggles it.
 
-### Why not derive the scope Group from the pinned row?
+### Why not derive the scope Group from the pinned entry?
 
 The pin and the filter are both derived from the same live reads, but the
 filter needs a stable `state.group_on` value across refreshes. The flow owns
@@ -55,7 +55,7 @@ in-place delete.
 
 - fzf-lua and snacks support the scope command; native shows the full list.
 - `<C-g>` is no longer a Picker concept, only an Agent-picker command.
-- Deleting the last visible row and changing scope both re-read
+- Deleting the last visible entry and changing scope both re-read
   `items_provider`; an empty result closes the picker.
 - The current Picker command contract is owned by
   [composition-root-and-neutral-seams](../architecture/2026-09-10-composition-root-and-neutral-seams.md).

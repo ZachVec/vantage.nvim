@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The opt-in float Client (see the [float terminal layout opt-in
+The opt-in float Terminal (see the [float terminal layout opt-in
 note](2026-09-05-float-terminal-layout-opt-in.md)) is the only layout that
 removes the meaningless statusline row from the agent view — and on the
 maintainer's daily setup (nvim 0.12.3, claude and codex TUIs) the cursor
@@ -57,7 +57,7 @@ future ask.
 ## Consequences
 
 - New installs and setups without an explicit `layout` now get the
-  full-size, borderless floating Client; an existing `layout = "full"` (or
+  full-size, borderless floating Terminal; an existing `layout = "full"` (or
   `"full"`-style mnemonic) keeps the tab layout. A stale `layout = "float"`
   string from the pre-opt-in era is no longer a fall-through to the split
   path — it is the default mode.

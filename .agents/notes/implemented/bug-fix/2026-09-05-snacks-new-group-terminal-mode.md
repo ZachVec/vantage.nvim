@@ -4,14 +4,14 @@ Status: implemented
 
 ## Problem
 
-The `switch` key from the vantage terminal, choosing a Tool row and then
+The `switch` key from the vantage terminal, choosing a Tool entry and then
 `+ new group` in the Group pick (with existing Groups; no-Groups skips the
 pick), left the client terminal in terminal-normal mode (`nt`) after the
 Agent was created — typing did nothing until the user pressed `i`. Switch's
-tail is `Client.retarget`, which only re-points the existing terminal and
-never touches the mode, so the flow depends entirely on the snacks picker's
+tail is `Backend.retarget(pid, agent)`, which only re-points the existing
+terminal and never touches the mode, so the flow depends entirely on the snacks picker's
 terminal-mode re-entry after its pickers close. The same creation through
-`:Vantage toggle` was unaffected (`Client.focus` ends in `show`'s
+`:Vantage toggle` was unaffected (`Terminal.show` ends in
 `startinsert`).
 
 The re-entry is a single tick check (`restore_terminal_mode`: scheduled for
@@ -33,7 +33,7 @@ real-UI simulation of the exact queue order.
 
 ## Decision
 
-`pick_plain`'s wrapped `on_choice` in `lua/vantage/picker/snacks.lua` queues
+`pick_plain`'s wrapped `on_choice` in `lua/vantage/frontend/picker/snacks.lua` queues
 `restore_terminal_mode()` **before** running the choice handler. The check
 then runs while the terminal is still in `nt` — the picker's `close()` has
 already returned focus synchronously — and issues `startinsert`; that pending
@@ -81,7 +81,7 @@ the cmdline path is what works everywhere else.
 ## Consequences
 
 - `pick_plain`'s wrapper queues the re-entry before its choice handler; the
-  comment in `picker/snacks.lua` and the snacks section of `docs/gotchas.md`
+  comment in `frontend/picker/snacks.lua` and the snacks section of `docs/gotchas.md`
   document the cmdline-scheduling fact (the scheduler runs across `input()`'s
   cmdline, whose `c` mode would swallow a queued-after check) and the
   queued-first `startinsert` semantics.
@@ -89,7 +89,7 @@ the cmdline path is what works everywhere else.
   and the [picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md)
   were updated in place with the ordering fact; no API or user-visible
   behavior changed, and no other engine or command path was touched.
-- A Tool-row creation through the `switch` key with a new Group now ends
+- A Tool-entry creation through the `switch` key with a new Group now ends
   with the terminal in terminal mode, matching the existing-Group and
   no-Groups paths.
 

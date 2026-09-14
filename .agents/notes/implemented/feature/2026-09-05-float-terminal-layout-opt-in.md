@@ -1,10 +1,10 @@
-# Agent Note: Float terminal layout as an opt-in (statusline-free Client)
+# Agent Note: Float terminal layout as an opt-in (statusline-free Terminal)
 
 Status: implemented
 
 ## Problem
 
-The Client's agent window showed a statusline row that carries nothing the
+The Terminal's Agent window showed a statusline row that carries nothing the
 user acts on: `'laststatus'` is global (Nvim 0.12's default is 2, and
 statusline plugins like lualine force 2/3 at setup), so every *tiled* window
 owns a statusline row in its layout, terminal buffers included. In the agent
@@ -36,7 +36,7 @@ The float is the one window where the meaningless row is really gone rather
 than blanked: floating windows draw no statusline, and statusline plugins
 skip them entirely — lualine's refresh excludes `win_gettype() == "popup"`
 windows, which is what a plain float reports, so it never writes a
-window-local statusline or winbar into the float. `Client.hide()` detects a
+window-local statusline or winbar into the float. `Terminal.hide()` detects a
 float via `nvim_win_get_config().relative ~= ""` and closes it directly; the
 `enew` last-window fallback remains tiled-only, and stays reachable only for
 tiled windows — Neovim refuses to close the last tiled window beneath a float,
@@ -64,7 +64,7 @@ default note](2026-09-05-float-terminal-layout-default.md): the flicker no
 longer reproduced on the maintainer's setup, and `full` is kept as the
 opt-out.
 
-### Why not have Vantage set 'laststatus' 0/1 while the Client is open?
+### Why not have Vantage set 'laststatus' 0/1 while the Terminal is open?
 
 `laststatus` is global: 0/1 would remove statuslines (or their row) from every
 other window and tab too, and statusline plugins re-assert 2/3 on every setup
@@ -83,7 +83,7 @@ sizes can be layered on later if someone asks.
   `vantage.Win` type, the README sample, and `doc/vantage.nvim.txt` list
   `float` with its `cli.win.float` options and the flicker caveat. A stale or
   misspelled layout still falls through to the split path (bottom split).
-- With `float`, the Client no longer owns a tab: `hide`/`toggle` closes the
+- With `float`, the Terminal no longer owns a tab: `hide`/`toggle` closes the
   float directly, and the terminal reopens as a fresh float on `show`. The
   buffer `retitle` still runs — the name shows in other windows' bars and tabs
   when the buffer is displayed there; the float itself shows no winbar.

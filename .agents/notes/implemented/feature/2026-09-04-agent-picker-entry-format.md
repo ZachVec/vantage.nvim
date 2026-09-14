@@ -4,10 +4,10 @@ Status: implemented
 
 ## Problem
 
-Agent-list rows were formatted `cmd  ~cwd  [group]` — the launch command
+Agent-list entries were formatted `cmd  ~cwd  [group]` — the launch command
 first, two spaces between segments, the Group hidden at the tail in square
 brackets. The user-visible identity users actually pick is the Tool (the
-`cli.tools` key chosen in the creation wizard) and its Group, so rows led with
+`cli.tools` key chosen in the creation wizard) and its Group, so entries led with
 the least distinctive segment, and the middle position (cwd) duplicated what
 the trailing bracket already implied. The desired shape is
 `[group] tool_name · agent.cwd`: Group first, Tool second, working directory
@@ -63,7 +63,7 @@ risk.
 ### Why not keep showing `cmd`?
 
 `cmd` is the launch string, not the identity the user chose: the same binary
-can back several Tools, and `cmd` carries nothing about the Group. The row's
+can back several Tools, and `cmd` carries nothing about the Group. The entry's
 leading segment is the Tool name the user picked in the wizard, so it shows
 `agent.tool`.
 
@@ -88,7 +88,7 @@ unambiguous either way.
 - The terminal buffer title (`retitle`, `lua/vantage/frontend/terminal.lua`) still
   shows the raw absolute cwd — pre-existing, outside this change's scope;
   a later one-line `Util.tilde` there would make it consistent.
-- Rows build on the shared same-source item model of the
+- Entries build on the shared same-source item model of the
   [Pluggable Picker frontend](../architecture/2026-08-31-pluggable-picker-frontend.md)
   and [Picker-owns-every-selection](../architecture/2026-09-03-picker-owns-plain-selections.md)
-  decisions; neither pinned the row string, so nothing is superseded.
+  decisions; neither pinned the entry text, so nothing is superseded.
