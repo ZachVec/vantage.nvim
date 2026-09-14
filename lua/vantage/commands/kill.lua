@@ -9,7 +9,7 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- Agents (creation order) then Groups (sorted), or an empty list plus the
+--- Agents (creation order) then Groups (by name), or an empty list plus the
 --- Driver's reason when the inventory could not be read.
 ---@return vantage.PickSpec
 local function spec()
@@ -21,7 +21,10 @@ local function spec()
         return {}, err
       end
       local agents = inventory.agents
+      -- The inventory derives Groups in the Agents' order, which is what the
+      -- Group prompt wants; the kill list reads them by name instead.
       local groups = inventory.groups
+      table.sort(groups)
       local items = vim
         .iter(agents)
         :map(function(agent)

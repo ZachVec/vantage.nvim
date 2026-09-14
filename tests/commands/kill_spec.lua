@@ -17,7 +17,8 @@ describe("vantage.commands.kill", function()
           { group = "a", id = "@1", seq = 1, tool = "codex", cwd = "/a" },
           { group = "b", id = "@4", seq = 4, tool = "codex", cwd = "/b" },
         },
-        groups = { "a", "b" },
+        -- Deliberately not the Agents' order: the kill list sorts names.
+        groups = { "b", "a" },
       },
         nil
     end
@@ -60,6 +61,12 @@ describe("vantage.commands.kill", function()
       vim.tbl_map(function(entry)
         return entry.kind
       end, items)
+    )
+    assert.are.same(
+      { "a", "b" },
+      vim.tbl_map(function(entry)
+        return entry.group
+      end, { items[3], items[4] })
     )
     for _, entry in ipairs(items) do
       captured_opts.on_choice(entry)

@@ -56,9 +56,12 @@ a query is typed):
   `no agents and no tools configured (cli.tools)` and returns when the list
   is empty (no Agents running and no Tools configured). Zero Agents with
   Tools configured opens the picker listing only Tool rows.
-- **Scope.** The kill list keeps its order and its plain entries (no glyphs,
-  no `(focused)` marker). What a chosen entry means is the entry's own `kind` —
-  `focused` / `agent` / `tool` in the Agent list — read by
+- **Scope.** The kill list keeps its own order — Agent entries in creation
+  order, Group entries by name — and its plain entries (no glyphs, no
+  `(focused)` marker). Its Groups are sorted by the flow because the Backend
+  derives them in the Agents' order, which is what the Group prompt wants.
+  What a chosen entry means is the entry's own `kind` — `focused` / `agent` /
+  `tool` in the Agent list — read by
   `commands/attach.lua`
   ([picker entries are data](../architecture/2026-09-13-picker-entries-are-data.md)).
 
