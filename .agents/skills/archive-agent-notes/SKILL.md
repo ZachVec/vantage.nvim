@@ -38,7 +38,10 @@ For each qualifying implemented note, do exactly these steps and nothing else:
    - **redirect** it to current authority (the note that now owns the decision);
    - **retarget** it to the archived path (only when the historical snapshot is intentionally cited);
    - **delete** it.
-   Never verify or repair links out of the archived note.
+   Never verify or repair links out of the archived note: they are frozen
+   as-sealed against the path the note had while active, so links into
+   `implemented/` stop resolving once the note is archived. That rot is
+   accepted (see `.agents/notes/archived/AGENTS.md`).
 4. Run `make notes` and confirm it passes; it enforces the archive metadata (`Status: implemented` + `Archived: YYYY-MM-DD`).
 
 ## Reject a proposed note

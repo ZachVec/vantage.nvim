@@ -11,7 +11,7 @@ way only: *removing* the `@` marker is exact, but *adding* it is guesswork. A
 template like `prompts = { review = "Review {file} for bugs." }` composes prose
 around a path, and no whole-text hook can tell a path from an ordinary word, so
 a tool whose dialect wants `@` had to invent a heuristic. The gather flow made
-the mismatch concrete: its rows are lone paths, where per-row application is
+the mismatch concrete: its entries are lone paths, where per-entry application is
 exact — two shapes, one hook.
 
 ## Decision
@@ -31,7 +31,7 @@ and spells every location through it:
   `{function}`/`{class}` pair that once produced `:L<row>:C<col>` was
   [removed](../simplification/2026-09-11-remove-function-class-prompt-placeholders.md));
 - each Review's `{lines}` and `{file}` inside `reviews.item`;
-- every gathered `files`/`buffers` row (path only, `loc` nil), joined with
+- every gathered `files`/`buffers` entry (path only, `loc` nil), joined with
   `setup { gather = { join = … } }`.
 
 Without a hook, config's default spelling renders `file` and, when there is a
@@ -68,7 +68,7 @@ Then a Claude hook has to find paths inside prose. A lone-token test misses
 `gsub` cannot tell `Makefile` from an ordinary word. Handing the hook `file` and
 `loc` parts removes the guesswork.
 
-### Why not a separate `format_refs` hook for gathered rows?
+### Why not a separate `format_refs` hook for gathered entries?
 
 One hook per dialect is the point: a second function doubles the config surface
 for every tool, and the reference-shaped signature already serves prompts,
@@ -89,6 +89,6 @@ location syntax Vantage then has to serialize anyway.
   spelling changes (`{file}` no longer prefixes `@`).
 - Supersedes the location-syntax parts of
   [the prompts note](2026-08-31-prompts.md) and
-  [the annotations note](2026-09-01-annotations.md); the
+  [the reviews note](2026-09-01-reviews.md); the
   [gather note](2026-09-11-file-buffer-references.md) records the flows that
   feed the hook.

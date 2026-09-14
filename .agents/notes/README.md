@@ -12,7 +12,7 @@ Every Agent Note has two axes, both encoded in its **path** — `{lifecycle}/{cl
   - **`rejected/`** — the proposal was considered and declined. Keep it only while its rationale prevents a tempting, meaningful mistake; otherwise delete it.
 - **Class** (the nested folder) is the *kind* of decision — see [Classification](#classification).
 
-The date in the filename is when the topic was **first proposed** (per git history). Cross-references between Agent Notes use relative markdown links (`[topic](../../implemented/architecture/2026-…-….md)`) — never bare prose or numbers — so they are mechanically checkable and survive moves between folders.
+The date in the filename is when the topic was **first proposed** (per git history). Cross-references between Agent Notes use relative markdown links (`[topic](../../implemented/architecture/2026-…-….md)`) — never bare prose or numbers — so they are mechanically checkable and survive moves between folders. Archived notes are the exception: the links out of a sealed note are frozen as-sealed and may stop resolving, which is accepted ([archived/AGENTS.md](archived/AGENTS.md)).
 
 The active lifecycle tree is the working inventory: browse its lifecycle/class folders or search the repository. Do not add a centralized `INDEX.md`.
 

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-14
+
 ## Problem
 
 Agents are interactive REPLs: the only way to give one context is to type it.
@@ -17,7 +19,7 @@ collected in memory only: a per-buffer registry maps an extmark id to
 `{ buf, start_row, end_row, note }`, and the extmark carries the range plus a
 `number_hl_group` tint. They are managed through `:Vantage review` —
 `review` (a range + note float), `review list` (picker), and `review clear`.
-Selecting a row jumps to its range and opens the editable note float; an
+Selecting an entry jumps to its range and opens the editable note float; an
 empty note deletes the Review after a confirmation.
 
 The Review picker uses the normal `Picker.pick` path. fzf-lua and snacks
