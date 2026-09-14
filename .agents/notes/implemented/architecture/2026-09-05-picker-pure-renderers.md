@@ -18,10 +18,11 @@ command flow builds items and calls `Picker.pick(spec, opts)`; the
 `vantage.frontend.picker` facade owns implementation resolution, capability
 negotiation, and command validation. `Picker.get()` is internal.
 
-A picker declares exactly two capabilities:
+A picker declares exactly three capabilities:
 
-- `preview` — it can render `item:preview()`.
+- `preview` — it can render an entry's `preview`.
 - `command` — it can bind the flow's picker commands.
+- `multi` — it can confirm several entries at once.
 
 `PickSpec` carries only the picker's inputs: `prompt` and `items_provider`.
 `PickOpts` carries `on_choice` and optional `commands`. A command is a
@@ -33,8 +34,9 @@ command owned by the flow, not a Picker field.
 
 The empty-list policy stays single-sourced: `Picker.pick` returns `boolean
 empty`; the caller emits its flow-specific warning. Preview content is
-computed by the flow-owned row's `preview()` method, so renderers never reach
-into the Backend.
+computed by the entry's own `preview` (see
+[picker entries are data](2026-09-13-picker-entries-are-data.md)), so
+renderers never reach into the Backend.
 
 ## Alternatives considered
 
@@ -45,7 +47,7 @@ policy — the exact coupling this change removes.
 
 ### Why not keep semantic `pick_agent`/`pick_kill`/`pick_review` methods?
 
-The current result channel already delivers the chosen row through
+The current result channel already delivers the chosen entry through
 `on_choice(item)`, so the methods had converged. Their only differences are
 the `preview`/`command` capabilities and the flow-provided commands. One
 facade removes the need to edit every renderer when a flow is added.
@@ -66,12 +68,13 @@ site. The callback result channel keeps each engine's native async shape.
 
 - The picker implementations no longer `require` any Vantage module — only
   their engine. `commands/attach.lua`, `commands/kill.lua`, and
-  `commands/review.lua` assemble their own rows and call `Picker.pick`.
-- `frontend/display.lua` owns shared Agent-row formatting;
-  `frontend/review.lua` owns Review rendering.
+  `commands/review.lua` assemble their own entries and call `Picker.pick`.
+- `frontend/entries.lua` owns the entry vocabulary (the Agent text and the
+  pane preview included); `frontend/review.lua` owns Review rendering.
 - The snacks terminal-mode restore applies to every snacks pick: the
   preview-capable path via `on_close`, and `pick_plain` via its wrapped
   `on_choice`, preserving the terminal-window re-entry described in
   [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
-- The interface and failure semantics are current as of
+- The capability set above is this note's; the commands contract and the
+  facade's failure semantics are current as of
   [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).

@@ -1,4 +1,4 @@
-# Agent Note: Layered frontend/backend refactor — Bridge verbs, uniform entries
+# Agent Note: Layered frontend/backend refactor — Backend verbs, uniform entries
 
 Status: implemented
 
@@ -22,17 +22,19 @@ and imports `frontend/` and `backend/`; `frontend/` imports `backend/`;
 
 Backend:
 
-- `backend/bridge.lua` is the bridge: pure-data domain verbs
-  (`agents(pid)` → the flat inventory `{ agents, groups, focused }`, `create`, `retarget`,
+- `backend/init.lua` is the Backend's public surface: pure-data domain verbs
+  (`inventory()` → the flat Agents plus the Groups derived from them,
+  `focus(pid)` → the Focus or the reason it is missing, `create`, `retarget`,
   `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
   `status`).
   It knows no UI and holds no state.
 - `backend/driver/` is the pluggable seam: `init.lua` resolves the configured
-  driver (whitelist + fallback to tmux), `tmux.lua` is pure tmux mapping with
-  the domain-shaped verbs `create`, `snapshot(pid)`, `retarget(pid, agent)`,
-  `attach`, `kill_view`, `kill_agent`, `kill_group`, `send_keys`, `capture_pane`,
-  `status`, `health`. zellij remains a distant seam only; no compatibility
-  promise hardens the interface for it.
+  driver (a whitelist; an unknown or unavailable name fails fast at `setup()`,
+  per [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md)),
+  `tmux.lua` is pure tmux mapping with the domain-shaped verbs `create`, `agents()`, `focus(pid)`,
+  `retarget(pid, agent)`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
+  `send_keys`, `capture_pane`, `status`, `health`. zellij remains a distant
+  seam only; no compatibility promise hardens the interface for it.
 
 Domain model:
 
@@ -47,9 +49,9 @@ Domain model:
 - The server starts on the first `create` (`new-session`, which applies the
   global config exactly once per server start); no verb re-checks it. External
   kills surface as warnings on the next operation; there is no watchdog or
-  reconciliation. `snapshot(pid)` is one bash process chaining
-  `list-windows` + `list-clients`, so listings and the focused Agent cost one
-  fork.
+  reconciliation. `agents()` reads `list-windows` and `focus(pid)` reads
+  `list-clients` (the client's window and its Agent fields in one query), so a
+  caller that needs only the inventory never pays for the client query.
 - `retarget(pid, agent)` is the single switch verb (`switch-client`), handling
   same-Group window changes and cross-Group relocation alike; the terminal's
   client is identified by the terminal job's pid.
@@ -60,20 +62,24 @@ Frontend:
   terminal job and returns its pid, `show`/`hide`/`destroy` manage the window,
   and `TermClose` closes the window, deletes the buffer, and resets state — the
   attachment's lifecycle is the terminal's lifecycle. It stores no domain
-  state and never resolves the focused Agent (that is derived per `snapshot`).
-- Each command defines its own row classes behind a local protocol: the attach
-  flow's `AgentEntry`/`ToolEntry` resolve rows (`target(done)`), the kill
-  flow's `KillAgentEntry`/`KillGroupEntry` delete rows (`delete()`), and the
-  review flow's rows open notes; every row renders through `format()` /
-  `preview()`. No entry carries a flow action: the attach flow's `<c-x>` kill
-  and `<c-g>` scope toggle are flow-owned picker commands, not row methods.
-  The `<c-x>` command kills the row's Agent in place; the pinned `(focused)`
-  row and Tool rows are no-ops, with the behavior owned by the
+  state and never resolves the Focus (that is derived per `Backend.focus`).
+- Each command offers its own entries: the attach flow Agent and Tool
+  entries, the kill flow Agent and Group entries, the review flow Review
+  entries — all built by the shared vocabulary in `frontend/entries.lua`,
+  whose `kind` the flow branches on
+  ([picker entries are data](2026-09-13-picker-entries-are-data.md)). No entry
+  carries a flow action: the attach flow's `<c-x>` kill and `<c-g>` scope
+  toggle are flow-owned picker commands, not entry methods. The `<c-x>` command
+  kills the entry's Agent in place; the pinned `(focused)` entry and Tool
+  entries are no-ops, with the behavior owned by the
   [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md).
-- Picker implementations stay pure renderers (format/preview/on_choice,
-  optional in-place delete where the flow enables it, optional `<c-g>` scope
-  toggle reading the `group` field). The `from_terminal` flag is deleted: a
-  picker detects the terminal window at open time by filetype.
+- Picker implementations stay pure renderers over the flow's entries and
+  flow-owned commands: text, preview, and `on_choice`, with the `<c-x>`
+  kill/delete and the `<c-g>` scope toggle arriving as the `{ lhs, rhs, desc }`
+  descriptors the
+  [composition root](2026-09-10-composition-root-and-neutral-seams.md) owns.
+  The `from_terminal` flag is deleted: a picker detects the terminal window at
+  open time by filetype.
 
 Commands:
 
@@ -104,17 +110,21 @@ session can look at different windows — the two properties Anchor+Views were
 built to provide. Deleting them also deletes the client-detached hook and the
 View-relocation machinery.
 
-### Why not dispatch on a `kind` field instead of entry methods?
+### Why not keep entry methods (`resolve()`, `delete()`) instead of a `kind`?
 
-`resolve()`/`delete()` keep each flow's choice handler to one polymorphic line;
-the uniform nil/false protocol means neither flows nor pickers ever test which
-methods an entry has.
+They kept each flow's choice handler to one polymorphic line, but the price was
+a second contract behind the Picker's: each flow declared its own classes, the
+same Agent text and pane preview existed twice, and an implementation could
+write into the flow's own entry. The `kind` field the flows already needed for
+their own dispatch keeps one surface
+([picker entries are data](2026-09-13-picker-entries-are-data.md)).
 
 ### Why not keep `activate(after)` with an injected flow tail?
 
 Injection makes an entry's behavior depend on which flow built it and, for Tool
-rows, smuggles a picker sub-flow into a method. `resolve()` inverts the
-direction: the entry returns its target and each flow applies its own tail.
+entries, smuggles a picker sub-flow into a method. The flow's own handler
+inverts the direction: it reads the entry's target off the data and applies its
+own tail.
 
 ### Why not rename kill to delete?
 
@@ -133,8 +143,11 @@ caller-declared parameter and the restore-mode branching that followed it.
 - `setup{}` keys and defaults are preserved except `annotations` → `reviews`
   (an intentional exception to the keep-the-keys rule); `cli.win.keys` tokens
   become `switch`/`prompt`/`toggle`.
-- The Agent list no longer offers in-place `<c-x>` kill (kill is a command);
-  the Review list keeps `<c-x>` deletion through `delete()`.
+- The Agent list's in-place `<c-x>` kill was later restored under flow-owned
+  commands (the
+  [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md));
+  the Review list's `<c-x>` deletion is the same shape — a flow-owned picker
+  command, not an entry method.
 - Each nvim instance has at most one terminal, whose client is identified by
   the terminal job's pid. The later
   [restore-per-client-views](2026-09-10-restore-per-client-views.md) note

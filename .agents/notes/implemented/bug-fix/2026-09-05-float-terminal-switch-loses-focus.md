@@ -8,7 +8,7 @@ With `cli.win.layout = "float"` and `picker = "snacks"`, any pick that was
 invoked from the vantage terminal — the `switch` key to another Agent, the
 kill pick, the Group step, the `prompt` key — left the
 cursor in the editor window behind the float instead of back on the agent
-terminal after the picker closed. The pick succeeded (the Client re-pointed),
+terminal after the picker closed. The pick succeeded (the Terminal re-pointed),
 but focus was on the "next" tiled window, as if the pick came from the editor.
 
 The trigger is Neovim's float-close focus machinery, not snacks: closing a
@@ -18,7 +18,7 @@ float that is current computes the alternative window with
 layout teardown destroys its input/list/preview floats in arbitrary order
 (`pairs`), so `prevwin` is normally a sibling picker float that has just been
 freed — the fallback fires, and the focus lands on `firstwin`, the editor
-window behind the float. With a tiled Client in the `full` layout the same
+window behind the float. With a tiled Terminal in the `full` layout the same
 fallback coincidentally lands on the terminal (the dedicated tab holds one
 window, so `firstwin` is it), which is why the defect was invisible before the
 float layout: closing the picker never restored *the terminal the pick was
@@ -27,7 +27,7 @@ invoked from*, it restored the default first window.
 ## Decision
 
 The snacks close compensation (`restore_terminal_mode` in
-`lua/vantage/picker/snacks.lua`) now also re-asserts window focus. At pick
+`lua/vantage/frontend/picker/snacks.lua`) now also re-asserts window focus. At pick
 start, when the current window is the Vantage Terminal, the implementation captures
 `vim.api.nvim_get_current_win()` — at that moment the current window *is* the
 Terminal window, since filetype detection means the pick runs inside it — and
@@ -50,7 +50,7 @@ invoked-from window is captured, not looked up through a Vantage module).
 
 ## Alternatives considered
 
-### Why not re-assert the Client window in the command layer (`Client.retarget`)?
+### Why not re-assert the Terminal window in the command layer?
 
 `retarget` does not know it was reached through a picker close, and focusing
 from there would change focus as a side effect of re-pointing. The
@@ -65,7 +65,7 @@ The close order is snacks' layout `pairs` iteration, and Neovim's
 window is current. Compensating on the Vantage side is deterministic and does
 not fork snacks' internals.
 
-### Why not re-focus only when the Client is a float?
+### Why not re-focus only when the Terminal is a float?
 
 The tiled paths are already restored by the same fallback only in the `full`
 layout; split layouts have the identical defect (the terminal is not

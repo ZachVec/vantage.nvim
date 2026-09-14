@@ -203,6 +203,6 @@ writer trivial and the display self-healing.
   skeletons (`status.sh`) are their calling convention.
 - The [full-terminal-layout note](2026-09-03-full-terminal-layout.md) keeps
   the `full`-layout flicker rationale; its retitle paragraphs were updated in
-  place to point here, and the inbound link in the [single-Client-terminal
+  place to point here, and the inbound link in the [single-Terminal
   note](../architecture/2026-08-31-single-terminal-frontend.md) was retargeted
   to this note for the title part.

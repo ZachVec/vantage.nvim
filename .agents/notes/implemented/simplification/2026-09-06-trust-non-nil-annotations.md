@@ -38,7 +38,7 @@ Shipped removals:
   `sanitize_tools`-validated `cli.tools` key.
 - `commands/prompt.lua` `send_prompt` drops `if template == nil`; the name comes
   from `pairs(Config.options.prompts)`.
-- `picker/fzf_lua.lua` and `picker/snacks.lua` trust their resolved options;
+- `frontend/picker/fzf_lua.lua` and `frontend/picker/snacks.lua` trust their resolved options;
   the current Picker facade validates command descriptors before dispatch.
 
 Kept, deliberately:

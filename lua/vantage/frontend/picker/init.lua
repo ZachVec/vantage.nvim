@@ -1,5 +1,81 @@
 --- Picker frontend facade: resolve the configured implementation and own the
 --- capability/command negotiation shared by every pick.
+
+---@class vantage.picker.Entry One selectable thing a pick offers: the line the
+--- implementation renders (`text`) and the flow's own name for it (`kind`).
+--- The flow owns every other field; an implementation reads `text` and calls
+--- `preview`, and never writes to an entry.
+---@field text string the line the implementation renders
+---@field kind string flow-owned kind, read by the flow's own callbacks
+---@field preview fun(entry: vantage.picker.Entry): string[]? lazily computed
+--- preview lines; every entry shares the one implementation, so a pick only
+--- pays for the highlighted entry
+
+---@class vantage.PickSpec The selection contract passed to a picker
+--- implementation. Each field is an input to the picker: the entries to render
+--- (`items_provider`) and the prompt glyph (`prompt`). Commands are supplied
+--- through `PickOpts`.
+---
+--- `items_provider` always answers with a list; when it could not read one the
+--- list is empty and the second value is the reason. Only the read that
+--- decides whether a pick opens carries that reason back to the flow
+--- (`vantage.PickerImpl.pick`); a re-read from a Picker command answers with
+--- an empty list, which closes the picker.
+---@field prompt string
+---@field items_provider fun(): vantage.picker.Entry[], string?
+
+---@class vantage.PickerCommandCtx
+---@field item vantage.picker.Entry? the highlighted entry, when there is one
+---@field items vantage.picker.Entry[]
+
+---@class vantage.PickerCommand A keymap-shaped picker command:
+--- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
+--- when the item list may have changed.
+---@field [1] string lhs
+---@field [2] fun(ctx: vantage.PickerCommandCtx): boolean
+---@field desc? string
+
+---@class vantage.PickOpts
+---@field on_choice fun(item: vantage.picker.Entry)
+---@field commands? vantage.PickerCommand[]
+
+---@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
+--- without the `multi` capability degrades to one choice, so `on_choices`
+--- always receives a list of at least one item.
+---@field on_choices fun(items: vantage.picker.Entry[])
+
+---@class vantage.PlainSelectOpts Options for the plain-list select form
+--- (`pick_plain`), mirroring `vim.ui.select`'s opts.
+---@field prompt? string
+---@field format_item? fun(item: any): string
+
+---@class vantage.PickerCapabilities
+---@field preview boolean
+---@field command boolean
+---@field multi boolean
+
+---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
+--- snacks) rendering every Vantage selection on its own engine. The command
+--- flows assemble a PickSpec per flow; the implementations stay
+--- presentation-only and depend on nothing but their engine.
+---
+--- An implementation owns what its own close does: it leaves the window the
+--- pick was invoked from current when the picker closes, with that window's
+--- mode intact, and compensates for its own teardown whenever its engine
+--- loses either. A flow therefore never restores a window or a mode.
+--- `native` delegates this, like everything else, to the global
+--- `vim.ui.select`.
+---
+--- `pick` and `pick_multi` answer `empty, err`: `empty` says that no pick
+--- opened — the list held nothing, or the opening read failed — and `err` is
+--- that failure's reason, so a flow reports one of them without a side
+--- channel.
+---@field requires? string optional runtime module dependency
+---@field capabilities vantage.PickerCapabilities
+---@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean, string?
+---@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean, string?
+---@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
+
 local Config = require("vantage.config")
 
 local M = {}
@@ -98,6 +174,7 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
   local impl = get()
   if type(opts.on_choice) ~= "function" then
@@ -107,11 +184,11 @@ function M.pick(spec, opts)
   if commands and not impl.capabilities.command then
     commands = nil
   end
-  return impl.pick(spec, {
+  local empty, err = impl.pick(spec, {
     on_choice = opts.on_choice,
-    on_close = opts.on_close,
     commands = commands,
   })
+  return empty, err
 end
 
 --- Render a multi-selection pick through the configured implementation. A
@@ -120,23 +197,24 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
   local impl = get()
   if type(opts.on_choices) ~= "function" then
     error("vantage: picker opts.on_choices must be a function", 0)
   end
   if impl.capabilities.multi then
-    return impl.pick_multi(spec, {
+    local empty, err = impl.pick_multi(spec, {
       on_choices = opts.on_choices,
-      on_close = opts.on_close,
     })
+    return empty, err
   end
-  return impl.pick(spec, {
+  local empty, err = impl.pick(spec, {
     on_choice = function(item)
       opts.on_choices({ item })
     end,
-    on_close = opts.on_close,
   })
+  return empty, err
 end
 
 --- Render a plain selection through the configured implementation.

@@ -11,8 +11,10 @@ describe("vantage.frontend.picker.snacks", function()
     Helpers.reload_vantage()
     items = {
       {
-        format = function()
-          return "agent row"
+        kind = "agent",
+        text = "agent row",
+        preview = function()
+          return nil
         end,
       },
     }
@@ -28,7 +30,8 @@ describe("vantage.frontend.picker.snacks", function()
     Helpers.reload_vantage()
   end)
 
-  it("populates item.text for snacks matching and refresh", function()
+  it("reads the entry's text for matching and refresh, and leaves the entry alone", function()
+    local before = vim.deepcopy(items[1])
     local empty = Snacks.pick({
       prompt = "pick",
       items_provider = function()
@@ -57,10 +60,10 @@ describe("vantage.frontend.picker.snacks", function()
       close = function() end,
     }
     captured.actions.vantage_command_1(picker, items[1])
-    assert.are.equal("agent row", items[1].text)
+    assert.are.same(before, items[1])
   end)
 
-  it("confirms every marked row for a multi pick", function()
+  it("confirms every marked entry for a multi pick", function()
     local chosen
     local empty = Snacks.pick_multi({
       prompt = "pick",
@@ -68,8 +71,8 @@ describe("vantage.frontend.picker.snacks", function()
         return items
       end,
     }, {
-      on_choices = function(rows)
-        chosen = rows
+      on_choices = function(entries)
+        chosen = entries
       end,
     })
 
@@ -89,6 +92,23 @@ describe("vantage.frontend.picker.snacks", function()
     end)
 
     assert.are.equal(1, #chosen)
-    assert.are.equal("agent row", chosen[1]:format())
+    assert.are.equal("agent row", chosen[1].text)
+  end)
+
+  it("answers empty, with the read's reason, without opening", function()
+    captured = nil
+
+    local empty, err = Snacks.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}, "no server running"
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+    assert.is_nil(captured)
   end)
 end)

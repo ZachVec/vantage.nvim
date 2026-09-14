@@ -10,12 +10,12 @@ live terminal — either re-open the last-focused Agent, run the Agent-creation
 wizard (when no Agent ran), or open the Agent picker. That third behavior is
 target work (choosing which Agent the terminal displays) smuggled into a
 presence command. The two paths shared the same `pick_or_new` builder, and
-the "creates if empty" wizard duplicated the Tool rows the Agent picker already
+the "creates if empty" wizard duplicated the Tool entries the Agent picker already
 offered.
 
 ## Decision
 
-The single Client has two independent concerns:
+The single Terminal has two independent concerns:
 
 - `:Vantage toggle` owns **presence** — hide the open terminal, show the hidden
   terminal, or, with no live terminal, open the Agent picker and open the
@@ -30,10 +30,10 @@ callback rather than forked:
 
 - `commands/attach.lua` owns one shared pick flow and threads the
   caller's tail through after creation. Its `toggle` opens the Terminal on the
-  chosen Agent; its `switch` calls `Bridge.retarget(pid, agent)` and never
+  chosen Agent; its `switch` calls `Backend.retarget(pid, agent)` and never
   shows or hides it.
 - The Agent-creation wizard (`create_wizard`) is deleted: creation lives only
-  in the Tool rows of the Agent picker, whose post-create tail action is the
+  in the Tool entries of the Agent picker, whose post-create tail action is the
   same injected `after`.
 
 ## Alternatives considered
@@ -42,7 +42,7 @@ callback rather than forked:
 
 It mixed target selection into a presence command and hid an unasked focus.
 Making toggle always pick when the terminal is gone keeps the command
-predictable; the picker's pinned `(focused)` row still marks where the terminal
+predictable; the picker's pinned `(focused)` entry still marks where the terminal
 was when it exists.
 
 ### Why not let switch bootstrap when there is no terminal?
@@ -54,7 +54,7 @@ terminal is materialized.
 ### Why not fork `pick_or_new` into two per-command copies?
 
 The only difference is the tail action. One function parameterized by an
-`after` callback (open Terminal vs retarget) removes the duplication; Tool-row
+`after` callback (open Terminal vs retarget) removes the duplication; Tool-entry
 creation takes the same callback for the same reason.
 
 ## Consequences
@@ -64,7 +64,7 @@ creation takes the same callback for the same reason.
   or shows a terminal — it only re-points.
 - The `switch` key has no `@N` form: it always opens the picker. After a
   detach the terminal must be reopened with `:Vantage toggle` first.
-- `create_wizard` and its Tool step are gone; the Tool rows are the single
+- `create_wizard` and its Tool step are gone; the Tool entries are the single
   creation channel.
 - README, `doc/vantage.nvim.txt`, and `docs/architecture.md` describe the
   presence/target split. The `(focused)` pin and its no-op confirm are

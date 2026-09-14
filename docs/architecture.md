@@ -1,6 +1,6 @@
 # Vantage Architecture
 
-A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a [Bridge](glossary.md#bridge) over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
+A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
 
 Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
 
@@ -11,22 +11,48 @@ lua/vantage/
 ├── init.lua            composition root: apply config, resolve, install
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
-├── backend/            bridge.lua + driver/ (registry, tmux, resources/tmux)
-├── frontend/           terminal, display, note, review, picker/
-└── commands/           dispatch + actions, attach, flows
+├── backend/            init.lua + driver/ (registry, tmux, resources/tmux)
+├── frontend/           terminal, entries, note, review, picker/
+└── commands/           dispatch + flows (attach, gather, kill, prompt, review)
 ```
 
-- `init.lua` is the composition root. `setup()` applies configuration, resolves
-  the configured Driver and Picker, then installs Prompt/Review hooks and the
-  `:Vantage` command.
-- `commands/` orchestrates flows and imports `frontend/`, `backend/`, and
-  shared modules.
-- `frontend/` imports `backend/` (through the Bridge) and its own pieces.
-- `backend/` imports only shared modules.
-- `health.lua` is a diagnostics adapter: it may inspect Backend and Frontend,
-  but never the command layer.
-- `make check` runs `scripts/verify-architecture.lua`, which rejects reverse
-  module dependencies.
+Six categories, each with a fixed set of things it may import. `make check`
+runs `scripts/verify-architecture.lua`, whose `ALLOWED` table is exactly this
+graph; a module that imports against it fails the gate.
+
+```
+                 composition (init.lua)
+                   │
+      ┌────────────┼───────────────┐
+      ▼            ▼               ▼
+  commands ──▶ frontend ──────▶ backend
+      │            │               │
+      └────────────┴───────┬───────┘
+                           ▼
+                        shared (config, util)
+
+  health ──▶ backend, frontend, shared        (nothing imports health)
+```
+
+- `composition` — `init.lua`. The only module that reaches every other
+  category, and the only one nothing imports. `setup()` applies configuration,
+  resolves the configured Driver and Picker, then installs Prompt/Review hooks
+  and the `:Vantage` command.
+- `commands` — orchestrates flows and imports `frontend/`, `backend/`, its own
+  pieces, and shared modules.
+- `frontend` — imports `backend/` and its own pieces.
+- `backend` — imports only shared modules.
+- `shared` — `config.lua` and `util.lua`, importable by every category and
+  importing nothing but itself. It is a dependency-checking category, not a
+  domain term: the [glossary](glossary.md) is where domain words live. The
+  verifier files any module path it cannot classify here. A seam's contract
+  types live with their seam — `vantage.Driver` in `backend/driver/init.lua`,
+  the picker contract in `frontend/picker/init.lua`, `vantage.NoteOpts` in
+  `frontend/note.lua`; `config.lua` keeps the option types and the reference
+  spelling.
+- `health` — `health.lua`, the diagnostics adapter. It may inspect Backend and
+  Frontend but never the command layer, and no module imports it: Neovim calls
+  it through `:checkhealth`.
 
 Configuration is fail-fast. An unknown backend/picker name, an unavailable
 implementation, or a missing picker dependency raises during `setup()`; no
@@ -35,8 +61,10 @@ cached; `get()` before `setup()` is a programming error. `health.lua` catches
 that error and reports it.
 
 `Config.options` remains the global configuration singleton. `Config.apply()`
-owns defaults, merging, and `cli.tools` validation; runtime lifecycle belongs
-to the composition root.
+owns defaults, merging, `cli.tools` validation, and the default reference
+spelling every surviving Tool without a `format` hook gets;
+`Config.tool_reference` is the only place a reference is spelled. Runtime
+lifecycle belongs to the composition root.
 
 ## The multiplexer substrate
 
@@ -76,8 +104,8 @@ inventory; other operation failures return their real error.
   Driver.
 - The **attachment** is the Terminal's client pointed at a View. Opening the
   Terminal creates the View and starts the attach command; closing it (or the
-  client exiting) ends the attachment. The focused Agent is derived from the
-  live state on every `snapshot`, never stored Neovim-side.
+  client exiting) ends the attachment. The [Focus](glossary.md#focus) is
+  derived from the live state on every read, never stored Neovim-side.
 
 ## Seams and contracts
 
@@ -87,8 +115,16 @@ whitelist):
 - `create({ group, cmd, cwd, tool })` → `Agent, nil` or `nil, err`; creating
   the Group (and on the first creation the server and its config). Metadata
   failures roll back the partial Agent.
-- `snapshot(pid?)` → `{ agents, groups, focused? }, nil` or `nil, err` from one
-  shell process (two chained multiplexer commands).
+- `agents()` → `Agent[], nil` or `nil, err`: the live inventory in creation
+  order. A missing server reads as an empty inventory, not as an error.
+- `focus(pid)` → `agent, nil`, `nil, FOCUS_NO_CLIENT`, `nil, FOCUS_NO_FOCUS`,
+  or `nil, err`: the [Focus](glossary.md#focus) — the Agent the client with
+  that pid displays. One multiplexer query reads the client's current window
+  and that window's Agent fields together, so the window id never needs
+  matching against a second inventory read. A pid with no live client and a
+  client whose window is not an Agent are normal answers (`FOCUS_NO_CLIENT`,
+  `FOCUS_NO_FOCUS`); a missing server is `nil` plus the reason, so "no Terminal
+  client" and "nothing is running" stay distinct.
 - `retarget(pid, agent)` → `true` or `false, err`; same-Group switching selects
   a window in the client's own View, while cross-Group switching creates a
   fresh View, moves the client, and destroys the old View.
@@ -103,15 +139,44 @@ whitelist):
   `status()` → `{ clients, sessions }, nil` or `nil, err`;
   `health()` → health-check records.
 
-The Driver returns errors and never notifies the user. The Bridge passes
+The Driver returns errors and never notifies the user. The Backend passes
 results through; command flows decide how to report them.
 
-**Bridge** (`backend/bridge.lua`) is the Frontend's only door to the Backend:
-`agents(pid)`, `create`, `retarget(pid, agent)`, `send(agent, text)`,
-`capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
+`backend/init.lua` is the Frontend's only door to the Backend:
+`inventory()`, `focus(pid?)`, `create`, `retarget(pid, agent)`, `send(agent,
+text)`, `capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
 `kill_group`, `status`. It holds no state and does no UI; the prompt flow
-resolves the focused Agent and renders templates, then hands the Bridge the
-final text.
+resolves the Focus and renders templates, then hands the Backend the final text.
+
+The two reads are separate because they answer different questions.
+`inventory()` returns the flat Agent list plus the Groups derived from it (each
+Group once, in the Agents' order) and never reads the clients, so a caller that
+does not care what the Terminal shows — the kill flow, the Group prompt — does
+not pay for the extra multiplexer query. `focus(pid)` is the [Focus](glossary.md#focus)
+read: the Driver answers it in one query — the client's current window and that
+window's Agent fields together — and the Backend adds only the "no Terminal at
+all" case before the Driver is consulted. It returns the Agent, or `nil` plus
+one of the reasons in `config.lua` (`FOCUS_NO_TERMINAL`, `FOCUS_NO_CLIENT`,
+`FOCUS_NO_FOCUS`) or the Driver's own error. Callers report that string as-is;
+nothing branches on which reason it is, so the reasons are messages rather than
+a cause vocabulary. The Backend never reaches for the Terminal's pid itself:
+the command layer passes it in, keeping the Backend from importing the
+Frontend.
+
+A Tool's reference spelling is configuration, not Backend state:
+`Config.apply()` gives every surviving `cli.tools` entry a `format` (defaulting
+to config's own default), and `Config.tool_reference(tool, cwd, path,
+start_row, end_row)` is the one place a reference is spelled — it relativizes
+the path against the Agent's cwd, builds the `:L` suffix from the position,
+applies the hook, and reads a nil or "" return as "no reference". `tool` is nil
+with no Focus, or names a Tool a later setup dropped; both spell the default
+form, which is how an Agent created under a since-dropped Tool still renders.
+The read-split, the reference-spelling owner, and where seam types live are
+recorded in
+[focus-is-its-own-read](../.agents/notes/implemented/architecture/2026-09-13-focus-is-its-own-read.md),
+[reference-spelling-has-one-owner](../.agents/notes/implemented/architecture/2026-09-13-reference-spelling-has-one-owner.md),
+and
+[seam-types-live-with-their-seam](../.agents/notes/implemented/architecture/2026-09-13-seam-types-live-with-their-seam.md).
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
 starts the terminal job, `show`/`hide` manage the window without killing the
@@ -123,19 +188,45 @@ Commands call `Picker.pick(spec, opts)`, `Picker.pick_multi(spec, opts)`, or
 `Picker.pick_plain(...)`; `get()` is internal. A picker declares exactly three
 capabilities:
 
-- `preview` — it can render `item:preview()`.
+- `preview` — it can render an Entry's `preview`.
 - `command` — it can bind the flow's picker commands.
-- `multi` — it can confirm several rows at once.
+- `multi` — it can confirm several entries at once.
+
+What a pick offers is a list of Entries — the shared type is
+`vantage.picker.Entry` in `frontend/picker/init.lua`, and the vocabulary that
+builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.group`,
+`.file`, `.buffer`, `.review`). An Entry carries `text` (the line the
+implementation renders), `kind` (the flow's own name for it), `preview`
+(computed only for the highlighted Entry), and whatever fields the flow put
+there. Each builder binds the preview for its kind — one module-level function
+per kind, so an Entry never allocates a closure. Implementations read `text`
+and call `preview`; they never write to an Entry, and the flow — not the Entry
+— decides what choosing one means.
 
 A picker without `multi` renders a multi-selection request as a single choice,
 so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
-optional `commands`/`on_close`; `PickMultiOpts` carries `on_choices` and the
-same optional `on_close`, run whenever the picker closes.
+optional `commands`; `PickMultiOpts` carries `on_choices`. An implementation
+owns what its own close does: it leaves the window the pick was invoked from
+current, with that window's mode intact, and compensates for its own teardown
+whenever its engine loses either — so no flow restores a window or a mode, and
+no flow passes a close callback. `native` delegates that, like everything
+else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
+mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
+fzf-lua's own `set_current_win(src_winid)` on the other).
+
+A pick answers with `empty, err`. `empty` says that no pick opened — the entry
+list held nothing, or its opening read failed — and `err` is that failure's
+reason, so a flow reports one of the two without a side channel.
+`items_provider` always answers with a list; on failure the list is empty and
+the reason rides the second value. Only the read that decides whether a pick
+opens carries that reason back to the flow: a re-read triggered by a Picker
+command answers with an empty list, which closes the picker.
 
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
 `true` when the item list may have changed. A true result re-reads
-`items_provider` and refreshes (or closes on an empty result). Commands are
+`items_provider` and refreshes (or closes on an empty result, a failed read
+included). Commands are
 global to the picker UI; the facade rejects duplicate `lhs` values and drops
 commands for a picker without the `command` capability. Group scoping is an
 ordinary command, not a Picker concept.
@@ -143,18 +234,21 @@ ordinary command, not a Picker concept.
 ## Flows and the command surface
 
 - `commands/attach.lua` owns `toggle`/`switch` plus their shared
-  Agent/Tool rows, Group choice, creation handoff, and the `<c-g>` scope and
-  `<c-x>` kill commands.
+  Agent/Tool entries, Group choice, creation handoff, and the `<c-g>` scope and
+  `<c-x>` kill commands. An Entry is data: its `kind` (`focused`, `agent`,
+  `tool`) says what choosing it means, and the flow — not the Entry — creates,
+  retargets, or opens the Terminal. `toggle` and `switch` each keep their own
+  tail; only the "attach and install the terminal keymaps" step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
-  lists candidates under the focused Agent's cwd (fd → ripgrep → a Lua walk),
-  renders `<relpath>` references, and sends them through `commands/send.lua`,
-  which runs each reference through the Tool's `format` and joins them with
-  `setup { gather = { join = … } }`.
+  lists candidates under the Focus's cwd (fd → ripgrep → a Lua walk), spells
+  every chosen `<relpath>` through the Tool's `format`, joins the results with
+  `setup { gather = { join = … } }`, and pastes them with a trailing space. One
+  reference dropped by the hook drops the whole send.
 - `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`,
   `files`, `buffers`) to command functions and installs `cli.win.keys` into the
   terminal buffer.
 - `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
-  (Tool rows create one) and open the Terminal on it.
+  (Tool entries create one) and open the Terminal on it.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
 - `:Vantage detach` destroys the Terminal; Agents and Groups survive.
 - `:Vantage status` shows the Driver's session/client summary.
@@ -164,18 +258,29 @@ ordinary command, not a Picker concept.
 - Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`, `files`,
   `buffers`.
 
-Creating an Agent from a Tool row resolves the tool to its command, uses the
+Creating an Agent from a Tool entry resolves the tool to its command, uses the
 global Neovim cwd, and always asks for a Group; `retarget` identifies the
-Terminal's client by the terminal job's pid.
+Terminal's client by the terminal job's pid, which the command layer reads from
+the Terminal and passes in.
+
+`:Vantage` subcommands are dispatched from `commands/init.lua`; the prompt and
+gather flows resolve the Focus before acting and warn the reason string when
+there is none. The Review list resolves it only to spell its entries: the base
+is the Focus's Cwd and its Tool dialect, or Neovim's cwd and the default
+dialect when no Terminal is attached.
 
 ## Review and Prompt
 
 Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
 registry) and render through `setup { reviews = { item = … } }`; the Prompt
-vocabulary (`{file}`, `{line}`, `{reviews}`) lives in
-`config.lua` as a shared contract, health-checked at startup. Prompt text and
+vocabulary (`{file}`, `{line}`, `{reviews}`) is the prompt flow's own resolver
+keys, and `Prompt.setup()` warns about a configured template that names an
+unknown token — `health.lua` may not import the command layer. Prompt text and
 gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /
-`{file}`, and each gathered row — is spelled by the focused Tool's
-`format(file, loc)` hook (default: `file` and its `loc` suffix separated by a
-space), and `gather.join` decides how gathered references are joined.
+`{file}`, and each gathered entry — is spelled by the Focus's Tool through
+`Config.tool_reference` (default: `file` and its `loc` suffix separated by a
+space), and `gather.join` decides how gathered references are joined. A Review
+reads the same in the list, in its preview, and in the `{reviews}` send — an
+entry is the `{lines}` reference plus the note's first line — and the note
+float's title names no reference of its own.

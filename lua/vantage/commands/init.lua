@@ -3,7 +3,7 @@
 --- subcommand names to functions and owns the one-line commands (detach,
 --- status).
 local Attach = require("vantage.commands.attach")
-local Bridge = require("vantage.backend.bridge")
+local Backend = require("vantage.backend")
 local Kill = require("vantage.commands.kill")
 local Review = require("vantage.commands.review")
 local Terminal = require("vantage.frontend.terminal")
@@ -29,7 +29,7 @@ local function usage()
 end
 
 local function status()
-  local status_info, err = Bridge.status()
+  local status_info, err = Backend.status()
   if status_info == nil then
     Util.warn(err or "failed to read status")
     return

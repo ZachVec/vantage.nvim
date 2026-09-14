@@ -1,22 +1,30 @@
 --- The `:Vantage review` command and its sub-actions (add / list / clear):
 --- notes anchored to line ranges, batched through {reviews}.
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
+local Entries = require("vantage.frontend.entries")
 local Note = require("vantage.frontend.note")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
-local Send = require("vantage.commands.send")
+local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- The focused Agent's reference formatter when one exists, so note titles and
---- picker previews read exactly what a send would produce.
----@return vantage.ReferenceFormat
-local function formatter()
-  local agent = Send.focused()
-  return agent and Send.formatter(agent) or Util.reference
+--- The Review list's display context: the Focus's Cwd and Tool dialect, so an
+--- entry spells its `{lines}` reference exactly as a `{reviews}` send would.
+--- Without a Focus — the list is reachable with no Terminal — the reference is
+--- spelled against Neovim's cwd in the default dialect.
+---@return string cwd
+---@return string? tool
+local function list_context()
+  local agent = Backend.focus(Terminal.pid())
+  if agent then
+    return agent.cwd, agent.tool
+  end
+  return Util.cwd(), nil
 end
 
 --- Jump to the review's start line (first non-blank column).
@@ -46,17 +54,17 @@ local function note_style()
 end
 
 --- Open a review's note float: jump to its range, mark it active, and edit
---- its note (an empty commit deletes it).
+--- its note (an empty commit deletes it). The title carries no reference: the
+--- jump and the active range already say where you are.
 ---@param review vantage.Review
 local function open_note(review)
   if not jump_to_review(review) then
     return
   end
   Review.set_active(review.buf, review.id, true)
-  local cwd = Util.cwd()
   Note.open({
     text = review.note,
-    title = ("Review %s"):format(Review.location(review, cwd, formatter())),
+    title = "Review",
     footer = "<Esc> save · empty deletes",
     style = note_style(),
     on_commit = function(note)
@@ -75,58 +83,44 @@ local function open_note(review)
   })
 end
 
---- A Review row. The flow opens the note float from the row's data; the row
---- itself only formats, previews, and deletes.
----@param review vantage.Review
----@param cwd string
----@param format vantage.ReferenceFormat
----@return table
-local function review_row(review, cwd, format)
-  local path = Util.tilde(vim.api.nvim_buf_get_name(review.buf) or "")
-  local first = (vim.split(review.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
-  return {
-    review = review,
-    format = function()
-      return ("%s:L%d-%d  %s"):format(path, review.start_row, review.end_row, first)
-    end,
-    preview = function()
-      return vim.split(Review.render_item(review, cwd, format), "\n")
-    end,
-    delete = function()
-      Review.delete(review.buf, review.id)
-      return true
-    end,
-  }
-end
-
 --- Reviews, sorted by (buffer name, start row). May be empty.
 ---@return vantage.PickSpec
 local function spec()
   return {
     prompt = PROMPT,
     items_provider = function()
-      local cwd = Util.cwd()
-      local format = formatter()
+      local cwd, tool = list_context()
       local items = {}
       for _, review in ipairs(Review.collect()) do
-        items[#items + 1] = review_row(review, cwd, format)
+        items[#items + 1] = Entries.review(review, cwd, tool)
       end
       return items
     end,
   }
 end
 
+--- Delete the Review the entry names. Returns true when the list may have
+--- changed.
+---@param entry vantage.picker.Entry
+---@return boolean
+local function delete_review(entry)
+  ---@cast entry vantage.picker.ReviewEntry
+  Review.delete(entry.review.buf, entry.review.id)
+  return true
+end
+
 --- Open the review picker; selecting a review opens its note float.
 local function review_list()
   local empty = Picker.pick(spec(), {
     on_choice = function(entry)
+      ---@cast entry vantage.picker.ReviewEntry
       open_note(entry.review)
     end,
     commands = {
       {
         "<C-x>",
         function(ctx)
-          return ctx.item ~= nil and ctx.item:delete()
+          return ctx.item ~= nil and delete_review(ctx.item)
         end,
         desc = "delete review",
       },
@@ -160,7 +154,7 @@ local function review_add(line1, line2)
   end
   Note.open({
     text = "",
-    title = "New review",
+    title = "New Review",
     footer = "<Esc> save",
     style = note_style(),
     insert = true,

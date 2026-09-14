@@ -6,18 +6,18 @@ Status: implemented
 
 Getting a set of files into a focused Agent meant one prompt per file
 (`{file}`) or typing `@path` by hand. sidekick.nvim binds `<c-f>`/`<c-b>` to
-its picker engines' own file and buffer sources and sends the selected rows as
+its picker engines' own file and buffer sources and sends the selected entries as
 `@path` references, but that model — engines owning enumeration, previews, and
 selection — is the coupling Vantage's Picker seam rejects: renderers stay pure
 and flows own their items. Vantage also picked through a single-choice contract
-(`pick`, `pick_plain`) while gathering wants several rows at once.
+(`pick`, `pick_plain`) while gathering wants several entries at once.
 
 ## Decision
 
 Two Terminal actions, `files` and `buffers`, owned by `commands/gather.lua`.
 Each lists candidates for the focused Agent's cwd, renders them as
-`<relpath>` references, and types them into the Agent's input through
-`commands/send.lua` — bracketed paste, no auto-submit, references joined with
+`<relpath>` references, and types them into the Agent's input through the
+Backend — bracketed paste, no auto-submit, references joined with
 `setup { gather = { join = … } }` (default one per line), a trailing space
 after the last one, and no trailing newline.
 
@@ -31,27 +31,28 @@ after the last one, and no trailing newline.
   because the Agent reads the on-disk content, while the sent reference stays
   a bare `<path>`.
 - **The Picker gained a third capability, `multi`.** `Picker.pick_multi(spec,
-  opts)` returns every confirmed row through `on_choices`: snacks confirms
+  opts)` returns every confirmed entry through `on_choices`: snacks confirms
   `picker:selected({ fallback = true })`, fzf-lua runs `fzf_exec` with
   `fzf_opts = { ["--multi"] = true }` and maps every returned entry back
   through the numeric-prefix round-trip, and native — which has no
   multi-select — degrades to a single choice, so `on_choices` always receives
   a list.
-- **`PickOpts`/`PickMultiOpts` carry an optional `on_close`**, run whenever the
-  picker closes, on confirm or cancel, so gather can restore the invoking
-  window after the engine's own teardown.
+- **The pick's close belongs to the implementation**, not to the flow: gather
+  passes no close callback, because the snacks Picker's own close handler
+  already returns focus to the terminal the pick was invoked from (see
+  [the pick-close note](../simplification/2026-09-13-pick-close-is-the-implementations.md)).
 - **References are spelled by the Tool's `format(file, loc)` hook, applied per
-  row**: a gathered row has no position, so `loc` is nil, and the results are
+  entry**: a gathered entry has no position, so `loc` is nil, and the results are
   joined with `gather.join`. A hook returning nil or "" drops the send, so each
   dialect keeps defining one formatter — see
   [the Tool format hook note](2026-09-11-tool-format-location-hook.md).
 
 ## Alternatives considered
 
-### Why not add Files/Buffers rows to the prompt picker?
+### Why not add Files/Buffers entries to the prompt picker?
 
 The prompt list is `prompts`, a `table<string, string>` of templates, and
-"Prompt" is a named text template. A row that opens a picker is neither, so a
+"Prompt" is a named text template. An entry that opens a picker is neither, so a
 union type would leak into config merging, placeholder validation, the
 synchronous renderer, and the `{reviews}` hiding rule — all to save one
 keypress from a terminal keymap. sidekick's `{buffers}` prompt exists because
@@ -77,7 +78,7 @@ already see in their file picker.
 A second per-Tool hook doubles the per-dialect surface — every tool that
 translates the Claude dialect would define both functions — for a transform the
 existing one already expresses once it receives the reference's parts
-(`file`, `loc`). Applying it per row keeps one formatter per dialect.
+(`file`, `loc`). Applying it per entry keeps one formatter per dialect.
 
 ### Why not bake `@` into the gathered reference?
 
@@ -96,12 +97,14 @@ unsaved edits are not on disk. Where content is genuinely wanted, Reviews'
 ## Consequences
 
 - `files`/`buffers` work on a minimal install (the Lua walk is the fallback)
-  and inherit the Picker's capability degradation: several rows under
-  `fzf-lua`/`snacks`, one row at a time under `native`.
+  and inherit the Picker's capability degradation: several entries under
+  `fzf-lua`/`snacks`, one entry at a time under `native`.
 - The Picker contract now declares three capabilities; glossary and
   architecture describe `preview`/`command`/`multi` and the single-choice
   degradation.
 - Gathered references are bare paths; the Tool's `format` hook owns their
   dialect decoration and has to tell a rendered prompt from a lone reference.
-- The prompt and gather flows share `commands/send.lua`, the one place that
-  decides what a Tool sees and how text is shaped before `Bridge.send`.
+- Gathered references are joined and pasted by `commands/gather.lua` itself;
+  a Tool's reference spelling is spelled through `Config.tool_reference`, the
+  single owner of the defaulted `format` hook (see
+  [focus-is-its-own-read](../architecture/2026-09-13-focus-is-its-own-read.md)).

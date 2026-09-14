@@ -5,9 +5,10 @@ Status: implemented
 ## Problem
 
 `:Vantage` dispatched seven subcommands — `switch`, `kill`, `toggle`, `detach`,
-`prompt`, `annotate`, `status`. In practice only four are ever invoked as
-commands: `toggle`, `detach`, `annotate` and `status`. The other three
-(`switch`, `kill`, `prompt`) are triggered from inside the vantage terminal,
+`prompt`, `annotate` (today's `review`), `status`. In practice only four are
+ever invoked as commands: `toggle`, `detach`, `review`, and `status`. The
+other three (`switch`, `kill`, `prompt`) are triggered from inside the vantage
+terminal,
 bound through `cli.win.keys` entries whose RHS is a verbatim
 `<cmd>Vantage switch<CR>` (and friends). Having a `:Vantage` entry point for
 them was surface area that was never used directly.
@@ -22,7 +23,7 @@ is fixed by construction, that probe has nothing left to decide.
 
 ## Decision
 
-- `:Vantage` dispatches only `toggle`, `detach`, `annotate` (`list`/`clear`)
+- `:Vantage` dispatches only `toggle`, `detach`, `review` (`list`/`clear`)
   and `status`. `switch`, `kill` and `prompt` are removed from `run`,
   completion, and the `usage()` help.
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
@@ -36,8 +37,8 @@ is fixed by construction, that probe has nothing left to decide.
 - The `invoked_from_terminal()` probe was deleted at the time of this note.
   The later layered refactor removed the caller-declared `from_terminal` field
   too: the snacks renderer detects the Terminal by buffer filetype at pick
-  open time, and the focused row comes from the live `snapshot(pid)`.
-- `switch` warns when there is no Terminal; `Bridge.retarget` reports a
+  open time, and the focused entry comes from the live `Backend.focus(pid)` read.
+- `switch` warns when there is no Terminal; `Backend.retarget` reports a
   missing client through the Driver result contract.
 
 ## Alternatives considered

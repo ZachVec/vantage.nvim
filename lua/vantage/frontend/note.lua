@@ -2,6 +2,16 @@
 --- `on_commit` and closes; there is no separate save or delete action, and no
 --- policy — the caller's `on_commit` owns what empty/commit/close mean. Pure
 --- UI: it depends on nothing but the Neovim runtime.
+
+---@class vantage.NoteOpts Options for the editable-note UI (vantage.frontend.note).
+---@field text string
+---@field title? string
+---@field footer? string
+---@field on_commit fun(note: string) commit the text (Esc); every policy is the caller's
+---@field on_close? fun() run when the note window is wiped
+---@field style? string raw `nvim_open_win` style ("minimal"); nil inherits the source window
+---@field insert? boolean start in insert mode
+
 local M = {}
 
 ---@param opts vantage.NoteOpts

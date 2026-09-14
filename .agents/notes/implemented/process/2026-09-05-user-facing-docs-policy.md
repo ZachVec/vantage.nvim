@@ -60,5 +60,5 @@ says *where* the rationale goes, with no shelf in the user docs at all.
 - The float-layout rationale stays in the feature notes
   ([float default](../feature/2026-09-05-float-terminal-layout-default.md),
   [opt-in](../feature/2026-09-05-float-terminal-layout-opt-in.md),
-  [full layout](2026-09-03-full-terminal-layout.md)) and the `config.lua`
+  [full layout](../feature/2026-09-03-full-terminal-layout.md)) and the `config.lua`
   comments, unchanged.

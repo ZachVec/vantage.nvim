@@ -4,6 +4,28 @@ Behaviors of external tools (tmux, claude/codex, fzf-lua, snacks, Neovim) that
 surprised us during feature work and caused bugs. Read this before building
 anything that interacts with these tools.
 
+## Tooling · sandboxed test runners
+
+### `make test` needs a real tmux socket
+
+The tmux backend specs drive tmux over a private unix socket under
+`/tmp/tmux-<uid>/vantage-test-<pid>`. A sandbox that blocks socket creation or
+`connect()` — the Codex workspace sandbox (seccomp) does — makes every tmux
+operation fail with `error connecting to
+/tmp/tmux-<uid>/vantage-test-<pid> (Operation not permitted)`. The suite never
+reports that as a permission error: the specs fail deeper, with `attempt to
+index local 'agent' (a nil value)` in `tests/backend/driver_tmux_spec.lua` or
+`no such group '<name>'`. In-sandbox results are not trustworthy in either
+direction — the same suite passed once and failed on the next run — so treat
+only an unsandboxed `make test` result as authoritative.
+
+A brand-new socket name reproduces the denial on its own:
+
+```sh
+tmux -L vantage-probe new-session -d -s probe
+# error connecting to /tmp/tmux-<uid>/vantage-probe (Operation not permitted)
+```
+
 ## Backend · tmux · agent CLI
 
 ### Clients attached to one session share its current window
@@ -112,13 +134,13 @@ press `i`, or invoke from terminal input state or a plain window.
 
 ## Picker · snacks
 
-### Picker items must not carry a `resolve` field
+### Picker entries must not carry a `resolve` field
 
 snacks' picker resolves any item with a `resolve` function during formatting —
-`item.resolve(item)`, then sets `item.resolve = nil` — for lazy items. A row
-whose action method is named `resolve` therefore gets called by the picker
-itself, with the row as its only argument. Vantage row action methods avoid
-the name (the switch flow uses `target(done)`).
+`item.resolve(item)`, then sets `item.resolve = nil` — for lazy items. An entry
+field named `resolve` therefore gets called by the picker itself, with the entry
+as its only argument. Vantage's entry vocabulary (`frontend/entries.lua`) fixes
+which fields an entry carries, so the shipped flows stay clear of the name.
 
 ### Closing returns to Normal mode — not your previous terminal mode
 
@@ -141,25 +163,26 @@ terminal mode (`startinsert`, scheduled for the next tick — `close()` has
 already returned focus synchronously and its teardown only destroys the
 picker's own windows, never touching the mode) whenever the picker closes back
 onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
-both an Esc cancel and the no-op confirm of the pinned `(focused)` row. The
+both an Esc cancel and the no-op confirm of the pinned `(focused)` entry. The
 same scheduled close handler also re-asserts the terminal window itself:
 Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
 window when that float is already gone, so closing the picker floats from a
 floating Terminal lands the focus on the editor behind it — the handler
 re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The preview-capable `Picker.pick` path
-passes an `on_close` handler; `Picker.pick_plain` (the Agent-creation Group step and
-`:Vantage prompt`) wraps its `on_choice` *before* the choice handler runs,
-because snacks' own `ui_select` shim owns `on_close` there — and because the
-new-Group name prompt (a cmdline `input()` scheduled from inside the choice
-handler) keeps the scheduler alive while its `c` mode is active: a re-entry
-check queued after the handler would see `c`, skip, and strand the terminal in
-Normal once the prompt closes. Queued first, the `startinsert` stays pending
-across the cmdline and lands when it closes (verified on nvim 0.12.3). A
-Tool-row creation through `:Vantage toggle` ends in terminal mode via the
-toggle tail's `Terminal.open` (`startinsert`) and skips the re-entry; a
-`switch` re-points without showing (`retarget`), so it depends
-on the `on_close`/wrapped re-entry above.
+the terminal mode re-entry follows. The engine hooks its own close on both
+paths, and no flow takes part in it: the preview-capable `Picker.pick` passes
+the handler as `on_close`, while `Picker.pick_plain` (the Agent-creation Group
+step and `:Vantage prompt`) wraps its `on_choice` *before* the flow's choice
+handler runs, because the plain select call hands the implementation no close
+hook of its own — and because the new-Group name prompt (a cmdline `input()`
+scheduled from inside the choice handler) keeps the scheduler alive while its
+`c` mode is active: a re-entry check queued after the handler would see `c`,
+skip, and strand the terminal in Normal once the prompt closes. Queued first,
+the `startinsert` stays pending across the cmdline and lands when it closes
+(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage toggle`
+ends in terminal mode via the toggle tail's `Terminal.open` (`startinsert`)
+and skips the re-entry; a `switch` re-points without showing (`retarget`), so
+it depends on the implementation's close handler above.
 
 ### Finder signature is `fun(opts, ctx): result`
 

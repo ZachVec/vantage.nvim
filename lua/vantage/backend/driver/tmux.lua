@@ -359,39 +359,32 @@ local AGENT_FMT = table.concat({
   "#{@agent-state}",
 }, "\t")
 
---- Client rows: two tab-delimited fields (pid, current window id).
-local CLIENT_FMT = "#{client_pid}\t#{window_id}"
+--- Focus rows: the client's pid and current window id, then that window's
+--- Agent fields (empty when the window is not an Agent).
+local CLIENT_FOCUS_FMT = table.concat({
+  "#{client_pid}",
+  "#{window_id}",
+  "#{@agent-group}",
+  "#{@agent-cmd}",
+  "#{@agent-cwd}",
+  "#{@agent-tool}",
+  "#{@agent-state}",
+}, "\t")
 
-local function find_agent_by_id(agents, id)
-  for _, agent in ipairs(agents) do
-    if agent.id == id then
-      return agent
-    end
-  end
-  return nil
-end
-
---- One read of the live Agent inventory plus, when a terminal pid is supplied,
---- the Agent that terminal is displaying. Both multiplexer queries are chained
---- with a `;` argument into one shell process (one fork, zero polling).
----@param pid? integer the terminal job's pid (its client)
----@return { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?
+--- The live Agent inventory, in creation order. One multiplexer query; a
+--- missing server reads as an empty inventory rather than an error.
+---@return vantage.Agent[]?
 ---@return string?
-function M.snapshot(pid)
-  local result =
-    exec_result("list-windows", "-a", "-f", "#{@agent-cmd}", "-F", AGENT_FMT, ";", "list-clients", "-F", CLIENT_FMT)
+function M.agents()
+  local result = exec_result("list-windows", "-a", "-f", "#{@agent-cmd}", "-F", AGENT_FMT)
   if result.code ~= 0 then
     if missing_server(result) then
-      return {
-        agents = {},
-        groups = {},
-      }, nil
+      return {}, nil
     end
     return nil, fail_message("failed to read vantage state", result)
   end
 
   local agents = {}
-  local focused_id
   local seen = {}
   for line in (result.stdout or ""):gmatch("[^\r\n]+") do
     local fields = vim.split(line, "\t", { plain = true })
@@ -409,27 +402,49 @@ function M.snapshot(pid)
           state = (state ~= "" and state) or nil,
         }
       end
-    elseif #fields == 2 and pid ~= nil and tonumber(fields[1]) == pid then
-      focused_id = fields[2]
     end
   end
   table.sort(agents, function(left, right)
     return left.seq < right.seq
   end)
-  local seen_groups = {}
-  local groups = {}
-  for _, agent in ipairs(agents) do
-    if not seen_groups[agent.group] then
-      seen_groups[agent.group] = true
-      groups[#groups + 1] = agent.group
+  return agents, nil
+end
+
+--- The Agent the client with `pid` displays: the Focus. One multiplexer query
+--- reads the client's current window and that window's Agent fields together,
+--- so the window id never needs matching against a second inventory read. A pid
+--- with no live client answers `nil, Config.FOCUS_NO_CLIENT`; a client whose
+--- window carries no Agent metadata answers `nil, Config.FOCUS_NO_FOCUS`; a
+--- missing server answers `nil` plus the reason, because "no Terminal client"
+--- and "nothing is running" are different answers to the caller.
+---@param pid integer the terminal job's pid (its client)
+---@return vantage.Agent?
+---@return string?
+function M.focus(pid)
+  local lines, err = exec_lines("list-clients", "-F", CLIENT_FOCUS_FMT)
+  if err then
+    return nil, err
+  end
+  for _, line in ipairs(lines) do
+    local fields = vim.split(line, "\t", { plain = true })
+    if #fields == 7 and tonumber(fields[1]) == pid then
+      local window, group = fields[2], fields[3]
+      if group == "" then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return {
+        id = window,
+        seq = window_seq(window),
+        group = group,
+        cmd = fields[4],
+        cwd = fields[5],
+        tool = fields[6],
+        state = (fields[7] ~= "" and fields[7]) or nil,
+      },
+        nil
     end
   end
-  table.sort(groups)
-  return {
-    agents = agents,
-    groups = groups,
-    focused = find_agent_by_id(agents, focused_id or ""),
-  }, nil
+  return nil, Config.FOCUS_NO_CLIENT
 end
 
 --- Re-point a client to an Agent without changing any other client's View.

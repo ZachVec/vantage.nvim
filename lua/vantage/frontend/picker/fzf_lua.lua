@@ -1,7 +1,7 @@
 --- fzf-lua picker implementation. Drives fzf-lua's native `fzf_exec`; because
---- fzf-lua returns display strings rather than the original objects, each entry
---- carries a numeric prefix that round-trips the item index — the same scheme
---- fzf-lua's own ui_select shim uses.
+--- fzf-lua returns display strings rather than the original objects, each
+--- emitted line carries a numeric prefix that round-trips the entry index —
+--- the same scheme fzf-lua's own ui_select shim uses.
 local M = {}
 
 ---@type string
@@ -11,24 +11,24 @@ local function fzf()
   return require("fzf-lua")
 end
 
---- "1. text" entries; the prefix encodes the 1-based index so a returned
---- display string maps back to its item. Emitted one per callback, matching
---- fzf-lua's function-contents contract (see docs/gotchas.md).
----@param items table[]
+--- "1. text" lines; the prefix encodes the 1-based index so a returned display
+--- string maps back to its entry. Emitted one per callback, matching fzf-lua's
+--- function-contents contract (see docs/gotchas.md).
+---@param items vantage.picker.Entry[]
 ---@param cb fun(line?: string)
 local function emit(items, cb)
   for i, item in ipairs(items) do
-    cb(("%d. %s"):format(i, item:format()))
+    cb(("%d. %s"):format(i, item.text))
   end
   cb(nil)
 end
 
---- The numeric prefix exists only to round-trip entries back to items; hide it
---- from the list with `--with-nth`, the way fzf-lua's own providers do. fzf
+--- The numeric prefix exists only to round-trip a line back to its entry; hide
+--- it from the list with `--with-nth`, the way fzf-lua's own providers do. fzf
 --- still hands the original line to actions, so the round-trip holds. No
 --- `--nth`: fzf evaluates it against the *transformed* line, so `--nth=2..`
---- would drop the entry's own first field and leave a single-token path with
---- an empty search scope.
+--- would drop the line's own first field and leave a single-token path with an
+--- empty search scope.
 local PREFIX_HIDDEN = { ["--with-nth"] = "2.." }
 
 --- Recover the 1-based item index from one returned entry string.
@@ -38,10 +38,10 @@ local function index_of(entry)
   return tonumber(entry:match("^%s*(%d+)%."))
 end
 
---- Map fzf's returned display strings back to their items, in returned order.
----@param items table[]
+--- Map fzf's returned display strings back to their entries, in returned order.
+---@param items vantage.picker.Entry[]
 ---@param selected string[]?
----@return table[]
+---@return vantage.picker.Entry[]
 local function items_of(items, selected)
   local out = {}
   for _, entry in ipairs(selected or {}) do
@@ -94,11 +94,13 @@ M.capabilities = {
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
-  local state = { items = spec.items_provider() }
-  if #state.items == 0 then
-    return true
+  local items, err = spec.items_provider()
+  if #items == 0 then
+    return true, err
   end
+  local state = { items = items }
 
   local function content(cb)
     emit(state.items, cb)
@@ -127,6 +129,8 @@ function M.pick(spec, opts)
           items = state.items,
         })
         if changed then
+          -- A re-read that fails answers with an empty list: the picker exits,
+          -- and the opening read's reason is already on its way back.
           state.items = spec.items_provider()
           if #state.items == 0 then
             fzf().utils.fzf_exit()
@@ -140,7 +144,6 @@ function M.pick(spec, opts)
   fzf().fzf_exec(content, {
     prompt = spec.prompt,
     fzf_opts = PREFIX_HIDDEN,
-    winopts = { on_close = opts.on_close },
     actions = actions,
     preview = function(selected)
       local item = item_of(selected)
@@ -154,18 +157,19 @@ function M.pick(spec, opts)
       return table.concat(lines, "\n")
     end,
   })
-  return false
+  return false, nil
 end
 
---- Open an fzf picker with `--multi`: tab marks rows and Enter confirms the
---- marked set (fzf returns the row under the cursor when nothing is marked).
+--- Open an fzf picker with `--multi`: tab marks entries and Enter confirms the
+--- marked set (fzf returns the entry under the cursor when nothing is marked).
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
-  local items = spec.items_provider()
+  local items, err = spec.items_provider()
   if #items == 0 then
-    return true
+    return true, err
   end
 
   fzf().fzf_exec(function(cb)
@@ -173,7 +177,6 @@ function M.pick_multi(spec, opts)
   end, {
     prompt = spec.prompt,
     fzf_opts = vim.tbl_extend("force", { ["--multi"] = true }, PREFIX_HIDDEN),
-    winopts = { on_close = opts.on_close },
     actions = {
       ["default"] = function(selected)
         local chosen = items_of(items, selected)
@@ -196,7 +199,7 @@ function M.pick_multi(spec, opts)
       return table.concat(lines, "\n")
     end,
   })
-  return false
+  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own

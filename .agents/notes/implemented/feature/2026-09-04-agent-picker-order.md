@@ -1,4 +1,4 @@
-# Agent Note: Agent picker ordering, focused-Agent pin, and Tool-row creation
+# Agent Note: Agent picker ordering, focused-Agent pin, and Tool-entry creation
 
 Status: implemented
 
@@ -9,43 +9,43 @@ fallback that shares its builder) listed Agents in tmux window-id order and hid 
 behind a single `+ new agent` sentinel that re-entered the whole Tool → Group
 wizard. Invoking switch from inside the vantage terminal offered the Agent
 you were already looking at as a first-class choice, with nothing marking it
-as "current". Row order carried no meaning, so a stable, predictable list —
+as "current". Entry order carried no meaning, so a stable, predictable list —
 and a visible sense of where the picker's terminal already is — required an
-explicit ordering and a pinned, inert current-Agent row.
+explicit ordering and a pinned, inert current-Agent entry.
 
 ## Decision
 
-`commands/attach.lua` builds the rows and is the single ordering point
+`commands/attach.lua` builds the entries and is the single ordering point
 every engine renders as given (engines only reorder by fuzzy relevance while
 a query is typed):
 
 - **Focused-Agent pin.** When the caller supplies the Terminal's job pid
   (`switch`, which is terminal-only), the Agent that terminal shows
-  (`Bridge.agents(pid).focused`) is pinned first,
+  (`Backend.focus(pid)`) is pinned first,
   exempt from the ordering.
-  Its row text gains a ` (focused)` suffix. Confirming it does nothing:
+  Its entry text gains a ` (focused)` suffix. Confirming it does nothing:
   `commands/attach.lua` filters on the item's `focused` field and
   returns. The snacks engine restores terminal mode on the client terminal
   after any picker close back onto it — Esc cancels and the no-op confirm
   alike — because snacks pickers close into Normal (see
-  [gotchas](../../../docs/gotchas.md)); fzf-lua and native leave the
+  [gotchas](../../../../docs/gotchas.md)); fzf-lua and native leave the
   terminal in terminal mode and need nothing. The plain step's wrapper queues
   the re-entry before its choice handler so the new-Group cmdline cannot
   swallow it — see
   [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
-  No engine-specific disabled-row machinery is used (see Alternatives).
+  No engine-specific disabled-entry machinery is used (see Alternatives).
   Declared not-from-terminal (`toggle`'s open-path fallback), there is no
   focused Agent and no pin.
-- **Agent ordering.** Remaining Agent rows sort ascending by group, absolute
+- **Agent ordering.** Remaining Agent entries sort ascending by group, absolute
   cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
-  nil fallback — the same key the row text shows); exact ties break by
+  nil fallback — the same key the entry text shows); exact ties break by
   driver-neutral `seq` (creation order). Sorting compares stored fields,
   never the display string, so `~` folding never leaks into order.
-- **Tool rows replace the sentinel.** The `+ new agent` sentinel is gone.
-  The list ends with one row per configured `cli.tools` key, `table.sort`ed.
-  Agent rows lead with `nf-fa-toggle_on` (`\uf205`, Nerd Fonts) — a running
-  Agent is "on"; Tool rows lead with `nf-fa-toggle_off` (`\uf204`). Confirming
-  a Tool row calls `commands/attach.lua`'s
+- **Tool entries replace the sentinel.** The `+ new agent` sentinel is gone.
+  The list ends with one entry per configured `cli.tools` key, `table.sort`ed.
+  Agent entries lead with `nf-fa-toggle_on` (`\uf205`, Nerd Fonts) — a running
+  Agent is "on"; Tool entries lead with `nf-fa-toggle_off` (`\uf204`). Confirming
+  a Tool entry calls `commands/attach.lua`'s
   `create_with_tool`, which asks only for a Group (or a new Group's name), then
   creates the Agent in the current buffer's cwd and runs the caller's tail
   action. Tools are never
@@ -55,32 +55,35 @@ a query is typed):
   (possibly empty) and does not warn; the `attach` pick flow warns
   `no agents and no tools configured (cli.tools)` and returns when the list
   is empty (no Agents running and no Tools configured). Zero Agents with
-  Tools configured opens the picker listing only Tool rows.
-- **Scope.** The kill list keeps its order and its plain rows (no glyphs,
-  no `(focused)` marker). The shared choice type widens from
-  `{ kind: "agent"|"new" }` to `{ kind: "agent"|"tool", agent?, tool?,
-  focused? }` across `config.lua`, the three picker implementations, and
-  `commands/attach.lua`.
+  Tools configured opens the picker listing only Tool entries.
+- **Scope.** The kill list keeps its own order — Agent entries in creation
+  order, Group entries by name — and its plain entries (no glyphs, no
+  `(focused)` marker). Its Groups are sorted by the flow because the Backend
+  derives them in the Agents' order, which is what the Group prompt wants.
+  What a chosen entry means is the entry's own `kind` — `focused` / `agent` /
+  `tool` in the Agent list — read by
+  `commands/attach.lua`
+  ([picker entries are data](../architecture/2026-09-13-picker-entries-are-data.md)).
 
-The Agent row string itself is the
+The Agent entry text itself is the
 [entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
-`format_agent`, updated in this change from the bracketed `[group] tool ·
-cwd` layout to `tool · group · cwd` — unbracketed group moved between the
-tool name and the `~`-folded cwd, a single ` · ` between the three segments.
-The Agent list's rows prefix that string with the Agent glyph and a
-two-space gap, and suffix ` (focused)` only on the pinned row; kill rows
+Agent text, updated in this change from the bracketed `[group] tool · cwd`
+layout to `tool · group · cwd` — unbracketed group moved between the tool name
+and the `~`-folded cwd, a single ` · ` between the three segments.
+The Agent list's entries prefix that string with the Agent glyph and a
+two-space gap, and suffix ` (focused)` only on the pinned entry; kill entries
 carry the same plain string.
 
 ## Alternatives considered
 
-### Why not engine-native disabled rows (fzf-lua `--header-lines`, snacks dimming)?
+### Why not engine-native disabled entries (fzf-lua `--header-lines`, snacks dimming)?
 
 fzf-lua's own buffers picker pins the current buffer by emitting it first
-and setting fzf's `--header-lines 1`, making the row unselectable and immune
+and setting fzf's `--header-lines 1`, making the entry unselectable and immune
 to fuzzy matching; snacks picker has no header-lines/disabled-item
 equivalent (verified in source), and native `vim.ui.select` has neither. A
 per-engine mechanism would give three different looks and behaviors for the
-same row (true disabled in one engine, visible-but-selectable in another).
+same entry (true disabled in one engine, visible-but-selectable in another).
 The uniform contract — pin first, mark `(focused)`, make confirming it a
 no-op at the command layer — keeps one code path per engine and reads the
 same everywhere.
@@ -95,14 +98,14 @@ boundary keeps free of domain logic.
 
 ### Why `(focused)` as a text suffix, not a separate marker column?
 
-Engines render plain text rows; only the shared `text` string is guaranteed
-portable. Parenthesized suffix matches the row grammar (`… · ~/cwd
+Engines render plain text entries; only the shared `text` string is guaranteed
+portable. Parenthesized suffix matches the entry grammar (`… · ~/cwd
 (focused)`) and cannot collide with group brackets.
 
 ### Why keep `agent_items()` empty (list-shaped) rather than `nil` + internal warning?
 
 The builder no longer owns the distinction between "no Agents" and "no
-Agents and no Tools" — with Tool rows, zero Agents is a legitimate,
+Agents and no Tools" — with Tool entries, zero Agents is a legitimate,
 openable list. The caller-facing warning moves to where the empty case is
 handled (`Picker.pick`), keeping the builder a pure projection
 of state.
@@ -117,16 +120,16 @@ creation, unique, and already the storage key.
 
 - The `switch` picker now reads as: pinned `(focused)` Agent (when invoked
   from the terminal), Agents sorted by group → cwd → tool, then one
-  toggle-off row per configured Tool.
+  toggle-off entry per configured Tool.
 - `+ new agent` disappears from every picker; creation from the Agent list
-  is one confirm (Tool row) + one Group choice instead of the two-step
+  is one confirm (Tool entry) + one Group choice instead of the two-step
   wizard.
 - README and `doc/vantage.nvim.txt` describe the new list layout and creation
   channels; the entry-format note's consequences are corrected in place for
-  the glyph-prefixed Agent rows (the kill list keeps the plain shared
+  the glyph-prefixed Agent entries (the kill list keeps the plain shared
   string).
-- `Picker.pick` callbacks receive the flow's row objects; `attach`
-  handles Tool rows and the focused no-op row.
+- `Picker.pick` callbacks receive the flow's entry objects; `attach`
+  handles Tool entries and the focused no-op entry.
 - The empty-list handling later moved out of the engines into the caller,
   keyed on the picker's boolean `empty` return — see [the
   picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).

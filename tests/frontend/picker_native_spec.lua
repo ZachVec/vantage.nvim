@@ -17,34 +17,55 @@ describe("vantage.frontend.picker.native", function()
     Helpers.reload_vantage()
   end)
 
-  it("runs on_close after a single choice", function()
+  it("renders an entry's text and returns the choice", function()
     local item = {
-      format = function()
-        return "row"
+      kind = "agent",
+      text = "an entry",
+      preview = function()
+        return nil
       end,
     }
-    vim.ui.select = function(_, _, on_choice)
-      on_choice(item)
+    local formatted
+    vim.ui.select = function(items, opts, on_choice)
+      formatted = opts.format_item(items[1])
+      on_choice(items[1])
     end
 
     local chosen
-    local closed = false
-    local empty = Native.pick({
+    local empty, err = Native.pick({
       prompt = "pick",
       items_provider = function()
         return { item }
       end,
     }, {
-      on_choice = function(row)
-        chosen = row
-      end,
-      on_close = function()
-        closed = true
+      on_choice = function(entry)
+        chosen = entry
       end,
     })
 
     assert.is_false(empty)
+    assert.is_nil(err)
+    assert.are.equal("an entry", formatted)
     assert.are.equal(item, chosen)
-    assert.is_true(closed)
+  end)
+
+  it("answers empty, with the read's reason, without opening", function()
+    local opened = false
+    vim.ui.select = function()
+      opened = true
+    end
+
+    local empty, err = Native.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}, "no server running"
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+    assert.is_false(opened)
   end)
 end)

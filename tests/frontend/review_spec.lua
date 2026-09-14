@@ -101,12 +101,21 @@ describe("vantage.frontend.review", function()
   it("spells locations through the Tool's reference formatter", function()
     local buf = named_buffer("/tmp/proj/one.lua", { "a", "b" })
     Review.add(buf, 2, 2, "note")
-    local format = function(file, loc)
-      return "@" .. file .. (loc and (" " .. loc) or "")
-    end
+    Config.options.cli.tools = {
+      dialect = {
+        cmd = { "codex" },
+        format = function(file, loc)
+          return "@" .. file .. (loc and (" " .. loc) or "")
+        end,
+      },
+      silent = { cmd = { "codex" }, format = function() end },
+    }
 
-    assert.are.equal("@one.lua :L2", Review.location(Review.collect()[1], "/tmp/proj", format))
-    assert.are.equal("@one.lua :L2 note", Review.render("/tmp/proj", format))
+    assert.are.equal("@one.lua :L2", Review.location(Review.collect()[1], "/tmp/proj", "dialect"))
+    assert.are.equal("@one.lua :L2 note", Review.render("/tmp/proj", "dialect"))
+    -- A declined reference leaves the preview blank but skips the whole render.
+    assert.are.equal("", Review.render_item(Review.collect()[1], "/tmp/proj", "silent"))
+    assert.are.equal(nil, Review.render("/tmp/proj", "silent"))
   end)
 
   it("renders the configured item template with every field", function()

@@ -1,36 +1,13 @@
---- Configuration and shared types for Vantage.
+--- Configuration and shared types for Vantage: the option table, its
+--- validation, and the reference spelling (`Config.tool_reference`). A seam's
+--- contract types live with their seam — `vantage.Driver` in backend/driver,
+--- the picker contract in frontend/picker.
 
 ---@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L` suffix in a Tool's dialect
 
 ---@class vantage.Tool A launch command (name -> cmd array).
 ---@field cmd string[]
----@field format? vantage.ReferenceFormat per-Agent reference dialect; without it a reference is `file` plus a space-separated `loc`
-
----@class vantage.Agent A running coding-agent process.
----@field id string opaque Driver identity
----@field seq integer driver-neutral creation order
----@field group string
----@field cmd string
----@field cwd string
----@field tool string the cli.tools key that created it (for the format hook)
----@field state? string
-
----@class vantage.Attachment A Terminal's transient View and attach command.
----@field view string
----@field argv string[]
-
----@class vantage.Driver The multiplexer contract behind the Bridge.
----@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
----@field snapshot fun(pid?: integer): { agents: vantage.Agent[], groups: string[], focused?: vantage.Agent }?, string?
----@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
----@field attach fun(agent: vantage.Agent): vantage.Attachment?, string?
----@field kill_view fun(view: string): boolean, string?
----@field kill_agent fun(agent: vantage.Agent): boolean, string?
----@field kill_group fun(group: string): boolean, string?
----@field send_keys fun(agent: vantage.Agent, text: string): boolean, string?
----@field capture_pane fun(agent: vantage.Agent, max_lines?: integer): string[]?, string?
----@field status fun(): { clients: string[], sessions: string[] }?, string?
----@field health fun(): { status: "ok"|"warn"|"err", message: string, fatal?: boolean }[]
+---@field format? vantage.ReferenceFormat per-Agent reference dialect; optional in user config, always set by `Config.apply` (default: `file` plus a space-separated `loc`). Spelled through `Config.tool_reference`, never read directly.
 
 ---@class vantage.Win Terminal window options.
 ---@field layout string full | left | top | bottom | right | float
@@ -49,15 +26,6 @@
 ---@class vantage.GatherConfig
 ---@field join string separator between gathered references ("\n" = one per line, " " = one line)
 
----@class vantage.NoteOpts Options for the editable-note UI (vantage.frontend.note).
----@field text string
----@field title? string
----@field footer? string
----@field on_commit fun(note: string) commit the text (Esc); every policy is the caller's
----@field on_close? fun() run when the note window is wiped
----@field style? string raw `nvim_open_win` style ("minimal"); nil inherits the source window
----@field insert? boolean start in insert mode
-
 ---@class vantage.Config
 ---@field backend string
 ---@field socket string
@@ -67,58 +35,22 @@
 ---@field gather vantage.GatherConfig
 ---@field cli { tools: table<string, vantage.Tool>, win: vantage.Win }
 
----@class vantage.PickSpec The selection contract passed to a picker
---- implementation. Each field is an input to the picker: the items to render
---- (`items_provider`) and the prompt glyph (`prompt`). Rows expose
---- `format()` / `preview()`; commands are supplied through `PickOpts`.
----@field prompt string
----@field items_provider fun(): table[]
-
----@class vantage.PickerCommandCtx
----@field item any
----@field items any[]
-
----@class vantage.PickerCommand A keymap-shaped picker command:
---- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
---- when the item list may have changed.
----@field [1] string lhs
----@field [2] fun(ctx: vantage.PickerCommandCtx): boolean
----@field desc? string
-
----@class vantage.PickOpts
----@field on_choice fun(item: any)
----@field on_close? fun() run when the picker closes, whether chosen or cancelled
----@field commands? vantage.PickerCommand[]
-
----@class vantage.PickMultiOpts Options for a multi-selection pick. A picker
---- without the `multi` capability degrades to one choice, so `on_choices`
---- always receives a list of at least one item.
----@field on_choices fun(items: any[])
----@field on_close? fun() run when the picker closes, whether chosen or cancelled
-
----@class vantage.PlainSelectOpts Options for the plain-list select form
---- (`pick_plain`), mirroring `vim.ui.select`'s opts.
----@field prompt? string
----@field format_item? fun(item: any): string
-
----@class vantage.PickerCapabilities
----@field preview boolean
----@field command boolean
----@field multi boolean
-
----@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
---- snacks) rendering every Vantage selection on its own engine. The command
---- flows assemble a PickSpec per flow; the implementations stay
---- presentation-only and depend on nothing but their engine.
----@field requires? string optional runtime module dependency
----@field capabilities vantage.PickerCapabilities
----@field pick fun(spec: vantage.PickSpec, opts: vantage.PickOpts): boolean
----@field pick_multi? fun(spec: vantage.PickSpec, opts: vantage.PickMultiOpts): boolean
----@field pick_plain fun(items: any[], opts: vantage.PlainSelectOpts, on_choice: fun(item: any?, index?: integer))
-
 local M = {}
 
 local Util = require("vantage.util")
+
+--- The default reference spelling: the path and, when there is a position, its
+--- `:L` suffix, joined by a space (`src/a.lua :L42`). It is the `format` hook
+--- every Tool without one gets in `apply`, so no caller carries that case.
+---@param file string path relative to the Agent's cwd, or absolute
+---@param loc? string `:L` position suffix; nil for a whole-file reference
+---@return string
+local function reference(file, loc)
+  if loc then
+    return file .. " " .. loc
+  end
+  return file
+end
 
 ---@type vantage.Config
 local defaults = {
@@ -199,13 +131,13 @@ local defaults = {
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
---- Prompt placeholder vocabulary shared by the Prompt flow and health.
----@type table<string, boolean>
-M.PROMPT_PLACEHOLDERS = {
-  file = true,
-  line = true,
-  reviews = true,
-}
+--- Why a Focus read came back empty, for the flows that warn about it. The
+--- Backend answers "no terminal" itself and the Driver answers the client and
+--- window reasons; callers only report them, so the shapes are messages rather
+--- than a cause vocabulary nobody branches on.
+M.FOCUS_NO_TERMINAL = "no terminal"
+M.FOCUS_NO_CLIENT = "no client for this terminal"
+M.FOCUS_NO_FOCUS = "no focused agent"
 
 --- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),
 --- surfaced by :checkhealth.
@@ -241,11 +173,52 @@ function M.sanitize_tools(tools, dropped)
   return tools
 end
 
+--- The reference for one location, spelled by the Tool's `format` hook: the
+--- path relativized against `cwd`, the `:L` suffix built from the position, and
+--- the hook applied. `tool` is nil with no Focus, or names a Tool a later
+--- setup dropped; both spell the default form (`apply` guarantees every
+--- surviving Tool a hook). The reference does not exist — nil — when there is
+--- no path, or when the hook declines it with nil or "": that interpretation
+--- lives here, and the caller owns what to do about it.
+---@param tool string? the Focus's Tool name; nil spells the default form
+---@param cwd string relativization base (the focused Agent's cwd)
+---@param path string absolute path, or one already relative to `cwd`
+---@param start_row? integer 1-based first line; nil for a whole-file reference
+---@param end_row? integer 1-based last line; only meaningful with `start_row`
+---@return string?
+function M.tool_reference(tool, cwd, path, start_row, end_row)
+  if path == "" then
+    return nil
+  end
+  local tool_cfg = tool and M.options.cli.tools[tool]
+  local format = (tool_cfg and tool_cfg.format) or reference
+  local loc
+  if start_row ~= nil then
+    if end_row ~= nil and end_row ~= start_row then
+      loc = (":L%d-%d"):format(start_row, end_row)
+    else
+      loc = (":L%d"):format(start_row)
+    end
+  end
+  local rendered = format(Util.relpath(cwd, path), loc)
+  if rendered == nil or rendered == "" then
+    return nil
+  end
+  return rendered
+end
+
 ---@param opts? vantage.Config
 function M.apply(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   local dropped = {}
   M.sanitize_tools(M.options.cli.tools, dropped)
+  -- Every surviving Tool gets a reference spelling, so no caller has to carry
+  -- the "user configured no hook" case.
+  for _, tool in pairs(M.options.cli.tools) do
+    if type(tool.format) ~= "function" then
+      tool.format = reference
+    end
+  end
   M.dropped_tools = dropped
   for name, reason in pairs(dropped) do
     Util.warn(("dropping invalid cli.tools entry '%s' (%s)"):format(name, reason))

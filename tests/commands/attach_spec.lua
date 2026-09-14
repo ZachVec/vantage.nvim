@@ -5,7 +5,7 @@ local Helpers = require("helpers")
 describe("vantage.commands.attach", function()
   local Config
   local Attach
-  local bridge
+  local backend
   local picker
   local terminal
   local actions
@@ -15,22 +15,19 @@ describe("vantage.commands.attach", function()
   local focused
   local agent_fixture
 
-  --- Capture what a row hands to its target continuation.
-  ---@param item vantage.AgentPickerEntry
+  --- The Agent an entry names when chosen, or nil for the pinned Focus entry
+  --- and for Tool entries (which create instead of naming).
+  ---@param entry vantage.picker.Entry
   ---@return vantage.Agent?
-  local function resolved(item)
-    local agent
-    item:target(function(a)
-      agent = a
-    end)
-    return agent
+  local function resolved(entry)
+    return entry.kind == "agent" and entry.agent or nil
   end
 
-  local function agent_rows(items)
+  local function agent_entries(items)
     local out = {}
-    for _, item in ipairs(items) do
-      if item.group ~= nil then
-        out[#out + 1] = item
+    for _, entry in ipairs(items) do
+      if entry.agent ~= nil then
+        out[#out + 1] = entry
       end
     end
     return out
@@ -38,9 +35,9 @@ describe("vantage.commands.attach", function()
 
   local function tool_names(items)
     local out = {}
-    for _, item in ipairs(items) do
-      if item.group == nil then
-        out[#out + 1] = item:format():match("%S+$")
+    for _, entry in ipairs(items) do
+      if entry.kind == "tool" then
+        out[#out + 1] = entry.text:match("%S+$")
       end
     end
     return out
@@ -89,36 +86,45 @@ describe("vantage.commands.attach", function()
       { group = "a", cwd = "/a", tool = "zeta", id = "@3", seq = 3, cmd = "zeta" },
       { group = "a", cwd = "/a", tool = "zeta", id = "@1", seq = 1, cmd = "zeta" },
     }
-    bridge = { created = {}, captured = {}, retargeted = nil, killed = {} }
-    function bridge.agents(pid)
+    backend = { created = {}, captured = {}, retargeted = nil, killed = {} }
+    function backend.inventory()
       return {
         agents = vim.deepcopy(agent_fixture),
         groups = { "a", "z" },
-        focused = (pid ~= nil and focused) or nil,
-      },
-        nil
+      }, nil
     end
-    function bridge.capture(agent)
-      bridge.captured[#bridge.captured + 1] = agent.id
+    function backend.focus(pid)
+      -- The real Backend answers "no terminal" for a nil pid; the flows under
+      -- test only consume the Agent.
+      if pid == nil then
+        return nil, Config.FOCUS_NO_TERMINAL
+      end
+      if focused == nil then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return focused, nil
+    end
+    function backend.capture(agent)
+      backend.captured[#backend.captured + 1] = agent.id
       return { "line" }, nil
     end
-    function bridge.create(opts)
-      bridge.created[#bridge.created + 1] = opts
+    function backend.create(opts)
+      backend.created[#backend.created + 1] = opts
       return { group = opts.group, tool = opts.tool, id = "@9", seq = 9 }, nil
     end
-    function bridge.attach(agent)
+    function backend.attach(agent)
       return { view = "view-1", argv = { "attach", agent.id } }, nil
     end
-    function bridge.kill_view(view)
-      bridge.killed_view = view
+    function backend.kill_view(view)
+      backend.killed_view = view
       return true, nil
     end
-    function bridge.retarget(pid, agent)
-      bridge.retargeted = { pid = pid, id = agent.id }
+    function backend.retarget(pid, agent)
+      backend.retargeted = { pid = pid, id = agent.id }
       return true, nil
     end
-    function bridge.kill_agent(agent)
-      bridge.killed[#bridge.killed + 1] = agent.id
+    function backend.kill_agent(agent)
+      backend.killed[#backend.killed + 1] = agent.id
       return true, nil
     end
 
@@ -129,16 +135,19 @@ describe("vantage.commands.attach", function()
     function picker.pick(spec, opts)
       captured_spec = spec
       captured_opts = opts
+      -- Answer the way an implementation does: the opening read carries the
+      -- reason when the list could not be read.
+      local items, err = spec.items_provider()
       if picker.auto_select then
-        local items = spec.items_provider()
-        if #items > 0 then
-          opts.on_choice(items[1])
+        local index = picker.auto_select == true and 1 or picker.auto_select
+        if items[index] then
+          opts.on_choice(items[index])
         end
       end
-      return false
+      return #items == 0, err
     end
     function picker.pick_plain(_, _, on_choice)
-      on_choice("z")
+      on_choice(picker.plain_choice)
     end
 
     terminal = { buffer = 77, pid_value = 42, toggle_result = false, opened = nil }
@@ -154,7 +163,7 @@ describe("vantage.commands.attach", function()
     end
 
     actions = { applied = nil }
-    package.loaded["vantage.backend.bridge"] = bridge
+    package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = picker
     package.loaded["vantage.frontend.terminal"] = terminal
     package.loaded["vantage.commands.actions"] = {
@@ -171,44 +180,45 @@ describe("vantage.commands.attach", function()
 
   before_each(function()
     focused = nil
-    bridge.created = {}
-    bridge.captured = {}
-    bridge.retargeted = nil
-    bridge.killed_view = nil
-    bridge.killed = {}
+    backend.created = {}
+    backend.captured = {}
+    backend.retargeted = nil
+    backend.killed_view = nil
+    backend.killed = {}
     captured_spec = nil
     captured_opts = nil
     command_capable = true
     picker.auto_select = false
+    picker.plain_choice = "z"
     terminal.pid_value = 42
     terminal.toggle_result = false
     terminal.opened = nil
     actions.applied = nil
   end)
 
-  it("orders agent rows by group, cwd, tool, then creation seq, and tools by name", function()
+  it("orders agent entries by group, cwd, tool, then creation seq, and tools by name", function()
     local items = items_for(nil)
-    local rows = agent_rows(items)
+    local entries = agent_entries(items)
 
     assert.are.same(
       { "@1", "@3", "@2", "@4" },
       vim.tbl_map(function(r)
         return resolved(r).id
-      end, rows)
+      end, entries)
     )
     assert.are.same({ "alpha", "zeta" }, tool_names(items))
   end)
 
-  it("pins the focused agent first, excluded from the sorted rows, and its resolve no-ops", function()
+  it("pins the focused agent first, excluded from the sorted entries, and choosing it names nothing", function()
     focused = agent_fixture[2]
     command_capable = false
     local items = items_for(42)
 
-    assert.is_true(vim.endswith(items[1]:format(), "(focused)"))
+    assert.is_true(vim.endswith(items[1].text, "(focused)"))
     assert.are.equal(nil, resolved(items[1]))
     local rest = {}
     for i = 2, #items do
-      if items[i].group ~= nil then
+      if items[i].agent ~= nil then
         rest[#rest + 1] = items[i]
       end
     end
@@ -220,59 +230,86 @@ describe("vantage.commands.attach", function()
     )
   end)
 
-  it("scopes the list to the focused agent's group, keeping tool rows", function()
+  it("scopes the list to the focused agent's group, keeping tool entries", function()
     focused = agent_fixture[2]
     local items = items_for(42)
 
     assert.are.equal(5, #items) -- pinned + 2 group-mates + 2 tools
-    assert.are.equal(3, #agent_rows(items))
+    assert.are.equal(3, #agent_entries(items))
   end)
 
-  it("formats rows with tool, group, and cwd", function()
-    local item = items_for(nil)[1]
-    assert.are.equal("zeta · a · /a", item:format():gsub("^.*  ", ""))
+  it("formats entries with tool, group, and cwd", function()
+    local entry = items_for(nil)[1]
+    assert.are.equal("zeta · a · /a", entry.text:gsub("^.*  ", ""))
   end)
 
-  it("previews agent panes and returns nil for tool rows", function()
+  it("previews agent panes and returns nil for tool entries", function()
     local items = items_for(nil)
-    local rows = agent_rows(items)
+    local entries = agent_entries(items)
 
-    assert.are.same({ "line" }, rows[1]:preview())
+    assert.are.same({ "line" }, entries[1]:preview())
     assert.are.equal(nil, items[#items]:preview())
-    assert.are.same({ "@1" }, bridge.captured)
+    assert.are.same({ "@1" }, backend.captured)
   end)
 
-  it("tool rows ask for a group and create the agent there", function()
+  it("creates the agent in the group chosen for a Tool entry", function()
     local items = items_for(42)
+    picker.auto_select = #items -- the last entry is a Tool entry
+
+    Attach.toggle()
+
+    assert.are.equal("zeta", backend.created[1].tool)
+    assert.are.equal("z", backend.created[1].group)
+    assert.are.same({ "attach", "@9" }, terminal.opened)
+  end)
+
+  it("creates nothing when the Group choice is cancelled", function()
+    local items = items_for(42)
+    picker.auto_select = #items
+    picker.plain_choice = nil
+
+    Attach.toggle()
+
+    assert.are.same({}, backend.created)
+    assert.are.equal(nil, terminal.opened)
+  end)
+
+  it("opens a Terminal on an Agent created from a Tool entry when the list has no Focus", function()
+    local items = items_for(nil)
     local tool = items[#items]
-    assert.are.equal("z", resolved(tool).group)
-    assert.are.equal("z", bridge.created[1].group)
+    picker.auto_select = #items
+
+    Attach.toggle()
+
+    assert.is_true(vim.endswith(tool.text, "zeta")) -- Tool entries sort by name
+    assert.are.equal("zeta", backend.created[1].tool)
+    assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
 
   it("switch retargets the selected agent", function()
     picker.auto_select = true
     Attach.switch()
 
-    assert.are.same({ pid = 42, id = "@1" }, bridge.retargeted)
+    assert.are.same({ pid = 42, id = "@1" }, backend.retargeted)
   end)
 
-  it("kills a non-focused agent row in place with <c-x>", function()
+  it("kills a non-focused agent entry in place with <c-x>", function()
     focused = agent_fixture[2]
     local items = items_for(42)
-    local row = items[2]
+    local entry = items[2]
 
-    assert.is_true(command_for("<C-x>")[2]({ item = row, items = items }))
-    assert.are.same({ row.agent.id }, bridge.killed)
+    assert.is_true(command_for("<C-x>")[2]({ item = entry, items = items }))
+    assert.are.same({ entry.agent.id }, backend.killed)
   end)
 
-  it("ignores <c-x> on the pinned focused row and Tool rows", function()
+  it("ignores <c-x> on the pinned focused entry and Tool entries", function()
     focused = agent_fixture[2]
     local items = items_for(42)
     local command = command_for("<C-x>")[2]
 
     assert.is_false(command({ item = items[1], items = items }))
     assert.is_false(command({ item = items[#items], items = items }))
-    assert.are.same({}, bridge.killed)
+    assert.are.same({}, backend.killed)
   end)
 
   it("toggle opens the terminal and installs keys when no terminal exists", function()
@@ -281,5 +318,21 @@ describe("vantage.commands.attach", function()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
     assert.are.equal(77, actions.applied)
+  end)
+
+  it("warns the read's reason instead of the empty list message", function()
+    local notified = {}
+    local original_notify = vim.notify
+    vim.notify = function(msg)
+      notified[#notified + 1] = msg
+    end
+    backend.inventory = function()
+      return nil, "no server running"
+    end
+
+    Attach.toggle()
+    vim.notify = original_notify
+
+    assert.are.same({ "vantage: no server running" }, notified)
   end)
 end)

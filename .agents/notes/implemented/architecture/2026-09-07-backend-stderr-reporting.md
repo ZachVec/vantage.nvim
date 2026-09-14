@@ -14,10 +14,10 @@ command failure from a successful empty result.
 `exec_result()` returning `{ code, stdout, stderr }`. `fail_message(prefix,
 result)` appends trimmed stderr when tmux supplied it.
 
-The Driver exposes that detail through the explicit result contract:
-mutating verbs return `true` or `false, err`; `create` returns `Agent` or
-`nil, err`; queries return data or `nil, err`. The Driver itself never
-notifies; command flows decide whether to show the error.
+The Driver exposes that detail through the result contract owned by
+[composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md):
+the `err` a verb returns is where tmux's stderr arrives. The Driver itself
+never notifies; command flows decide whether to show the error.
 
 ## Alternatives considered
 

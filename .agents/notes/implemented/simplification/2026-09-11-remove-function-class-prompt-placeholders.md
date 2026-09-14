@@ -20,8 +20,9 @@ prefix, which baked a prose shape into the reference itself.
 
 ## Decision
 
-The Prompt vocabulary is `{file}`, `{line}`, and `{reviews}`
-(`config.PROMPT_PLACEHOLDERS`).
+The Prompt vocabulary is `{file}`, `{line}`, and `{reviews}` — the prompt flow's
+resolvers, one per name
+([the resolver-keys note](../architecture/2026-09-13-placeholder-vocabulary-is-the-resolvers-keys.md)).
 
 - `commands/prompt.lua` drops `node_name`, `textobject`, and `resolve_symbol`,
   along with the two resolver entries. `vantage.PromptCtx` loses its `col`
@@ -29,8 +30,8 @@ The Prompt vocabulary is `{file}`, `{line}`, and `{reviews}`
 - `health.lua` drops the function/class branch and its
   nvim-treesitter-textobjects probe.
 - A template that still writes `{function}` or `{class}` is treated as an
-  unknown placeholder: left literal at render time and flagged by
-  `:checkhealth vantage`.
+  unknown placeholder: left literal at render time and warned about by
+  `Prompt.setup()`.
 
 ## Alternatives considered
 

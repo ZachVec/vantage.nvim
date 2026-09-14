@@ -7,7 +7,7 @@ Status: implemented
 The layered refactor left several boundaries softer than the architecture
 claimed. `config.lua` still applied configuration, installed Prompt/Review
 state, and registered `:Vantage`; `health.lua` loaded the command layer for
-Prompt vocabulary and both `backend/driver/init.lua` and `picker/init.lua`
+Prompt vocabulary and both `backend/driver/init.lua` and `frontend/picker/init.lua`
 re-resolved their implementation on every call, warning and falling back on bad
 configuration. The shared `vantage.Agent` record exposed tmux's `@N` target and
 `Util.agent_window_index()` parsed it in the frontend, while each new Picker
@@ -20,8 +20,9 @@ nonzero exits, and `create` could leave a partially-marked window behind.
 **Composition and failure.** `init.lua` is the composition root. `setup()`
 calls `Config.apply(opts)`, resolves Driver and Picker once, then installs
 Prompt/Review hooks and `:Vantage`. `config.lua` keeps defaults, shared types,
-`Config.options`, `Config.PROMPT_PLACEHOLDERS`, and `sanitize_tools`; runtime
-lifecycle does not. Prompt's `WinEnter` tracking lives in `Prompt.setup()`.
+`Config.options`, and `sanitize_tools`; runtime lifecycle does not. Prompt's
+`WinEnter` tracking and its placeholder-vocabulary warning live in
+`Prompt.setup()`.
 Unknown or unavailable backend/picker implementations, and missing picker
 dependencies, fail fast before any command/autocmd side effect. `Driver.get()`
 and Picker `get()` are programming errors before setup; `health.lua` catches
@@ -42,9 +43,13 @@ application fails and appends a rollback failure when cleanup also fails;
 `send_keys` cleans its temporary buffer. `kill_agent`/`kill_group` report a
 missing target as an error.
 
-**Picker facade.** Commands call `Picker.pick(spec, opts)` or
-`Picker.pick_plain(...)`; `get()` is internal. A renderer declares exactly two
-capabilities: `preview` and `command`. `opts.commands` is a list of
+**Picker facade.** Commands call `Picker.pick(spec, opts)`,
+`Picker.pick_multi(spec, opts)`, or `Picker.pick_plain(...)`; `get()` is
+internal. A renderer declares the capabilities the
+[pure-renderers note](2026-09-05-picker-pure-renderers.md) owns —
+`preview`, `command`, and `multi`, the last one added by
+[file-buffer-references](../feature/2026-09-11-file-buffer-references.md).
+`opts.commands` is a list of
 keymap-shaped `{ lhs, rhs, desc? }` descriptors; `rhs(ctx)` receives
 `{ item, items }` and returns `true` when the list may have changed. Commands
 are globally bound, duplicate `lhs` values fail fast, and a renderer without

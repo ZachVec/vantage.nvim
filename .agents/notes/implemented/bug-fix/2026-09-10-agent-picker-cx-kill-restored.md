@@ -16,18 +16,18 @@ pressing `<c-x>` did nothing while the Review list's `<c-x>` still deleted.
 ## Decision
 
 `commands/attach.lua` carries `<c-x>` as a flow-owned picker command beside
-`<c-g>`: it kills the current row's Agent through `Bridge.kill_agent` and
+`<c-g>`: it kills the current entry's Agent through `Backend.kill_agent` and
 returns true, so the picker re-reads `items_provider` in place and closes when
-the list empties. Row scope is the archived decision's: the pinned
-`(focused)` row — the Agent the Terminal is attached to — and Tool rows are
+the list empties. Entry scope is the archived decision's: the pinned
+`(focused)` entry — the Agent the Terminal is attached to — and Tool entries are
 no-ops, and `:Vantage kill` remains the path that can kill the focused Agent.
 
 This note owns that behavior in the active tree because the original
 [kill note](../../archived/feature/2026-09-05-agent-picker-cx-kill.md) is
-archived and frozen. Its mechanism moved with the refactor, but its row scope
-and rationale (no focused-row kill, batch refresh, no confirmation) still
-bind; the command stays a flow decision ("does the row carry an Agent, is it
-the pinned one?") rather than a row method, matching the
+archived and frozen. Its mechanism moved with the refactor, but its entry scope
+and rationale (no focused-entry kill, batch refresh, no confirmation) still
+bind; the command stays a flow decision ("does the entry carry an Agent, is it
+the pinned one?") rather than an entry method, matching the
 [picker-pure-renderers boundary](../architecture/2026-09-05-picker-pure-renderers.md).
 
 ## Alternatives considered
@@ -35,19 +35,19 @@ the pinned one?") rather than a row method, matching the
 ### Why a new note instead of editing the archived one?
 
 Archived notes are frozen by the Agent Note rules, so only an active note can
-own current behavior. The archived note's negative guarantee — the pinned row
+own current behavior. The archived note's negative guarantee — the pinned entry
 is not killable — was still load-bearing, which the regression demonstrated.
 
 ### Why not leave the kill in the refactor note's command-surface clause?
 
-That note owns the picker-command mechanism; the kill's row scope is a
+That note owns the picker-command mechanism; the kill's entry scope is a
 user-facing behavior with its own alternatives, and its `<c-g>` sibling has a
 feature owner. A clause in the architecture note would not carry that scope.
 
-### Why not restore `PickSpec.on_delete` or give the row a `delete()`?
+### Why not restore `PickSpec.on_delete` or give the entry a `delete()`?
 
 `opts.commands` is the refactor's single in-flight-action contract and already
-carries `<c-g>`; a second contract or a row method would split one picker
+carries `<c-g>`; a second contract or an entry method would split one picker
 surface across two mechanisms.
 
 ## Consequences
@@ -58,12 +58,12 @@ surface across two mechanisms.
   `docs/architecture.md` and the
   [refactor note](../architecture/2026-09-09-layered-frontend-backend-refactor.md)
   name the command.
-- The kill path is the same `Bridge.kill_agent` the kill flow uses; no
+- The kill path is the same `Backend.kill_agent` the kill flow uses; no
   backend, config, or Driver change.
 
 ## Verification
 
 `tests/commands/attach_spec.lua` calls the registered `<c-x>` command on a
-non-focused Agent row (kills it, returns true) and on the pinned focused row
-and a Tool row (no kill, returns false). `make test` runs the suite and
+non-focused Agent entry (kills it, returns true) and on the pinned focused
+entry and a Tool entry (no kill, returns false). `make test` runs the suite and
 `make check` gates the docs and this note.

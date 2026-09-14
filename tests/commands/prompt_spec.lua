@@ -44,25 +44,39 @@ describe("vantage.commands.prompt", function()
     local buf = Helpers.buffer({ "a" }, "/tmp/proj/src/a.lua")
     bufs[#bufs + 1] = buf
     local seen = {}
-    local format = function(file, loc)
-      seen[#seen + 1] = ("%s|%s"):format(file, tostring(loc))
-      return "@" .. file .. (loc and (" " .. loc) or "")
-    end
+    Config.options.cli.tools = {
+      dialect = {
+        cmd = { "codex" },
+        format = function(file, loc)
+          seen[#seen + 1] = ("%s|%s"):format(file, tostring(loc))
+          return "@" .. file .. (loc and (" " .. loc) or "")
+        end,
+      },
+    }
 
-    assert.are.equal("@src/a.lua :L1", Prompt.render("{line}", context(buf, 1, "/tmp/proj"), format))
-    assert.are.equal("@src/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj"), format))
+    assert.are.equal("@src/a.lua :L1", Prompt.render("{line}", context(buf, 1, "/tmp/proj"), "dialect"))
+    assert.are.equal("@src/a.lua", Prompt.render("{file}", context(buf, 1, "/tmp/proj"), "dialect"))
     assert.are.same({ "src/a.lua|:L1", "src/a.lua|nil" }, seen)
   end)
 
-  it("skips a prompt when the formatter drops a location", function()
+  it("skips a prompt when the Tool's formatter declines a location", function()
     local buf = Helpers.buffer({ "a" }, "/tmp/proj/src/a.lua")
     bufs[#bufs + 1] = buf
+    Config.options.cli.tools = {
+      silent = { cmd = { "codex" }, format = function() end },
+      blank = {
+        cmd = { "codex" },
+        format = function()
+          return ""
+        end,
+      },
+    }
 
-    local rendered, failed = Prompt.render("{file}", context(buf, 1, "/tmp/proj"), function()
-      return nil
-    end)
-    assert.are.equal(nil, rendered)
-    assert.are.equal("file", failed)
+    for _, tool in ipairs({ "silent", "blank" }) do
+      local rendered, failed = Prompt.render("{file}", context(buf, 1, "/tmp/proj"), tool)
+      assert.are.equal(nil, rendered)
+      assert.are.equal("file", failed)
+    end
   end)
 
   it("keeps paths absolute when they escape the agent cwd", function()
@@ -92,5 +106,19 @@ describe("vantage.commands.prompt", function()
 
     Review.add(buf, 2, 2, "fix this")
     assert.are.equal("Notes:\nsrc/a.lua :L2 fix this", Prompt.render("Notes:\n{reviews}", context(buf, 1, "/tmp/proj")))
+  end)
+
+  it("warns at setup about a template naming an unknown placeholder", function()
+    local notified = {}
+    local original_notify = vim.notify
+    vim.notify = function(msg)
+      notified[#notified + 1] = msg
+    end
+    Config.options.prompts = { bad = "{file} {bogus}" }
+
+    Prompt.setup()
+    vim.notify = original_notify
+
+    assert.is_true(notified[1]:find("{bogus}", 1, true) ~= nil)
   end)
 end)

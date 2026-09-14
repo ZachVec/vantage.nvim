@@ -1,6 +1,7 @@
---- snacks picker implementation. Drives snacks.picker directly; previewable
---- rows format via `item:format()`. `confirm` receives the original item and
---- must close the picker itself.
+--- snacks picker implementation. Drives snacks.picker directly; an entry's
+--- `text` is what snack matches on and renders, and its preview title comes
+--- from the same field. `confirm` receives the original entry and must close
+--- the picker itself.
 local M = {}
 
 ---@type string
@@ -25,8 +26,8 @@ local function pick(opts)
   return require("snacks.picker").pick(opts)
 end
 
---- Preview the current item's content (pane lines or rendered review)
---- through the item's `preview()`; nil means "nothing to preview".
+--- Preview the current entry's content (pane lines or rendered review) through
+--- the entry's `preview()`; nil means "nothing to preview".
 ---@return fun(ctx: vantage.SnacksPreviewCtx)
 local function preview()
   return function(ctx)
@@ -39,7 +40,7 @@ local function preview()
     if not lines then
       return
     end
-    ctx.preview:set_title(item:format())
+    ctx.preview:set_title(item.text)
     ctx.preview:set_lines(lines)
   end
 end
@@ -84,18 +85,14 @@ M.capabilities = {
   multi = true,
 }
 
---- The engine's `on_close`: re-enter the terminal the pick opened from, then
---- hand the close back to the flow.
+--- The engine's own `on_close`: re-enter the terminal the pick opened from.
+--- The flow takes no part in the close (see `vantage.PickerImpl`).
 ---@param terminal_win? integer
----@param on_close? fun()
 ---@return fun()
-local function close_handler(terminal_win, on_close)
+local function close_handler(terminal_win)
   return function()
     if terminal_win then
       restore_terminal_mode(terminal_win)
-    end
-    if on_close then
-      on_close()
     end
   end
 end
@@ -105,29 +102,23 @@ end
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 ---@return boolean empty
+---@return string? err
 function M.pick(spec, opts)
   local terminal_win = terminal_window()
 
-  ---@param items any[]
-  ---@return any[]
-  local function prepare(items)
-    for _, item in ipairs(items) do
-      item.text = item:format()
-    end
-    return items
-  end
-
   local function read()
-    return prepare(spec.items_provider())
+    return spec.items_provider()
   end
 
-  local list = read()
+  local list, err = read()
   if #list == 0 then
-    return true
+    return true, err
   end
 
   local function refresh(picker, reread)
     if reread then
+      -- A re-read that fails answers with an empty list: the picker closes, and
+      -- the opening read's reason is already on its way back.
       list = read()
     end
     if #list == 0 then
@@ -142,7 +133,7 @@ function M.pick(spec, opts)
       return { { item.text, "" } }
     end,
     preview = preview(),
-    on_close = close_handler(terminal_win, opts.on_close),
+    on_close = close_handler(terminal_win),
     confirm = function(picker, item)
       picker:close()
       if item then
@@ -181,23 +172,21 @@ function M.pick(spec, opts)
   pick_opts.win = win
 
   pick(pick_opts)
-  return false
+  return false, nil
 end
 
---- Render a multi-selection pick: rows are marked in the list (`<Tab>` by
---- default) and Enter confirms every marked row, falling back to the row
+--- Render a multi-selection pick: entries are marked in the list (`<Tab>` by
+--- default) and Enter confirms every marked entry, falling back to the entry
 --- under the cursor when nothing is marked.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickMultiOpts
 ---@return boolean empty
+---@return string? err
 function M.pick_multi(spec, opts)
   local terminal_win = terminal_window()
-  local items = spec.items_provider()
-  for _, item in ipairs(items) do
-    item.text = item:format()
-  end
+  local items, err = spec.items_provider()
   if #items == 0 then
-    return true
+    return true, err
   end
 
   pick({
@@ -205,10 +194,10 @@ function M.pick_multi(spec, opts)
       return { { item.text, "" } }
     end,
     preview = preview(),
-    on_close = close_handler(terminal_win, opts.on_close),
+    on_close = close_handler(terminal_win),
     confirm = function(picker)
-      -- `selected` returns copies of the rows, but a deep copy keeps its
-      -- metatable, so the flow-owned row methods survive.
+      -- `selected` returns copies of the entries; an entry is plain data, so
+      -- the flow-owned fields survive the copy.
       local chosen = picker:selected({ fallback = true })
       picker:close()
       if #chosen > 0 then
@@ -222,7 +211,7 @@ function M.pick_multi(spec, opts)
     end,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
   })
-  return false
+  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select

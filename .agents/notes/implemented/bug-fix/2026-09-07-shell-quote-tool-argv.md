@@ -20,7 +20,7 @@ POSIX `sh -c` single-quoted arguments:
 - an empty argument becomes `''`;
 - an embedded single quote is escaped as `'\''`.
 
-`backend/bridge.lua` builds the Agent command with
+`backend/init.lua` builds the Agent command with
 `Util.shell_join(tool.cmd)` before passing it to the Backend. The Backend still
 receives a shell-command string, so no tmux-driver contract changes.
 

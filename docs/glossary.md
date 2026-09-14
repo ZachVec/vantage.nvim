@@ -34,22 +34,17 @@ _Avoid_: status
 
 ## Backend
 
-The plugin's Lua domain layer that owns Agent state and lifecycle logic and drives a terminal multiplexer. It is a Bridge over a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
+The plugin's Lua domain layer that owns Agent state and lifecycle logic and drives a terminal multiplexer through a pluggable Driver — `tmux` implements the Driver today, with room for `zellij` later. Every operation is explicit: the Backend never infers context from the caller's environment.
 _Avoid_: api, server
-
-## Bridge
-
-The Backend's public surface that the Frontend consumes: domain verbs (`agents`, `create`, `retarget`, `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`, `status`) and the entity lists built above them. It holds no state, knows no UI, and passes Driver results/errors through; every multiplexer detail is left to the Driver.
-_Avoid_: service, orchestrator
 
 ## Driver
 
-A concrete multiplexer implementation behind the Bridge — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
+A concrete multiplexer implementation behind the Backend — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
 _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend through the Bridge; the Backend never imports the Frontend.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend; the Backend never imports the Frontend.
 _Avoid_: client, ui
 
 ## Terminal
@@ -57,9 +52,14 @@ _Avoid_: client, ui
 The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command for a per-client View produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes and its View is destroyed, and hiding it keeps the attachment alive.
 _Avoid_: client, screen, window
 
+## Focus
+
+The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Backend's `focus(pid)` read answers with the Agent, or with `nil` plus the reason (`no terminal`, `no client for this terminal`, `no focused agent`, or the multiplexer's own error). Prompt, gather, and review read it; each flow decides how to report a missing Focus.
+_Avoid_: current agent, active agent, last agent, focused agent
+
 ## Terminal action
 
-A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick rows through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
 _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
@@ -72,10 +72,20 @@ _Avoid_: launcher
 A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
+## Entry
+
+One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. The Picker reads only the text and previews only the highlighted Entry; it decides nothing about what choosing one means. Every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
+_Avoid_: row
+
 ## Tool
 
 A named launch command (`name` → `cmd` array) offered when creating an Agent. Configured under `cli.tools`.
 _Avoid_: command, template
+
+## Reference
+
+A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered entry. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it.
+_Avoid_: path, link, location string, 引用
 
 ## Prompt
 

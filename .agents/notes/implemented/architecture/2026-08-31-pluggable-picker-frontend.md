@@ -15,15 +15,16 @@ The Picker is a pluggable Frontend interface that mirrors the Backend seam.
 `lua/vantage/frontend/picker/init.lua` resolves the configured implementation
 through a whitelist registry (a raw user string is never `require`d) and
 exposes the `Picker.pick(spec, opts)` / `Picker.pick_plain(...)` facade. Each
-implementation — `native`, `fzf-lua`, `snacks` — declares `preview` and
-`command` capabilities and renders the same neutral `PickSpec`; selected via
-`setup { picker = … }` (default `native`).
+implementation — `native`, `fzf-lua`, `snacks` — declares `preview`,
+`command`, and `multi` capabilities and renders the same neutral `PickSpec`;
+selected via `setup { picker = … }` (default `native`).
 
 Flow-owned modules (`commands/attach.lua`, `commands/kill.lua`,
-`commands/review.lua`) build rows and preview content; implementations own only
-rendering, choice recovery, and the engine-specific binding of neutral Picker
-commands. Preview content reaches the Backend through the Bridge, so the
-Frontend never touches tmux directly.
+`commands/review.lua`) build entries and preview content; implementations own
+only rendering, choice recovery, and the engine-specific binding of neutral
+Picker commands. Preview content reaches the Backend, so the
+Frontend never touches tmux directly. An entry's shape is one shared vocabulary
+([picker entries are data](2026-09-13-picker-entries-are-data.md)).
 
 - `native` drives `vim.ui.select` directly (respecting any global
   `vim.ui.select` override the user already has).
@@ -63,10 +64,11 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
 ## Consequences
 
 - A new picker implementation adds one module and one registry entry; nothing
-  above `picker/` changes. It declares `preview`/`command` capabilities and
-  implements `pick`/`pick_plain`.
-- The Backend interface exposes `capture_pane` (read-only, a few lines) so picker
-  previews obey the "never touch tmux directly" invariant; it is a portable
+  above `frontend/picker/` changes. It declares its `preview`/`command`/`multi`
+  capabilities and implements `pick`/`pick_multi`/`pick_plain`.
+- The Backend interface exposes `capture` (read-only, a few lines, over the
+  Driver's `capture_pane`) so picker previews obey the "never touch tmux
+  directly" invariant; it is a portable
   operation (zellij can snapshot a pane too).
 - `native` still respects a global `vim.ui.select` override, so default behavior
   is unchanged for existing users.
@@ -74,4 +76,4 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
   pickers are pure renderers over a `PickSpec` — see
   [the picker-pure-renderers note](2026-09-05-picker-pure-renderers.md).
 
-The Backend seam it mirrors is [the backend-driver-seam note](2026-08-31-backend-driver-seam.md); the single-Client Frontend it lives in is [the single-terminal-frontend note](2026-08-31-single-terminal-frontend.md).
+The Backend seam it mirrors is [the backend-driver-seam note](2026-08-31-backend-driver-seam.md); the single-Terminal Frontend it lives in is [the single-terminal-frontend note](2026-08-31-single-terminal-frontend.md).

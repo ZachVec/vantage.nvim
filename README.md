@@ -140,8 +140,8 @@ cli = {
 available, then `ripgrep`, then a built-in walk that skips `.git`. `buffers`
 lists listed buffers whose file exists on disk, most recently used first; a
 modified buffer is marked `[+]` because the Agent reads the on-disk version.
-Each chosen row is typed as its path relative to the Agent's cwd, spelled by
-the tool's `format` hook (a gathered row has no position, so `loc` is nil) —
+Each chosen entry is typed as its path relative to the Agent's cwd, spelled by
+the tool's `format` hook (a gathered entry has no position, so `loc` is nil) —
 no `@` unless you add one — then `gather.join` decides the separator (default
 one per line), and a trailing space follows the last reference.
 
@@ -157,9 +157,9 @@ tools = {
 }
 ```
 
-`fzf-lua` and `snacks` select several rows at once (`<Tab>` marks, Enter sends
-the marked set or the row under the cursor when none is marked); `native`
-sends one row at a time.
+`fzf-lua` and `snacks` select several entries at once (`<Tab>` marks, Enter
+sends the marked set or the entry under the cursor when none is marked);
+`native` sends one entry at a time.
 
 ### Reviews
 
@@ -203,9 +203,9 @@ file/buffer lists:
 | `<c-x>` | kill the selected Agent | delete the selected Review |
 
 With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
-ignores the pinned `(focused)` row and Tool rows. `"native"` binds no keys.
-The `files` and `buffers` keys gather several rows at once under `fzf-lua` and
-`snacks`, one row at a time under `native`.
+ignores the pinned `(focused)` entry and Tool entries. `"native"` binds no keys.
+The `files` and `buffers` keys gather several entries at once under `fzf-lua`
+and `snacks`, one entry at a time under `native`.
 
 ### Terminal keymaps
 

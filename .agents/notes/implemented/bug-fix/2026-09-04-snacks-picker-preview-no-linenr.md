@@ -6,17 +6,17 @@ Status: implemented
 
 With `setup { picker = "snacks" }`, every preview-capable Vantage pick — the
 Agent list behind `:Vantage switch` (and `toggle`'s pick step), the kill list,
-and the annotation picker — renders its preview inside snacks' preview window.
+and the Review picker — renders its preview inside snacks' preview window.
 Snacks creates that window with the `number` column on by default (its
 `picker/core/preview.lua` builds `wo.number = win.preview.minimal ~= true`,
 and no layout sets `minimal`), so a captured terminal pane appeared with a
 code-view gutter. The gutter is meaningless there: the preview shows an
-Agent's terminal output (or a rendered annotation template), not a file whose
+Agent's terminal output (or a rendered Review template), not a file whose
 line numbers refer to anything.
 
 ## Decision
 
-`picker/snacks.lua` passes preview-window window options with every
+`frontend/picker/snacks.lua` passes preview-window window options with every
 preview-capable pick: a shared `NO_PREVIEW_LINENR = { number = false,
 relativenumber = false }` rides as `win = { preview = { wo = … } }` on
 the preview-capable `Picker.pick` path. Snacks merges pick-level
@@ -61,12 +61,12 @@ does not warrant widening the config surface.
 
 ## Consequences
 
-- User-visible change for `picker = "snacks"`: the switch/kill/annotation
+- User-visible change for `picker = "snacks"`: the switch/kill/Review
   picker previews no longer show a line-number gutter.
 - The override is pick-scoped and un-overridable from the global snacks
   config (call opts merge last); a user who wants the gutter back would need
   a new Vantage option.
-- Only `lua/vantage/picker/snacks.lua` changes. `native` has no preview and
+- Only `lua/vantage/frontend/picker/snacks.lua` changes. `native` has no preview and
   fzf-lua renders its preview in fzf's own terminal surface, so neither is
   affected.
 - Presentation stays otherwise snacks-default (`cursorline`, highlights, …

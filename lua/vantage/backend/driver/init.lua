@@ -1,5 +1,33 @@
 --- Driver registry: resolve the configured multiplexer driver once per setup.
 --- This is the extension seam for future drivers (e.g. zellij).
+
+---@class vantage.Agent A running coding-agent process.
+---@field id string opaque Driver identity
+---@field seq integer driver-neutral creation order
+---@field group string
+---@field cmd string
+---@field cwd string
+---@field tool string the cli.tools key that created it (for the format hook)
+---@field state? string
+
+---@class vantage.Attachment A Terminal's transient View and attach command.
+---@field view string
+---@field argv string[]
+
+---@class vantage.Driver The multiplexer contract behind the Backend's public surface.
+---@field create fun(opts: { group: string, cmd: string, cwd: string, tool: string }): vantage.Agent?, string?
+---@field agents fun(): vantage.Agent[]?, string?
+---@field focus fun(pid: integer): vantage.Agent?, string?
+---@field retarget fun(pid: integer, agent: vantage.Agent): boolean, string?
+---@field attach fun(agent: vantage.Agent): vantage.Attachment?, string?
+---@field kill_view fun(view: string): boolean, string?
+---@field kill_agent fun(agent: vantage.Agent): boolean, string?
+---@field kill_group fun(group: string): boolean, string?
+---@field send_keys fun(agent: vantage.Agent, text: string): boolean, string?
+---@field capture_pane fun(agent: vantage.Agent, max_lines?: integer): string[]?, string?
+---@field status fun(): { clients: string[], sessions: string[] }?, string?
+---@field health fun(): { status: "ok"|"warn"|"err", message: string, fatal?: boolean }[]
+
 local Config = require("vantage.config")
 
 local M = {}
@@ -12,7 +40,8 @@ local REGISTRY = {
 
 local REQUIRED = {
   "create",
-  "snapshot",
+  "agents",
+  "focus",
   "retarget",
   "attach",
   "kill_view",

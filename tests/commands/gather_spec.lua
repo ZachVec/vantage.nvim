@@ -5,7 +5,7 @@ local Helpers = require("helpers")
 describe("vantage.commands.gather", function()
   local Config
   local Gather
-  local bridge
+  local backend
   local picker
   local pick_spec
   local pick_opts
@@ -62,12 +62,18 @@ describe("vantage.commands.gather", function()
     end
     notified = {}
 
-    bridge = { sent = {} }
-    function bridge.agents()
-      return { agents = {}, groups = {}, focused = focused }, nil
+    backend = { sent = {} }
+    function backend.focus(pid)
+      if pid == nil then
+        return nil, Config.FOCUS_NO_TERMINAL
+      end
+      if focused == nil then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return focused, nil
     end
-    function bridge.send(agent, text)
-      bridge.sent[#bridge.sent + 1] = { agent = agent, text = text }
+    function backend.send(agent, text)
+      backend.sent[#backend.sent + 1] = { agent = agent, text = text }
       return true, nil
     end
 
@@ -81,8 +87,14 @@ describe("vantage.commands.gather", function()
       return { preview = true, command = true, multi = true }
     end
 
-    package.loaded["vantage.backend.bridge"] = bridge
+    package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = picker
+    -- Only the job pid is needed; the flows read the Focus through the Backend.
+    package.loaded["vantage.frontend.terminal"] = {
+      pid = function()
+        return 42
+      end,
+    }
     Gather = require("vantage.commands.gather")
   end)
 
@@ -93,7 +105,7 @@ describe("vantage.commands.gather", function()
 
   before_each(function()
     notified = {}
-    bridge.sent = {}
+    backend.sent = {}
     pick_spec = nil
     pick_opts = nil
     picker.empty_result = false
@@ -118,9 +130,8 @@ describe("vantage.commands.gather", function()
 
     local items = run("files")
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("a.lua", items[1]:reference())
-    assert.are.equal("sub/b.lua", items[2]:format())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("sub/b.lua", items[2].text)
     assert.are.same({ "a" }, items[1]:preview())
   end)
 
@@ -136,8 +147,8 @@ describe("vantage.commands.gather", function()
 
     assert.is_true(ok)
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("sub/b.lua", items[2]:format())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("sub/b.lua", items[2].text)
   end)
 
   it("lists on-disk listed buffers and marks modified ones", function()
@@ -149,9 +160,8 @@ describe("vantage.commands.gather", function()
 
     local items = run("buffers")
     assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1]:format())
-    assert.are.equal("b.lua [+]", items[2]:format())
-    assert.are.equal("b.lua", items[2]:reference())
+    assert.are.equal("a.lua", items[1].text)
+    assert.are.equal("b.lua [+]", items[2].text)
     assert.are.same({ "b", "b2" }, items[2]:preview())
   end)
 
@@ -162,7 +172,7 @@ describe("vantage.commands.gather", function()
 
     local items = run("buffers")
     assert.are.equal(1, #items)
-    assert.are.equal("a.lua", items[1]:format())
+    assert.are.equal("a.lua", items[1].text)
   end)
 
   it("sends chosen references one per line with a trailing space", function()
@@ -172,8 +182,8 @@ describe("vantage.commands.gather", function()
     local items, opts = run("files")
     opts.on_choices({ items[1], items[2] })
 
-    assert.are.equal("a.lua\nsub/b.lua ", bridge.sent[1].text)
-    assert.are.equal(focused, bridge.sent[1].agent)
+    assert.are.equal("a.lua\nsub/b.lua ", backend.sent[1].text)
+    assert.are.equal(focused, backend.sent[1].agent)
   end)
 
   it("adds the dialect prefix per reference and joins them", function()
@@ -183,7 +193,7 @@ describe("vantage.commands.gather", function()
       codex = {
         cmd = { "codex" },
         format = function(file, loc)
-          assert.are.equal(nil, loc) -- gathered rows are whole-file references
+          assert.are.equal(nil, loc) -- gathered entries are whole-file references
           return "@" .. file
         end,
       },
@@ -191,29 +201,30 @@ describe("vantage.commands.gather", function()
 
     local items, opts = run("files")
     opts.on_choices({ items[1], items[2] })
-    assert.are.equal("@a.lua\n@sub/b.lua ", bridge.sent[1].text)
+    assert.are.equal("@a.lua\n@sub/b.lua ", backend.sent[1].text)
 
     Config.options.gather.join = " "
     local spaced, spaced_opts = run("files")
     spaced_opts.on_choices({ spaced[1], spaced[2] })
-    assert.are.equal("@a.lua @sub/b.lua ", bridge.sent[2].text)
+    assert.are.equal("@a.lua @sub/b.lua ", backend.sent[2].text)
   end)
 
   it("drops the send and warns when the format hook returns nothing", function()
     write("a.lua", { "a" })
-    Config.options.cli.tools = {
-      codex = {
-        cmd = { "codex" },
-        format = function()
-          return nil
-        end,
-      },
-    }
+    for _, declined in ipairs({
+      function()
+        return nil
+      end,
+      function()
+        return ""
+      end,
+    }) do
+      Config.options.cli.tools = { codex = { cmd = { "codex" }, format = declined } }
+      local items, opts = run("files")
+      opts.on_choices({ items[1] })
+    end
 
-    local items, opts = run("files")
-    opts.on_choices({ items[1] })
-
-    assert.are.equal(0, #bridge.sent)
+    assert.are.equal(0, #backend.sent)
     assert.is_true(notified[1]:find("format hook", 1, true) ~= nil)
   end)
 

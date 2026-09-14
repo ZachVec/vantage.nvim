@@ -39,13 +39,19 @@ describe("vantage.backend.driver.tmux", function()
   end
 
   local function find_agent(id)
-    local snapshot = Backend.snapshot()
-    for _, agent in ipairs(snapshot.agents) do
+    for _, agent in ipairs(Backend.agents()) do
       if agent.id == id then
         return agent
       end
     end
     return nil
+  end
+
+  --- The Agent the client with `pid` displays: the Driver's own Focus read.
+  ---@param pid integer
+  ---@return vantage.Agent?
+  local function focused_agent(pid)
+    return Backend.focus(pid)
   end
 
   local function create(group, tag, cmd)
@@ -90,20 +96,56 @@ describe("vantage.backend.driver.tmux", function()
     Helpers.reload_vantage()
   end)
 
-  it("reports an empty snapshot before the first agent is created", function()
-    local snapshot, snapshot_err = Backend.snapshot()
+  it("reports an empty inventory before the first agent is created", function()
+    local agents, agents_err = Backend.agents()
     local status_info, status_err = Backend.status()
-    assert.are.equal(nil, snapshot_err)
+    assert.are.equal(nil, agents_err)
     assert.are.equal(nil, status_err)
-    assert.are.same({ agents = {}, groups = {}, focused = nil }, snapshot)
+    assert.are.same({}, agents)
     assert.are.same({ clients = {}, sessions = {} }, status_info)
     assert.are.equal("tmux", vim.split(Backend.health()[1].message, " ", { plain = true })[1])
+  end)
+
+  it("reports a missing server as a reason for a Focus read, not as a silent miss", function()
+    local agent, window_err = Backend.focus(123456789)
+    assert.are.equal(nil, agent)
+    -- tmux says either "no server running" or "error connecting to <socket>".
+    assert.is_not_nil(window_err)
+    assert.is_true(
+      window_err:find("no server running", 1, true) ~= nil or window_err:find("error connecting", 1, true) ~= nil
+    )
+    -- The inventory answers the same situation as "nothing there", not as a
+    -- failure: every flow treats a never-started multiplexer as empty.
+    assert.are.same({}, Backend.agents())
+  end)
+
+  it("reports no focused agent when the server has no client for the pid", function()
+    create("g-noclient", "codex") -- starts the server, so list-clients exits 0
+
+    local agent, reason = Backend.focus(123456789)
+    assert.are.equal(nil, agent)
+    assert.are.equal(Config.FOCUS_NO_CLIENT, reason)
+  end)
+
+  it("reports no focused agent when the client is not on an Agent window", function()
+    create("g-plain", "codex") -- starts the server
+    tmux("new-session", "-d", "-s", "plain-window")
+    local job = vim.fn.jobstart({ "tmux", "-L", socket, "attach-session", "-t", "plain-window" }, { pty = true })
+    assert.is_true(job > 0)
+    local pid = vim.fn.jobpid(job)
+
+    assert.is_true(wait_until(function()
+      local agent, reason = Backend.focus(pid)
+      return agent == nil and reason == Config.FOCUS_NO_FOCUS
+    end, 3000))
+    vim.fn.jobstop(job)
   end)
 
   it("implements the vantage.Driver surface", function()
     for _, name in ipairs({
       "create",
-      "snapshot",
+      "agents",
+      "focus",
       "retarget",
       "attach",
       "kill_view",
@@ -140,8 +182,7 @@ describe("vantage.backend.driver.tmux", function()
     local first = create("g-shared", "codex")
     local second = create("g-shared", "claude", "exec sleep 200")
 
-    local snapshot = Backend.snapshot()
-    assert.are.equal(2, #snapshot.agents)
+    assert.are.equal(2, #Backend.agents())
     assert.are.same(second, find_agent(second.id))
     assert.is_true(find_agent(first.id) ~= nil)
   end)
@@ -153,19 +194,19 @@ describe("vantage.backend.driver.tmux", function()
     local job2, pid2 = attach_job(first)
 
     assert.is_true(wait_until(function()
-      local snapshot = Backend.snapshot(pid1)
-      return snapshot.focused ~= nil and snapshot.focused.id == first.id
+      local focused = focused_agent(pid1)
+      return focused ~= nil and focused.id == first.id
     end, 3000))
     assert.is_true(wait_until(function()
-      local snapshot = Backend.snapshot(pid2)
-      return snapshot.focused ~= nil and snapshot.focused.id == first.id
+      local focused = focused_agent(pid2)
+      return focused ~= nil and focused.id == first.id
     end, 3000))
 
     assert.are.equal(true, Backend.retarget(pid1, second))
     assert.is_true(wait_until(function()
-      local one = Backend.snapshot(pid1)
-      local two = Backend.snapshot(pid2)
-      return one.focused ~= nil and one.focused.id == second.id and two.focused ~= nil and two.focused.id == first.id
+      local one = focused_agent(pid1)
+      local two = focused_agent(pid2)
+      return one ~= nil and one.id == second.id and two ~= nil and two.id == first.id
     end, 3000))
     vim.fn.jobstop(job1)
     vim.fn.jobstop(job2)
@@ -178,8 +219,8 @@ describe("vantage.backend.driver.tmux", function()
 
     assert.are.equal(true, Backend.retarget(pid, second))
     assert.is_true(wait_until(function()
-      local snapshot = Backend.snapshot(pid)
-      return snapshot.focused ~= nil and snapshot.focused.id == second.id
+      local focused = focused_agent(pid)
+      return focused ~= nil and focused.id == second.id
     end, 3000))
     vim.fn.jobstop(job)
   end)
@@ -227,6 +268,6 @@ describe("vantage.backend.driver.tmux", function()
     create("g-kill-group", "codex")
 
     assert.are.equal(true, Backend.kill_group("g-kill-group"))
-    assert.are.same({}, Backend.snapshot().agents)
+    assert.are.same({}, Backend.agents())
   end)
 end)

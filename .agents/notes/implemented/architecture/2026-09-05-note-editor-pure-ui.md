@@ -5,8 +5,8 @@ Status: implemented
 ## Problem
 
 The Review note editor (`open_note_float`, ~80 lines) lived in
-`commands/review.lua` and coupled UI to domain: it read `annotations.keys`
-and `annotations.float.style` from config, and hardcoded the "Delete
+`commands/review.lua` and coupled UI to domain: it read `reviews.keys`
+and `reviews.float.style` from config, and hardcoded the "Delete
 review?" confirmation and the empty-note-deletes policy. It was also
 over-keyed — `keys.exit` committed-and-closed, `keys.delete` deleted — with a
 user-configurable `keys` that earned its complexity.
@@ -18,10 +18,10 @@ user-configurable `keys` that earned its complexity.
   close → `on_commit(text)` (save on exit): no delete key, no confirmation, no
   empty-note policy — the caller owns every policy.
 - `commands/review.lua` wires the editor: it passes `style`
-  (`annotations.float.style == "minimal" and "minimal" or nil`), footer, and
+  (`reviews.float.style == "minimal" and "minimal" or nil`), footer, and
   callbacks. Its `on_commit` treats an empty note as delete (after a built-in
-  confirm) for `annotate list`, and as discard for `annotate`.
-- `annotations.keys` config is removed (Esc is fixed); `annotations.float.style`
+  confirm) for `review list`, and as discard for `review`.
+- `reviews.keys` config is removed (Esc is fixed); `reviews.float.style`
   stays.
 
 ## Alternatives considered
@@ -42,12 +42,12 @@ Review domain.
 
 The editor is a generic buffer editor — its Review-specificity is entirely in
 the callbacks — so it belongs in the Frontend beside `frontend/terminal.lua`
-and `picker/`. A Review directory would mix the domain (extmarks/registry)
+and `frontend/picker/`. A Review directory would mix the domain (extmarks/registry)
 with UI.
 
 ## Consequences
 
-- `annotations.keys` is gone — a breaking config change; README/help describe
+- `reviews.keys` is gone — a breaking config change; README/help describe
   Esc-save and empty-deletes instead.
 - The note editor is reusable by any future caller needing "edit text, Esc to
   commit".

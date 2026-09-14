@@ -11,17 +11,13 @@ describe("vantage.frontend.picker.fzf_lua", function()
     Helpers.reload_vantage()
     items = {
       {
-        format = function()
-          return "first"
-        end,
+        text = "first",
         preview = function()
           return { "one" }
         end,
       },
       {
-        format = function()
-          return "second"
-        end,
+        text = "second",
         preview = function()
           return { "two" }
         end,
@@ -41,7 +37,6 @@ describe("vantage.frontend.picker.fzf_lua", function()
 
   it("maps every returned entry back to its item for a multi pick", function()
     local chosen
-    local on_close = function() end
     Fzf.pick_multi({
       prompt = "pick",
       items_provider = function()
@@ -51,21 +46,20 @@ describe("vantage.frontend.picker.fzf_lua", function()
       on_choices = function(rows)
         chosen = rows
       end,
-      on_close = on_close,
     })
 
     assert.is_true(captured.fzf_opts["--multi"])
     assert.are.equal("2..", captured.fzf_opts["--with-nth"])
     assert.is_nil(captured.fzf_opts["--nth"])
-    assert.are.equal(on_close, captured.winopts.on_close)
+    assert.is_nil(captured.winopts)
     captured.actions.default({ "2. second", "1. first" })
     vim.wait(500, function()
       return chosen ~= nil
     end)
 
     assert.are.equal(2, #chosen)
-    assert.are.equal("second", chosen[1]:format())
-    assert.are.equal("first", chosen[2]:format())
+    assert.are.equal("second", chosen[1].text)
+    assert.are.equal("first", chosen[2].text)
   end)
 
   it("previews the entry under the cursor", function()
@@ -101,6 +95,23 @@ describe("vantage.frontend.picker.fzf_lua", function()
       return chosen ~= nil
     end)
 
-    assert.are.equal("second", chosen:format())
+    assert.are.equal("second", chosen.text)
+  end)
+
+  it("answers empty, with the read's reason, without opening", function()
+    captured = nil
+
+    local empty, err = Fzf.pick({
+      prompt = "pick",
+      items_provider = function()
+        return {}, "no server running"
+      end,
+    }, {
+      on_choice = function() end,
+    })
+
+    assert.is_true(empty)
+    assert.are.equal("no server running", err)
+    assert.is_nil(captured)
   end)
 end)

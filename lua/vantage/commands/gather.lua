@@ -2,14 +2,14 @@
 --- files or buffers through the Picker and type their `<relpath>` references
 --- into the focused Agent's input through the shared send path. References
 --- are bare paths — the Tool's `format` hook owns the dialect decoration.
+local Backend = require("vantage.backend")
+local Config = require("vantage.config")
+local Entries = require("vantage.frontend.entries")
 local Picker = require("vantage.frontend.picker")
-local Send = require("vantage.commands.send")
+local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
-
---- Lines read for a row's preview.
-local PREVIEW_LINES = 200
 
 --- External file listers tried in order; the Lua walk covers installs with
 --- neither. All of them skip `.git`; ignore semantics come from the tool.
@@ -17,81 +17,6 @@ local LISTERS = {
   { "fd", "--type", "f", "--type", "l", "--color", "never", "-E", ".git" },
   { "rg", "--files", "--no-messages", "--color", "never", "-g", "!.git" },
 }
-
----@class vantage.GatherItem One selectable reference source row.
----@field path string absolute file path
----@field cwd string focused Agent cwd (relativization base)
----@field format fun(self: vantage.GatherItem): string
----@field preview fun(self: vantage.GatherItem): string[]?
----@field reference fun(self: vantage.GatherItem): string
-
---- The first PREVIEW_LINES lines of a file, or nil when it cannot be read.
----@param path string
----@return string[]?
-local function file_preview(path)
-  local ok, lines = pcall(vim.fn.readfile, path, "", PREVIEW_LINES)
-  if not ok or type(lines) ~= "table" then
-    return nil
-  end
-  return lines
-end
-
----@class vantage.GatherFileItem : vantage.GatherItem
-local FileItem = {}
-FileItem.__index = FileItem
-
----@param path string absolute file path
----@param cwd string
----@return vantage.GatherFileItem
-function FileItem.new(path, cwd)
-  return setmetatable({ path = path, cwd = cwd }, FileItem)
-end
-
-function FileItem:format()
-  return Util.relpath(self.cwd, self.path)
-end
-
-function FileItem:preview()
-  return file_preview(self.path)
-end
-
-function FileItem:reference()
-  return Util.relpath(self.cwd, self.path)
-end
-
----@class vantage.GatherBufferItem : vantage.GatherItem
----@field buf integer
----@field modified boolean
-local BufferItem = {}
-BufferItem.__index = BufferItem
-
----@param buf integer
----@param path string absolute file path
----@param cwd string
----@param modified boolean
----@return vantage.GatherBufferItem
-function BufferItem.new(buf, path, cwd, modified)
-  return setmetatable({ buf = buf, path = path, cwd = cwd, modified = modified }, BufferItem)
-end
-
---- A modified buffer's on-disk content is stale; the marker keeps that
---- visible without leaking into the reference text.
-function BufferItem:format()
-  local name = Util.relpath(self.cwd, self.path)
-  return self.modified and (name .. " [+]") or name
-end
-
-function BufferItem:preview()
-  if not vim.api.nvim_buf_is_valid(self.buf) then
-    return file_preview(self.path)
-  end
-  local count = vim.api.nvim_buf_line_count(self.buf)
-  return vim.api.nvim_buf_get_lines(self.buf, 0, math.min(count, PREVIEW_LINES), false)
-end
-
-function BufferItem:reference()
-  return Util.relpath(self.cwd, self.path)
-end
 
 --- Collect every readable file under `root` (absolute paths, `.git` skipped).
 ---@param root string
@@ -146,11 +71,11 @@ local function list_files(cwd)
 end
 
 ---@param cwd string
----@return vantage.GatherItem[]
+---@return vantage.picker.Entry[]
 local function file_items(cwd)
   local items = {}
   for _, path in ipairs(list_files(cwd)) do
-    items[#items + 1] = FileItem.new(path, cwd)
+    items[#items + 1] = Entries.file(path, cwd)
   end
   return items
 end
@@ -158,7 +83,7 @@ end
 --- Buffer candidates: listed, normal-buftype, named, readable-on-disk
 --- buffers, most recently used first (path order breaks ties).
 ---@param cwd string
----@return vantage.GatherItem[]
+---@return vantage.picker.Entry[]
 local function buffer_items(cwd)
   local rows = {}
   for _, info in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
@@ -166,7 +91,7 @@ local function buffer_items(cwd)
     if name ~= "" and vim.bo[info.bufnr].buftype == "" and vim.fn.filereadable(name) == 1 then
       rows[#rows + 1] = {
         lastused = info.lastused or 0,
-        item = BufferItem.new(info.bufnr, vim.fs.normalize(name), cwd, vim.bo[info.bufnr].modified),
+        item = Entries.buffer(info.bufnr, vim.fs.normalize(name), cwd, vim.bo[info.bufnr].modified),
       }
     end
   end
@@ -183,23 +108,22 @@ local function buffer_items(cwd)
   return items
 end
 
----@type table<string, { prompt: string, items: fun(cwd: string): vantage.GatherItem[] }>
+---@type table<string, { prompt: string, items: fun(cwd: string): vantage.picker.Entry[] }>
 local SOURCES = {
   files = { prompt = "Files: ", items = file_items },
   buffers = { prompt = "Buffers: ", items = buffer_items },
 }
 
---- Pick several rows from `source` and type their references into the focused
---- Agent's input.
+--- Pick several entries from `source` and type their references into the
+--- focused Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local agent, err = Send.focused()
+  local agent, err = Backend.focus(Terminal.pid())
   if not agent then
-    Util.warn(err or "failed to resolve the focused agent")
+    Util.warn(err or "no focused agent")
     return
   end
   local items = SOURCES[source].items(agent.cwd)
-  local win = vim.api.nvim_get_current_win()
   local empty = Picker.pick_multi({
     prompt = SOURCES[source].prompt,
     items_provider = function()
@@ -207,23 +131,25 @@ local function run(source)
     end,
   }, {
     on_choices = function(chosen)
+      -- Every chosen path is spelled through the Tool's dialect, joined with
+      -- `setup { gather = { join = … } }`, and pasted with a trailing space so
+      -- continued typing stays off the last reference. A reference the hook
+      -- declines drops the whole send. No trailing newline: a pasted trailing
+      -- newline shows as an empty line in the Agent's input.
       local refs = {}
       for _, item in ipairs(chosen) do
-        refs[#refs + 1] = item:reference()
+        ---@cast item vantage.picker.PathEntry
+        local ref = Config.tool_reference(agent.tool, agent.cwd, item.path)
+        if ref == nil then
+          Util.warn("no references sent: dropped by its format hook")
+          return
+        end
+        refs[#refs + 1] = ref
       end
-      local ok, send_err = Send.references(agent, refs)
+      local ok, send_err = Backend.send(agent, table.concat(refs, Config.options.gather.join) .. " ")
       if not ok then
         Util.warn(send_err or "failed to send references")
       end
-    end,
-    -- Restore the invoking window once the picker engine has finished
-    -- closing its own; a synchronous restore can fight that teardown.
-    on_close = function()
-      vim.schedule(function()
-        if vim.api.nvim_win_is_valid(win) then
-          vim.api.nvim_set_current_win(win)
-        end
-      end)
     end,
   })
   if empty then
