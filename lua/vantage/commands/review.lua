@@ -13,8 +13,8 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- The Review list's display context: the Focus's Cwd and Tool dialect, so a
---- row spells its `{lines}` reference exactly as a `{reviews}` send would.
+--- The Review list's display context: the Focus's Cwd and Tool dialect, so an
+--- entry spells its `{lines}` reference exactly as a `{reviews}` send would.
 --- Without a Focus — the list is reachable with no Terminal — the reference is
 --- spelled against Neovim's cwd in the default dialect.
 ---@return string cwd

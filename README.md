@@ -203,9 +203,9 @@ file/buffer lists:
 | `<c-x>` | kill the selected Agent | delete the selected Review |
 
 With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
-ignores the pinned `(focused)` row and Tool rows. `"native"` binds no keys.
-The `files` and `buffers` keys gather several rows at once under `fzf-lua` and
-`snacks`, one row at a time under `native`.
+ignores the pinned `(focused)` entry and Tool entries. `"native"` binds no keys.
+The `files` and `buffers` keys gather several entries at once under `fzf-lua`
+and `snacks`, one entry at a time under `native`.
 
 ### Terminal keymaps
 

@@ -44,8 +44,8 @@ format = function(file, loc)
 end
 ```
 
-The review picker's previews and note titles resolve the focused Agent's
-formatter when there is one, so they read what a send would produce.
+The review picker's previews resolve the focused Agent's formatter when there
+is one, so they read what a send would produce.
 
 The composition itself — relativization, the `:L` suffix, the default, and the
 one reading of a nil or "" return — lives in

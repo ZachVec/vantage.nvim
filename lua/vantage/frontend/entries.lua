@@ -151,11 +151,11 @@ function M.buffer(buf, path, cwd, modified)
   }
 end
 
---- A Review entry: the flow opens the note float from the entry's data. The row
---- is a display of the Review, not a second spelling of it: `Review.location`
---- spells its `{lines}` reference through the one owner, and the note's first
---- line follows. The preview renders exactly what a `{reviews}` send would
---- produce.
+--- A Review entry: the flow opens the note float from the entry's data. The
+--- entry is a display of the Review, not a second spelling of it:
+--- `Review.location` spells its `{lines}` reference through the one owner, and
+--- the note's first line follows. The preview renders exactly what a
+--- `{reviews}` send would produce.
 ---@param review vantage.Review
 ---@param cwd string relativization base (the Focus's Cwd, or Neovim's cwd)
 ---@param tool? string the focused Tool's reference dialect; nil spells the default
@@ -163,7 +163,7 @@ end
 function M.review(review, cwd, tool)
   local lines = Review.location(review, cwd, tool)
   if lines == "" then
-    -- The Tool's hook declined the reference. The row still has to name the
+    -- The Tool's hook declined the reference. The entry still has to name the
     -- Review, so it falls back to the default dialect; the preview keeps the
     -- honest answer a send would give.
     lines = Review.location(review, cwd, nil)

@@ -9,7 +9,7 @@ lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
   init.lua         composition root: apply config, resolve seams, install runtime
   backend/         init.lua + pluggable Driver registry/tmux implementation
     driver/resources/tmux/   tmux resources (counts.sh, status.sh)
-  frontend/        terminal, display, note, review, pluggable picker
+  frontend/        terminal, entries, note, review, pluggable picker
   commands/        dispatch + actions, attach, flows
   config.lua       defaults + shared LuaLS types
   health.lua       :checkhealth vantage
