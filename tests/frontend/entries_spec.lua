@@ -66,6 +66,7 @@ describe("vantage.frontend.entries", function()
     backend.captured = {}
     backend.capture_err = nil
     Config.options.reviews.item = "{lines} {note}"
+    Config.options.cli.tools = {}
     tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
   end)
@@ -152,15 +153,55 @@ describe("vantage.frontend.entries", function()
     assert.are.same({ "on disk" }, entry:preview())
   end)
 
-  it("previews a Review entry through the configured item template", function()
+  it("spells a Review row through the one reference owner", function()
     local path = vim.fs.joinpath(tmp, "a.lua")
     local buf = named_buffer(path, { "a", "b" })
     local review = Review.add(buf, 1, 2, "note")
     local entry = Entries.review(review, tmp, nil)
 
     assert.are.equal("review", entry.kind)
-    assert.are.equal(path .. ":L1-2  note", entry.text)
+    -- The row is the `{lines}` reference plus the note's first line; the
+    -- preview renders what a `{reviews}` send would produce.
+    assert.are.equal("a.lua :L1-2  note", entry.text)
     assert.are.same({ "a.lua :L1-2 note" }, entry:preview())
+  end)
+
+  it("spells a Review row in the focused Tool's dialect", function()
+    local path = vim.fs.joinpath(tmp, "a.lua")
+    local buf = named_buffer(path, { "a", "b" })
+    local review = Review.add(buf, 1, 2, "note")
+    Config.options.cli.tools = {
+      dialect = {
+        cmd = { "codex" },
+        format = function(file, loc)
+          return "@" .. file .. (loc and (" " .. loc) or "")
+        end,
+      },
+    }
+    local entry = Entries.review(review, tmp, "dialect")
+
+    assert.are.equal("@a.lua :L1-2  note", entry.text)
+    assert.are.same({ "@a.lua :L1-2 note" }, entry:preview())
+  end)
+
+  it("keeps a Review row readable when the Tool declines the reference", function()
+    local path = vim.fs.joinpath(tmp, "a.lua")
+    local buf = named_buffer(path, { "a", "b" })
+    local review = Review.add(buf, 1, 2, "note")
+    Config.options.cli.tools = {
+      silent = {
+        cmd = { "codex" },
+        format = function()
+          return ""
+        end,
+      },
+    }
+    local entry = Entries.review(review, tmp, "silent")
+
+    -- The row falls back to the default dialect so the list stays navigable;
+    -- the preview keeps the "no reference" answer a send would give.
+    assert.are.equal("a.lua :L1-2  note", entry.text)
+    assert.are.same({ "" }, entry:preview())
   end)
 
   it("returns nil for entries that have nothing to preview", function()

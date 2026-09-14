@@ -13,13 +13,18 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- The focused Agent's Tool name, so note titles and picker previews read
---- exactly what a send would produce. Without a Focus the plain spelling still
---- renders the entry.
----@return string?
-local function focused_tool()
+--- The Review list's display context: the Focus's Cwd and Tool dialect, so a
+--- row spells its `{lines}` reference exactly as a `{reviews}` send would.
+--- Without a Focus — the list is reachable with no Terminal — the reference is
+--- spelled against Neovim's cwd in the default dialect.
+---@return string cwd
+---@return string? tool
+local function list_context()
   local agent = Backend.focus(Terminal.pid())
-  return agent and agent.tool
+  if agent then
+    return agent.cwd, agent.tool
+  end
+  return Util.cwd(), nil
 end
 
 --- Jump to the review's start line (first non-blank column).
@@ -49,17 +54,17 @@ local function note_style()
 end
 
 --- Open a review's note float: jump to its range, mark it active, and edit
---- its note (an empty commit deletes it).
+--- its note (an empty commit deletes it). The title carries no reference: the
+--- jump and the active range already say where you are.
 ---@param review vantage.Review
 local function open_note(review)
   if not jump_to_review(review) then
     return
   end
   Review.set_active(review.buf, review.id, true)
-  local cwd = Util.cwd()
   Note.open({
     text = review.note,
-    title = ("Review %s"):format(Review.location(review, cwd, focused_tool())),
+    title = "Review",
     footer = "<Esc> save · empty deletes",
     style = note_style(),
     on_commit = function(note)
@@ -84,8 +89,7 @@ local function spec()
   return {
     prompt = PROMPT,
     items_provider = function()
-      local cwd = Util.cwd()
-      local tool = focused_tool()
+      local cwd, tool = list_context()
       local items = {}
       for _, review in ipairs(Review.collect()) do
         items[#items + 1] = Entries.review(review, cwd, tool)
@@ -150,7 +154,7 @@ local function review_add(line1, line2)
   end
   Note.open({
     text = "",
-    title = "New review",
+    title = "New Review",
     footer = "<Esc> save",
     style = note_style(),
     insert = true,

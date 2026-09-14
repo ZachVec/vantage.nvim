@@ -1,0 +1,109 @@
+---@module 'luassert'
+
+local Helpers = require("helpers")
+
+describe("vantage.commands.review", function()
+  local Config
+  local Review
+  local ReviewCmd
+  local Util
+  local backend
+  local captured_spec
+  local tmp
+  local bufs = {}
+
+  --- A named buffer registered as a Review of lines 1-2.
+  ---@param path string
+  local function review_at(path)
+    local buf = Helpers.buffer({ "a", "b" }, path)
+    bufs[#bufs + 1] = buf
+    return Review.add(buf, 1, 2, "note")
+  end
+
+  --- The Review list rows the flow builds for the current Focus.
+  ---@return vantage.picker.Entry[]
+  local function rows()
+    captured_spec = nil
+    ReviewCmd.run("list", 1, 1)
+    assert.is_not_nil(captured_spec)
+    return captured_spec.items_provider()
+  end
+
+  setup(function()
+    Helpers.reload_vantage()
+    Config = require("vantage.config")
+    Util = require("vantage.util")
+    Review = require("vantage.frontend.review")
+    Review.setup()
+
+    backend = {}
+    function backend.focus(pid)
+      backend.focused_pid = pid
+      return backend.focused, backend.focus_reason
+    end
+    package.loaded["vantage.backend"] = backend
+    package.loaded["vantage.frontend.picker"] = {
+      pick = function(spec)
+        captured_spec = spec
+        return false, nil
+      end,
+    }
+    package.loaded["vantage.frontend.terminal"] = {
+      pid = function()
+        return 4242
+      end,
+    }
+    ReviewCmd = require("vantage.commands.review")
+  end)
+
+  before_each(function()
+    backend.focused = nil
+    backend.focus_reason = nil
+    backend.focused_pid = nil
+    Config.options.reviews.item = "{lines} {note}"
+    Config.options.cli.tools = {}
+    tmp = vim.fn.tempname()
+    vim.fn.mkdir(tmp, "p")
+  end)
+
+  after_each(function()
+    Review.clear()
+    for _, buf in ipairs(bufs) do
+      Helpers.wipe(buf)
+    end
+    bufs = {}
+    vim.fn.delete(tmp, "rf")
+  end)
+
+  teardown(function()
+    Review.clear()
+    Helpers.reload_vantage()
+  end)
+
+  it("spells a row against the focused Agent's cwd and dialect", function()
+    backend.focused = { cwd = tmp, tool = "dialect", id = "@1" }
+    Config.options.cli.tools = {
+      dialect = {
+        cmd = { "codex" },
+        format = function(file, loc)
+          return "@" .. file .. (loc and (" " .. loc) or "")
+        end,
+      },
+    }
+    review_at(vim.fs.joinpath(tmp, "a.lua"))
+
+    local items = rows()
+
+    assert.are.equal(4242, backend.focused_pid)
+    assert.are.equal("@a.lua :L1-2  note", items[1].text)
+  end)
+
+  it("falls back to Neovim's cwd and the default dialect without a Focus", function()
+    backend.focus_reason = Config.FOCUS_NO_FOCUS
+    review_at(vim.fs.joinpath(Util.cwd(), "scratch", "a.lua"))
+
+    local items = rows()
+
+    assert.are.equal("scratch/a.lua :L1-2  note", items[1].text)
+  end)
+end)

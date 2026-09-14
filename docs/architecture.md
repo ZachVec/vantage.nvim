@@ -263,9 +263,11 @@ global Neovim cwd, and always asks for a Group; `retarget` identifies the
 Terminal's client by the terminal job's pid, which the command layer reads from
 the Terminal and passes in.
 
-`:Vantage` subcommands are dispatched from `commands/init.lua`; the prompts,
-gather, and review flows resolve the Focus before acting and warn the reason
-string when there is none.
+`:Vantage` subcommands are dispatched from `commands/init.lua`; the prompt and
+gather flows resolve the Focus before acting and warn the reason string when
+there is none. The Review list resolves it only to spell its rows: the base is
+the Focus's Cwd and its Tool dialect, or Neovim's cwd and the default dialect
+when no Terminal is attached.
 
 ## Review and Prompt
 
@@ -278,4 +280,7 @@ gathered references are pasted with bracketed paste and never auto-submit.
 Every location reference — a Prompt's placeholders, each Review's `{lines}` /
 `{file}`, and each gathered entry — is spelled by the Focus's Tool through
 `Config.tool_reference` (default: `file` and its `loc` suffix separated by a
-space), and `gather.join` decides how gathered references are joined.
+space), and `gather.join` decides how gathered references are joined. A Review
+reads the same in the list, in its preview, and in the `{reviews}` send — a row
+is the `{lines}` reference plus the note's first line — and the note float's
+title names no reference of its own.
