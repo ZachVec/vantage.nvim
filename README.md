@@ -137,7 +137,8 @@ cli = {
 ```
 
 `files` lists files under the focused Agent's working directory: `fd` when
-available, then `ripgrep`, then a built-in walk that skips `.git`. `buffers`
+available, then `ripgrep`, then `find` — all three skip `.git`, and the list
+appears as the lister prints it, so `Esc` stops a long listing. `buffers`
 lists listed buffers whose file exists on disk, most recently used first; a
 modified buffer is marked `[+]` because the Agent reads the on-disk version.
 Each chosen entry is typed as its path relative to the Agent's cwd, spelled by

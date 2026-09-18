@@ -18,14 +18,23 @@ describe("vantage.frontend.picker.fzf_lua", function()
   end
 
   --- The lines the captured contents function writes, with the end of input as
-  --- a visible marker.
-  ---@return string[]
+  --- a visible marker, plus how many pipe writes they arrived in.
+  ---@return string[] lines
+  ---@return integer writes
   local function written()
-    local lines = {}
+    local lines, writes = {}, 0
     captured.contents(function(line)
-      lines[#lines + 1] = line == nil and "<end>" or line
+      if line == nil then
+        lines[#lines + 1] = "<end>"
+      else
+        writes = writes + 1
+        lines[#lines + 1] = line
+      end
+    end, function(batch)
+      writes = writes + 1
+      vim.list_extend(lines, batch)
     end)
-    return lines
+    return lines, writes
   end
 
   setup(function()
@@ -49,9 +58,27 @@ describe("vantage.frontend.picker.fzf_lua", function()
   it("writes one prefixed line per entry and ends the input", function()
     Fzf.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
 
-    assert.are.same({ "1. first", "2. second", "<end>" }, written())
+    local lines, writes = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
+    assert.are.equal(1, writes)
     assert.are.equal("2..", captured.opts.fzf_opts["--with-nth"])
     assert.is_nil(captured.opts.fzf_opts["--nth"])
+  end)
+
+  it("writes each emitted batch in one pipe write", function()
+    Fzf.pick_fancy({
+      prompt = "pick",
+      many = false,
+      items = function(emit, done)
+        emit({ items[1] })
+        emit({ items[2] })
+        done()
+      end,
+    }, { on_choices = function() end })
+
+    local lines, writes = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
+    assert.are.equal(2, writes)
   end)
 
   it("maps returned lines back to their entries and answers with every choice", function()
@@ -137,7 +164,8 @@ describe("vantage.frontend.picker.fzf_lua", function()
     assert.are.equal(2, runs)
 
     captured.opts.actions["ctrl-y"].fn({ "1. first" })
-    assert.are.same({ "1. first", "2. second", "<end>" }, written())
+    local lines = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
     assert.are.equal(2, runs)
   end)
 

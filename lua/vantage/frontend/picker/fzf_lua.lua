@@ -2,9 +2,10 @@
 --- fzf-lua returns display strings rather than the original objects, each
 --- emitted line carries a numeric prefix that round-trips the entry index —
 --- the same scheme fzf-lua's own ui_select shim uses. The pick's item stream is
---- pushed into fzf's stdin as it arrives: fzf-lua's function contents writes
---- one line per `on_write_nl` call and takes nil as end of input, over a pipe
---- that stays open until then (see docs/gotchas.md).
+--- pushed into fzf's stdin as it arrives: fzf-lua's function contents hands
+--- every line of a batch to `on_write` (one pipe write per batch) and takes nil
+--- as end of input, over a pipe that stays open until then (see
+--- docs/gotchas.md).
 local M = {}
 
 ---@type string
@@ -96,30 +97,42 @@ function M.pick_fancy(spec, opts)
     return out
   end
 
-  --- Write one prefixed line per entry, and nil as end of input.
-  ---@param write fun(line: string?)
-  local function content(write)
+  --- Write each batch's prefixed lines in one pipe write, and nil as end of
+  --- input.
+  ---@param on_write_nl fun(line: string?)
+  ---@param on_write fun(lines: string[])
+  local function content(on_write_nl, on_write)
     if cancel then
       cancel()
       cancel = nil
+    end
+    ---@param lines string[]
+    local function write(lines)
+      if #lines > 0 then
+        on_write(lines)
+      end
     end
     if rerun then
       rerun = false
       items = {}
       cancel = spec.items(function(chunk)
+        local lines = {}
         for _, entry in ipairs(chunk) do
           items[#items + 1] = entry
-          write(PREFIX:format(#items, entry.text))
+          lines[#lines + 1] = PREFIX:format(#items, entry.text)
         end
+        write(lines)
       end, function()
-        write(nil)
+        on_write_nl(nil)
       end)
       return
     end
+    local lines = {}
     for index, entry in ipairs(items) do
-      write(PREFIX:format(index, entry.text))
+      lines[#lines + 1] = PREFIX:format(index, entry.text)
     end
-    write(nil)
+    write(lines)
+    on_write_nl(nil)
   end
 
   ---@type table<string, any>

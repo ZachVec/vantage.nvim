@@ -121,7 +121,8 @@ one-shot sources; the Agent-creation Group step and `:Vantage prompt` call
 several, and all four ask for the standard preview. The `files` listing is still
 synchronous: making the lister a live stream, so entries appear while `fd`/`rg`
 runs and closing the picker stops the child, is the next step this seam exists
-for and is recorded when it lands.
+for and is recorded in
+[the file-listing note](../feature/2026-09-19-streaming-file-listing.md).
 
 ## Alternatives considered
 

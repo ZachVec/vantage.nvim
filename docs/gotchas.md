@@ -235,6 +235,51 @@ A `confirm`/action callback that jumps, opens a float, or otherwise changes the
 UI must be wrapped in `vim.schedule`, so it runs only after the picker window
 has closed.
 
+## Gather · file listers
+
+### The three listers do not agree on exit codes
+
+Measured with fd 10.2.0 and ripgrep 15.2.0: `fd` exits 0 whenever it ran (empty
+result included) and 1 on error; **`rg --files` exits 1 when it found no
+files** and 2 on error; `find` exits 0 whenever it ran and 1 on error. So a
+chain that treats every non-zero code as a failure would fall through on rg's
+legitimate empty answer — and land on `find`, which reads no ignore files and
+would list exactly the files the project ignores. Vantage's chain reads rg's 1
+as an answer and only falls through on a real failure.
+
+### fd and rg respect ignore files; find does not
+
+`fd` and `rg --files` honour `.gitignore` and friends, `find` honours nothing
+but the arguments it is given. That is why find is the last resort: on a
+machine with neither fd nor rg, the listing is whatever find sees.
+
+### None of the three sorts
+
+fd, rg, and find each print in their own walk order, and the file list is
+rendered in that order — the listing is not sorted, by design. `find` prints
+paths with a leading `./`, which the flow normalizes away.
+
+### `find`'s `-o` grouping decides whether an exclusion applies
+
+`find . -type f -o -type l -not -path "*/.git/*"` parses as
+`(-type f) OR ((-type l) AND (not .git below))` because find's implicit `-a`
+binds tighter than `-o`: the `.git` files are regular files, so they leak
+through the first branch. Grouping — `\( -type f -o -type l \) -not -path …` —
+is what makes one exclusion cover both. (Through `vim.system` the parentheses
+are plain arguments, no shell escaping.)
+
+### `vim.system` reports a signalled process as exit code 0
+
+A process killed by a signal comes back with `code = 0` and `signal = N`, not
+as a failure. Treat `signal ~= 0` as a failure (the shell's `128 + N`) or a
+truncated run looks like a finished one.
+
+### A shell script that traps TERM must wait interruptibly
+
+`trap … TERM; sleep 30` runs the trap only after `sleep` returns (the shell
+defers it), so a test lister that is supposed to notice a cancel needs
+`sleep 30 & wait` — `wait` is interrupted by the signal.
+
 ## Neovim
 
 ### `<cmd>` mappings keep Visual mode active

@@ -17,6 +17,85 @@ function M.run(cmd, opts)
   return result.code or 0, result.stdout or "", result.stderr or ""
 end
 
+--- Run a command and hand its stdout lines to `on_lines` as they arrive (one
+--- call per chunk, complete lines only), then `on_done(code)` when it exits; a
+--- trailing partial line is flushed before `on_done`. Returns a cancel function
+--- that stops the process — SIGTERM, then SIGKILL if it is still running after
+--- a grace period — because a cancelled listing has no other way to stop.
+--- `on_done` always reports the run's outcome, cancellation included. A command
+--- that cannot be spawned answers the failure code -1 instead of raising.
+---@param cmd string[]
+---@param opts? { cwd?: string }
+---@param on_lines fun(lines: string[])
+---@param on_done fun(code: integer)
+---@return fun() cancel
+function M.run_lines(cmd, opts, on_lines, on_done)
+  local carry = ""
+  local running = true
+
+  ---@param code integer
+  local function finish(code)
+    running = false
+    if carry ~= "" then
+      on_lines({ carry })
+      carry = ""
+    end
+    on_done(code)
+  end
+
+  --- Split one chunk into complete lines, carrying a partial tail over.
+  ---@param chunk string
+  local function feed(chunk)
+    local data = carry .. chunk
+    local lines = {}
+    local from = 1
+    while true do
+      local nl = data:find("\n", from, true)
+      if not nl then
+        break
+      end
+      lines[#lines + 1] = data:sub(from, nl - 1)
+      from = nl + 1
+    end
+    carry = data:sub(from)
+    if #lines > 0 then
+      on_lines(lines)
+    end
+  end
+
+  local ok, process = pcall(vim.system, cmd, {
+    text = true,
+    cwd = opts and opts.cwd or nil,
+    stdout = function(_, chunk)
+      if chunk then
+        feed(chunk)
+      end
+    end,
+  }, function(out)
+    -- A signalled process reports code 0: report it as a failure instead
+    -- (128 + signal is the shell's convention), or a truncated listing would
+    -- look like a finished one.
+    finish(out.signal ~= 0 and (128 + out.signal) or (out.code or 0))
+  end)
+  if not ok then
+    -- The child never started: a missing cwd, a vanished binary.
+    finish(-1)
+    return function() end
+  end
+
+  return function()
+    if not running then
+      return
+    end
+    process:kill("sigterm")
+    vim.defer_fn(function()
+      if running then
+        process:kill("sigkill")
+      end
+    end, 200)
+  end
+end
+
 --- Render `{placeholder}` tokens in `template` against a caller-provided
 --- whitelist and resolver. Unknown placeholders are left literal; a resolver
 --- returning nil records the failing name and returns nil from this function.

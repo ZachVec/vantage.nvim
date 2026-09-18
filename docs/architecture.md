@@ -246,10 +246,11 @@ concept.
   retargets, or opens the Terminal. `toggle` and `switch` each keep their own
   tail; only the "attach and install the terminal keymaps" step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
-  lists candidates under the Focus's cwd (fd → ripgrep → a Lua walk), spells
-  every chosen `<relpath>` through the Tool's `format`, joins the results with
-  `setup { gather = { join = … } }`, and pastes them with a trailing space. One
-  reference dropped by the hook drops the whole send.
+  lists candidates under the Focus's cwd (fd → ripgrep → find, streamed as the
+  lister prints them), spells every chosen `<relpath>` through the Tool's
+  `format`, joins the results with `setup { gather = { join = … } }`, and
+  pastes them with a trailing space. One reference dropped by the hook drops
+  the whole send.
 - `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`,
   `files`, `buffers`) to command functions and installs `cli.win.keys` into the
   terminal buffer.

@@ -13,8 +13,10 @@ describe("vantage.commands.gather", function()
   local focused
   local notified
   local original_notify
+  local original_path
   local tmp
   local bufs = {}
+  local bin_dirs = {}
 
   local function write(relpath, lines)
     local path = vim.fs.joinpath(tmp, relpath)
@@ -23,21 +25,90 @@ describe("vantage.commands.gather", function()
     return path
   end
 
-  --- Run a flow without choosing rows and return the entries its source
-  --- produces, plus the options the flow passed to the Picker.
+  ---@param items vantage.picker.Entry[]
+  ---@return string[]
+  local function texts(items)
+    return vim.tbl_map(function(item)
+      return item.text
+    end, items)
+  end
+
+  --- The first entry whose text names `text`.
+  ---@param items vantage.picker.Entry[]
+  ---@param text string
+  ---@return vantage.picker.Entry
+  local function named(items, text)
+    for _, item in ipairs(items) do
+      if item.text == text then
+        return item
+      end
+    end
+    error(("no entry named '%s'"):format(text))
+  end
+
+  --- A directory of executable fake listers, one shell script per name.
+  ---@param scripts table<string, string>
+  ---@return string dir
+  local function bins(scripts)
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    for name, body in pairs(scripts) do
+      local path = vim.fs.joinpath(dir, name)
+      vim.fn.writefile({ "#!/bin/sh", body }, path)
+      vim.fn.setfperm(path, "rwxr-xr-x")
+    end
+    bin_dirs[#bin_dirs + 1] = dir
+    return dir
+  end
+
+  --- Point PATH at the fakes; `keep_path` leaves the real PATH behind them, for
+  --- a lister that needs a real command of its own.
+  ---@param dir string
+  ---@param keep_path? boolean
+  local function use_bins(dir, keep_path)
+    vim.env.PATH = keep_path and (dir .. ":" .. original_path) or dir
+  end
+
+  --- Run a flow without choosing rows; captures the spec and options.
   ---@param source "files"|"buffers"
-  ---@return vantage.picker.Entry[]
-  ---@return vantage.PickOpts
-  local function run(source)
-    pick_spec = nil
-    pick_opts = nil
+  local function capture(source)
+    pick_spec, pick_opts = nil, nil
     if source == "files" then
       Gather.files()
     else
       Gather.buffers()
     end
     assert.is_not_nil(pick_spec)
-    return Helpers.entries(pick_spec), pick_opts
+    return pick_spec, pick_opts
+  end
+
+  --- Drive a spec's source, counting the batches it emitted.
+  ---@param spec vantage.PickSpec
+  ---@return vantage.picker.Entry[] items
+  ---@return integer batches
+  local function drain(spec)
+    local items, batches, finished = {}, 0, false
+    spec.items(function(chunk)
+      batches = batches + 1
+      vim.list_extend(items, chunk)
+    end, function()
+      finished = true
+    end)
+    vim.wait(5000, function()
+      return finished
+    end, 10)
+    assert(finished, "source did not finish")
+    return items, batches
+  end
+
+  --- Run a flow and return the entries its source produces, plus the options
+  --- the flow passed to the Picker.
+  ---@param source "files"|"buffers"
+  ---@return vantage.picker.Entry[]
+  ---@return vantage.PickOpts
+  local function run(source)
+    local spec, opts = capture(source)
+    return Helpers.entries(spec), opts
   end
 
   --- A listed, on-disk buffer that starts out unmodified.
@@ -58,6 +129,7 @@ describe("vantage.commands.gather", function()
     Helpers.reload_vantage()
     Config = require("vantage.config")
     original_notify = vim.notify
+    original_path = vim.env.PATH
     vim.notify = function(msg)
       notified[#notified + 1] = msg
     end
@@ -105,6 +177,7 @@ describe("vantage.commands.gather", function()
     backend.sent = {}
     pick_spec = nil
     pick_opts = nil
+    vim.env.PATH = original_path
     Config.options.cli.tools = {}
     Config.options.gather.join = "\n"
     tmp = vim.fn.tempname()
@@ -113,38 +186,112 @@ describe("vantage.commands.gather", function()
   end)
 
   after_each(function()
+    vim.env.PATH = original_path
     for _, buf in ipairs(bufs) do
       Helpers.wipe(buf)
     end
     bufs = {}
     vim.fn.delete(tmp, "rf")
+    for _, dir in ipairs(bin_dirs) do
+      vim.fn.delete(dir, "rf")
+    end
+    bin_dirs = {}
   end)
 
-  it("lists files under the agent cwd, sorted and relative", function()
+  it("streams files under the agent cwd, relative to it", function()
     write("a.lua", { "a" })
     write("sub/b.lua", { "b" })
 
     local items = run("files")
-    assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1].text)
-    assert.are.equal("sub/b.lua", items[2].text)
-    assert.are.same({ "a" }, Entries.preview(items[1]))
+    local listed = texts(items)
+    table.sort(listed)
+
+    assert.are.same({ "a.lua", "sub/b.lua" }, listed)
+    assert.are.same({ "a" }, Entries.preview(named(items, "a.lua")))
   end)
 
-  it("falls back to a Lua walk when no lister is available", function()
+  it("keeps the lister's own order and reads one batch per chunk", function()
+    write("z.lua", { "z" })
     write("a.lua", { "a" })
-    write("sub/b.lua", { "b" })
-    write(".git/HEAD", { "ref: refs/heads/main" })
+    use_bins(bins({ fd = "printf 'z.lua\\na.lua\\n'" }))
 
-    local path_env = vim.env.PATH
+    local items, batches = drain(capture("files"))
+
+    assert.are.same({ "z.lua", "a.lua" }, texts(items))
+    assert.are.equal(1, batches)
+  end)
+
+  it("gives way to the next lister when one fails before producing a line", function()
+    use_bins(bins({
+      fd = "exit 2",
+      rg = "printf 'b.lua\\n'",
+      find = "printf 'z.lua\\n'",
+    }))
+
+    assert.are.same({ "b.lua" }, texts(run("files")))
+  end)
+
+  it("keeps what a lister produced before failing", function()
+    use_bins(bins({
+      fd = "printf 'a.lua\\n'; exit 2",
+      rg = "printf 'b.lua\\n'",
+    }))
+
+    assert.are.same({ "a.lua" }, texts(run("files")))
+  end)
+
+  it("takes rg's empty answer as final instead of falling through to find", function()
+    -- rg exits 1 when it found no files; find would list the ignored ones.
+    use_bins(bins({
+      rg = "exit 1",
+      find = "printf 'z.lua\\n'",
+    }))
+
+    assert.are.same({}, texts(run("files")))
+  end)
+
+  it("uses find when it is the only lister", function()
+    use_bins(bins({ find = "printf 'c.lua\\n'" }))
+
+    assert.are.same({ "c.lua" }, texts(run("files")))
+  end)
+
+  it("warns when no lister is installed", function()
     vim.env.PATH = ""
-    local ok, items = pcall(run, "files")
-    vim.env.PATH = path_env
 
-    assert.is_true(ok)
-    assert.are.equal(2, #items)
-    assert.are.equal("a.lua", items[1].text)
-    assert.are.equal("sub/b.lua", items[2].text)
+    assert.are.same({}, run("files"))
+    assert.is_true(notified[1]:find("no file lister", 1, true) ~= nil)
+  end)
+
+  it("stops the running lister when the source is cancelled", function()
+    local marker = vim.fs.joinpath(tmp, "killed")
+    -- `sleep & wait` so the TERM trap runs while the lister is still going.
+    use_bins(
+      bins({
+        fd = ("trap 'echo x > %s; exit 0' TERM; echo a.lua; sleep 30 & wait"):format(marker),
+      }),
+      true
+    )
+
+    local spec = capture("files")
+    local listed = false
+    local cancel = spec.items(function()
+      listed = true
+    end, function() end)
+    assert.is_not_nil(cancel)
+
+    -- The script installs its trap before it prints, so waiting for the first
+    -- line makes the cancel below land in the trap rather than at exec time.
+    vim.wait(5000, function()
+      return listed
+    end, 10)
+    assert.is_true(listed)
+
+    cancel()
+    vim.wait(5000, function()
+      return vim.fn.filereadable(marker) == 1
+    end, 20)
+    assert.are.equal(1, vim.fn.filereadable(marker))
   end)
 
   it("lists on-disk listed buffers and marks modified ones", function()
@@ -176,7 +323,7 @@ describe("vantage.commands.gather", function()
     write("sub/b.lua", { "b" })
 
     local items, opts = run("files")
-    opts.on_choices({ items[1], items[2] })
+    opts.on_choices({ named(items, "a.lua"), named(items, "sub/b.lua") })
 
     assert.are.equal("a.lua\nsub/b.lua ", backend.sent[1].text)
     assert.are.equal(focused, backend.sent[1].agent)
@@ -196,12 +343,12 @@ describe("vantage.commands.gather", function()
     }
 
     local items, opts = run("files")
-    opts.on_choices({ items[1], items[2] })
+    opts.on_choices({ named(items, "a.lua"), named(items, "sub/b.lua") })
     assert.are.equal("@a.lua\n@sub/b.lua ", backend.sent[1].text)
 
     Config.options.gather.join = " "
     local spaced, spaced_opts = run("files")
-    spaced_opts.on_choices({ spaced[1], spaced[2] })
+    spaced_opts.on_choices({ named(spaced, "a.lua"), named(spaced, "sub/b.lua") })
     assert.are.equal("@a.lua @sub/b.lua ", backend.sent[2].text)
   end)
 
