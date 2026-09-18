@@ -122,3 +122,10 @@ neutral parameter name.
   ([agent-picker-entry-format](../feature/2026-09-04-agent-picker-entry-format.md));
   the Picker's neutrality contract is unchanged
   ([pluggable-picker-frontend](2026-08-31-pluggable-picker-frontend.md)).
+
+The preview half of this decision is superseded by
+[picker-two-interfaces](2026-09-18-picker-two-interfaces.md): an Entry carries no
+preview of its own, the flow hands the pick the one standard `Entries.preview`
+function, and a pick that hands none has no preview pane. Everything else — one
+vocabulary, plain data, no metatable, no writes from an implementation — is
+unchanged.

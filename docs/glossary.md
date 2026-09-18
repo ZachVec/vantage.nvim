@@ -64,17 +64,17 @@ _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
 
-The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)`, `pick_multi(spec, opts)`, and `pick_plain(...)`; implementations declare exactly three capabilities, `preview`, `command`, and `multi`, and degrade optional capabilities explicitly — a picker without `multi` renders a multi-selection request as a single choice. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
+The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick_fancy(spec, opts)` — a streaming pick, whose `spec.items` emits entries as the flow produces them — and `pick_naive(...)`, the static plain-list form. Implementations declare one capability, `command` (they bind the flow's picker commands); a pick states its own `many` and `preview` requests, and an implementation that cannot confirm several entries or render a preview pane degrades instead of declaring it. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
 
 ## Picker command
 
-A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
+A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed, which restarts the pick's item stream. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
 ## Entry
 
-One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. The Picker reads only the text and previews only the highlighted Entry; it decides nothing about what choosing one means. Every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
+One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. An Entry is plain data with no preview of its own — the Picker reads the text and calls the pick's own `preview` function for the highlighted Entry, and `Entries.preview` is the one standard preview, keyed by the Entry's kind. The Picker decides nothing about what choosing one means, and every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
 _Avoid_: row
 
 ## Tool

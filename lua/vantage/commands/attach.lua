@@ -43,7 +43,7 @@ local function ask_group(after)
     return
   end
   names[#names + 1] = NEW_GROUP
-  Picker.pick_plain(names, { prompt = "Group: " }, function(group)
+  Picker.pick_naive(names, { prompt = "Group: " }, function(group)
     if not group then
       return
     end
@@ -103,17 +103,20 @@ local function spec(pid, state)
   state = state or { group_on = false }
   return {
     prompt = PROMPT,
-    items_provider = function()
+    many = false,
+    preview = Entries.preview,
+    items = function(emit, done)
       local inventory, err = Backend.inventory()
       if inventory == nil then
-        return {}, err
+        Util.warn(err or "failed to read agents")
+        return done()
       end
       -- The Focus is a second read: the inventory never carries it.
       local focused, _ = Backend.focus(pid)
       state.focused = focused
       local items = build_items(inventory.agents, focused)
       if state.group_on and focused then
-        return vim
+        items = vim
           .iter(items)
           :filter(function(entry)
             if entry.kind == "tool" then
@@ -124,7 +127,8 @@ local function spec(pid, state)
           end)
           :totable()
       end
-      return items
+      emit(items)
+      done()
     end,
   }
 end
@@ -154,8 +158,9 @@ end
 ---@param pid? integer the terminal job's pid (nil = no focused Agent)
 local function pick(after, pid)
   local state = { group_on = Picker.capabilities().command }
-  local empty, err = Picker.pick(spec(pid, state), {
-    on_choice = function(entry)
+  Picker.pick_fancy(spec(pid, state), {
+    on_choices = function(entries)
+      local entry = entries[1]
       if entry.kind == "focused" then
         return
       end
@@ -190,11 +195,6 @@ local function pick(after, pid)
       },
     },
   })
-  if err then
-    Util.warn(err)
-  elseif empty then
-    Util.warn("no agents and no tools configured (cli.tools)")
-  end
 end
 
 --- Attach a new Terminal client to `agent` and install the terminal keymaps.

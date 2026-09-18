@@ -35,4 +35,20 @@ function M.wipe(buf)
   end
 end
 
+--- The entries a pick spec's item source produces: the test-side equivalent of
+--- an implementation's opening run, for a source that finishes synchronously.
+---@param spec vantage.PickSpec
+---@return vantage.picker.Entry[]
+function M.entries(spec)
+  local items = {}
+  local finished = false
+  spec.items(function(chunk)
+    vim.list_extend(items, chunk)
+  end, function()
+    finished = true
+  end)
+  assert(finished, "test source did not finish synchronously")
+  return items
+end
+
 return M

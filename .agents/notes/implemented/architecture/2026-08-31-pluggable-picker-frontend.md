@@ -77,3 +77,8 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
   [the picker-pure-renderers note](2026-09-05-picker-pure-renderers.md).
 
 The Backend seam it mirrors is [the backend-driver-seam note](2026-08-31-backend-driver-seam.md); the single-Terminal Frontend it lives in is [the single-terminal-frontend note](2026-08-31-single-terminal-frontend.md).
+
+The facade's current surface — `pick_fancy` with its streaming item source, its
+`many` and `preview` requests, and `pick_naive`, with `command` as the one
+declared capability — is
+[picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

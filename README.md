@@ -204,8 +204,10 @@ file/buffer lists:
 
 With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
 ignores the pinned `(focused)` entry and Tool entries. `"native"` binds no keys.
-The `files` and `buffers` keys gather several entries at once under `fzf-lua`
-and `snacks`, one entry at a time under `native`.
+Marking several entries (`<Tab>`) selects several: the kill list kills every
+marked Agent or Group, the `files` and `buffers` keys gather every marked
+reference, and the Agent and Review lists act on the entry under the cursor.
+`native` acts on one entry at a time.
 
 ### Terminal keymaps
 

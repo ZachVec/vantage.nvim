@@ -184,29 +184,39 @@ job, `destroy` stops the job and deletes the buffer, and a `TermClose` autocmd
 does the same whenever the client exits. One Terminal per Neovim instance.
 
 **Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
-Commands call `Picker.pick(spec, opts)`, `Picker.pick_multi(spec, opts)`, or
-`Picker.pick_plain(...)`; `get()` is internal. A picker declares exactly three
-capabilities:
+Commands call `Picker.pick_fancy(spec, opts)` or `Picker.pick_naive(...)`;
+`get()` is internal. A picker declares one capability: `command` — it can bind
+the flow's picker commands. A pick beside its prompt states `many` (how many
+entries the flow acts on) and `preview` (the standard preview function, when it
+wants a preview pane); neither needs a capability declaration, because an
+implementation that cannot confirm several or render a pane simply degrades —
+`native` drains the stream and shows one choice, and shows no pane.
 
-- `preview` — it can render an Entry's `preview`.
-- `command` — it can bind the flow's picker commands.
-- `multi` — it can confirm several entries at once.
+`spec.items` is the pick's item stream, written by the flow: `emit(chunk)`
+appends entries as they are produced, `done()` ends the run, and the optional
+return stops a run the picker outlived. An implementation starts it once per
+engine run — the opening run, and a fresh run whenever a command reports that
+the list may have changed — so a pick can show entries while the flow is still
+producing them, while an engine with no stream surface waits for the run to end
+and picks from the final list.
 
 What a pick offers is a list of Entries — the shared type is
 `vantage.picker.Entry` in `frontend/picker/init.lua`, and the vocabulary that
 builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.group`,
 `.file`, `.buffer`, `.review`). An Entry carries `text` (the line the
-implementation renders), `kind` (the flow's own name for it), `preview`
-(computed only for the highlighted Entry), and whatever fields the flow put
-there. Each builder binds the preview for its kind — one module-level function
-per kind, so an Entry never allocates a closure. Implementations read `text`
-and call `preview`; they never write to an Entry, and the flow — not the Entry
-— decides what choosing one means.
+implementation renders), `kind` (the flow's own name for it), and whatever
+fields the flow put there — plain data with no preview of its own. A flow asks
+for a preview pane by handing `spec.preview` the one preview function the
+entries module owns (`Entries.preview`), which answers the highlighted Entry's
+lines by kind: nil for a kind with nothing to show, which keeps the pane and
+leaves it empty. Implementations read `text` and call `spec.preview`; they
+never write to an Entry, and the flow — not the Entry — decides what choosing
+one means.
 
-A picker without `multi` renders a multi-selection request as a single choice,
-so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
-optional `commands`; `PickMultiOpts` carries `on_choices`. An implementation
-owns what its own close does: it leaves the window the pick was invoked from
+`on_choices` is the one selection callback and always receives at least one
+entry: a picker that cannot confirm several answers with a one-element list, so
+a flow that acts on a single entry reads `entries[1]`. An implementation owns
+what its own close does: it leaves the window the pick was invoked from
 current, with that window's mode intact, and compensates for its own teardown
 whenever its engine loses either — so no flow restores a window or a mode, and
 no flow passes a close callback. `native` delegates that, like everything
@@ -214,22 +224,18 @@ else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
 mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
 fzf-lua's own `set_current_win(src_winid)` on the other).
 
-A pick answers with `empty, err`. `empty` says that no pick opened — the entry
-list held nothing, or its opening read failed — and `err` is that failure's
-reason, so a flow reports one of the two without a side channel.
-`items_provider` always answers with a list; on failure the list is empty and
-the reason rides the second value. Only the read that decides whether a pick
-opens carries that reason back to the flow: a re-read triggered by a Picker
-command answers with an empty list, which closes the picker.
+A pick that has nothing to show opens empty and stays open until the user
+cancels it: the "no agents" / "nothing to kill" warnings went with the design
+that read the list before opening. A read that fails is the flow's own to
+report, from inside its stream.
 
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
-`true` when the item list may have changed. A true result re-reads
-`items_provider` and refreshes (or closes on an empty result, a failed read
-included). Commands are
-global to the picker UI; the facade rejects duplicate `lhs` values and drops
-commands for a picker without the `command` capability. Group scoping is an
-ordinary command, not a Picker concept.
+`true` when the item list may have changed; a true result starts a fresh item
+stream and refreshes the picker. Commands are global to the picker UI; the
+facade rejects duplicate `lhs` values and drops commands for a picker without
+the `command` capability. Group scoping is an ordinary command, not a Picker
+concept.
 
 ## Flows and the command surface
 

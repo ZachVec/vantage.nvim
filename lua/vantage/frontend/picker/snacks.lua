@@ -1,5 +1,5 @@
 --- snacks picker implementation. Drives snacks.picker directly; an entry's
---- `text` is what snack matches on and renders, and its preview title comes
+--- `text` is what snacks matches on and renders, and its preview title comes
 --- from the same field. `confirm` receives the original entry and must close
 --- the picker itself.
 local M = {}
@@ -22,28 +22,18 @@ local NO_PREVIEW_LINENR = { number = false, relativenumber = false }
 ---@field item any
 ---@field preview vantage.SnacksPreviewPane
 
-local function pick(opts)
-  return require("snacks.picker").pick(opts)
-end
+---@class vantage.SnacksPickerTask The slice of snacks' async task surface Vantage drives.
+---@field resume fun(self: vantage.SnacksPickerTask)
+---@field suspend fun(self: vantage.SnacksPickerTask)
+---@field on fun(self: vantage.SnacksPickerTask, event: string, cb: fun())
 
---- Preview the current entry's content (pane lines or rendered review) through
---- the entry's `preview()`; nil means "nothing to preview".
----@return fun(ctx: vantage.SnacksPreviewCtx)
-local function preview()
-  return function(ctx)
-    local item = ctx.item
-    ctx.preview:reset()
-    if not item then
-      return
-    end
-    local lines = item:preview()
-    if not lines then
-      return
-    end
-    ctx.preview:set_title(item.text)
-    ctx.preview:set_lines(lines)
-  end
-end
+---@class vantage.SnacksPicker The slice of the snacks picker surface Vantage drives.
+---@field close fun(self: vantage.SnacksPicker)
+---@field refresh fun(self: vantage.SnacksPicker)
+---@field selected fun(self: vantage.SnacksPicker, opts: { fallback?: boolean }): any[]
+
+---@class vantage.SnacksFinderCtx
+---@field async vantage.SnacksPickerTask
 
 --- The terminal window the pick opens from, when the current window is the
 --- vantage terminal (runtime fact; there is no caller-declared flag).
@@ -80,9 +70,7 @@ end
 
 ---@type vantage.PickerCapabilities
 M.capabilities = {
-  preview = true,
   command = true,
-  multi = true,
 }
 
 --- The engine's own `on_close`: re-enter the terminal the pick opened from.
@@ -97,34 +85,71 @@ local function close_handler(terminal_win)
   end
 end
 
---- Render a preview-capable pick and bind the flow's neutral commands to both
---- the snacks input and list surfaces.
+--- Render a streaming pick: snacks calls the finder once per run, and each
+--- emitted batch becomes finder items. A source that ended within the finder
+--- call is a static list; a still-running one is drained from inside snacks'
+--- own async task — the queue plus suspend/resume shape snacks' own
+--- `source/proc.lua` uses, so `cb` is never called from a libuv callback.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
----@return boolean empty
----@return string? err
-function M.pick(spec, opts)
+function M.pick_fancy(spec, opts)
   local terminal_win = terminal_window()
+  local items, queue = {}, {}
+  local finished = false
+  local task ---@type vantage.SnacksPickerTask?
+  local cancel ---@type fun()?
 
-  local function read()
-    return spec.items_provider()
-  end
-
-  local list, err = read()
-  if #list == 0 then
-    return true, err
-  end
-
-  local function refresh(picker, reread)
-    if reread then
-      -- A re-read that fails answers with an empty list: the picker closes, and
-      -- the opening read's reason is already on its way back.
-      list = read()
+  --- Start a fresh run. True when the flow's source finished within the call.
+  ---@return boolean
+  local function start()
+    if cancel then
+      cancel()
+      cancel = nil
     end
-    if #list == 0 then
-      picker:close()
-    else
-      picker:refresh()
+    items, queue, finished = {}, {}, false
+    cancel = spec.items(function(chunk)
+      vim.list_extend(items, chunk)
+      vim.list_extend(queue, chunk)
+      if task then
+        task:resume()
+      end
+    end, function()
+      finished = true
+      if task then
+        task:resume()
+      end
+    end)
+    return finished
+  end
+
+  ---@param _ table
+  ---@param ctx vantage.SnacksFinderCtx
+  ---@return any
+  local function finder(_, ctx)
+    if start() then
+      return items
+    end
+    return function(cb)
+      task = ctx.async
+      ctx.async:on("abort", function()
+        if cancel then
+          cancel()
+          cancel = nil
+        end
+        finished, queue = true, {}
+      end)
+      while not finished or #queue > 0 do
+        if #queue == 0 then
+          ctx.async:suspend()
+        else
+          local chunk = queue
+          queue = {}
+          for _, entry in ipairs(chunk) do
+            cb(entry)
+          end
+        end
+      end
+      task = nil
     end
   end
 
@@ -132,94 +157,77 @@ function M.pick(spec, opts)
     format = function(item)
       return { { item.text, "" } }
     end,
-    preview = preview(),
     on_close = close_handler(terminal_win),
     confirm = function(picker, item)
       picker:close()
-      if item then
-        vim.schedule(function()
-          opts.on_choice(item)
-        end)
-      end
-    end,
-    finder = function()
-      return list
-    end,
-  }
-
-  local actions = {}
-  local win = { preview = { wo = NO_PREVIEW_LINENR } }
-  for index, command in ipairs(opts.commands or {}) do
-    local action = ("vantage_command_%d"):format(index)
-    actions[action] = function(picker, item)
-      local changed = command[2]({
-        item = item,
-        items = list,
-      })
-      if changed then
-        refresh(picker, true)
-      end
-    end
-    win.input = win.input or { keys = {} }
-    win.list = win.list or { keys = {} }
-    win.input.keys[command[1]] = { action, mode = { "i", "n" } }
-    win.list.keys[command[1]] = action
-  end
-  if next(actions) ~= nil then
-    pick_opts.actions = actions
-  end
-
-  pick_opts.win = win
-
-  pick(pick_opts)
-  return false, nil
-end
-
---- Render a multi-selection pick: entries are marked in the list (`<Tab>` by
---- default) and Enter confirms every marked entry, falling back to the entry
---- under the cursor when nothing is marked.
----@param spec vantage.PickSpec
----@param opts vantage.PickMultiOpts
----@return boolean empty
----@return string? err
-function M.pick_multi(spec, opts)
-  local terminal_win = terminal_window()
-  local items, err = spec.items_provider()
-  if #items == 0 then
-    return true, err
-  end
-
-  pick({
-    format = function(item)
-      return { { item.text, "" } }
-    end,
-    preview = preview(),
-    on_close = close_handler(terminal_win),
-    confirm = function(picker)
-      -- `selected` returns copies of the entries; an entry is plain data, so
-      -- the flow-owned fields survive the copy.
-      local chosen = picker:selected({ fallback = true })
-      picker:close()
+      local chosen = spec.many and picker:selected({ fallback = true }) or (item and { item } or {})
       if #chosen > 0 then
         vim.schedule(function()
           opts.on_choices(chosen)
         end)
       end
     end,
-    finder = function()
-      return items
-    end,
+    finder = finder,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
-  })
-  return false, nil
+  }
+
+  local actions = {}
+  for index, command in ipairs(opts.commands or {}) do
+    local action = ("vantage_command_%d"):format(index)
+    actions[action] = function(picker, item)
+      local changed = command[2]({
+        item = item,
+        items = items,
+      })
+      if changed then
+        -- The refresh re-enters the finder, which cancels this run and starts
+        -- a fresh one.
+        picker:refresh()
+      end
+    end
+    pick_opts.win.input = pick_opts.win.input or { keys = {} }
+    pick_opts.win.list = pick_opts.win.list or { keys = {} }
+    pick_opts.win.input.keys[command[1]] = { action, mode = { "i", "n" } }
+    pick_opts.win.list.keys[command[1]] = action
+  end
+  if next(actions) ~= nil then
+    pick_opts.actions = actions
+  end
+
+  if spec.preview then
+    --- Preview the highlighted entry through the pick's own preview function;
+    --- nil means "nothing to preview", so the pane stays, empty.
+    ---@type fun(entry: vantage.picker.Entry): string[]?
+    local preview = spec.preview
+    ---@type fun(ctx: vantage.SnacksPreviewCtx)
+    pick_opts.preview = function(ctx)
+      local item = ctx.item
+      ctx.preview:reset()
+      if not item then
+        return
+      end
+      local lines = preview(item)
+      if not lines then
+        return
+      end
+      ctx.preview:set_title(item.text)
+      ctx.preview:set_lines(lines)
+    end
+  else
+    -- No pane at all: snacks hides the layout's preview window.
+    pick_opts.layout = { preview = false }
+    pick_opts.win.preview = nil
+  end
+
+  require("snacks.picker").pick(pick_opts)
 end
 
 --- Pick from a plain list (no preview) on this engine: snacks' own select
 --- implementation (its compact select layout, preview hidden, non-terminal).
 ---@param items any[]
----@param opts vantage.PlainSelectOpts
+---@param opts vantage.NaiveOpts
 ---@param on_choice fun(item: any?, index?: integer)
-function M.pick_plain(items, opts, on_choice)
+function M.pick_naive(items, opts, on_choice)
   local terminal_win = terminal_window()
   require("snacks.picker").select(items, {
     prompt = opts.prompt,

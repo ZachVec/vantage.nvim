@@ -1,10 +1,10 @@
 --- The Picker's entries: one vocabulary for everything a flow can offer a
---- pick. An entry is the text the implementation renders, the flow's own name
---- for it, the fields the flow carries, and the preview — the one
---- lazily-computed part: implementations call it only for the highlighted
---- entry, so a pane capture or a file read happens per highlight, never per
---- entry. Each builder binds the preview for its kind; the functions are
---- module-level, so no entry carries a closure of its own.
+--- pick. An entry is plain data — the text the implementation renders, the
+--- flow's own name for it, and the fields the flow carries. Preview content is
+--- this module's other half: `M.preview` is the one preview function, keyed by
+--- the entry's kind, and a flow asks for a preview pane by handing it to the
+--- Picker. Implementations call it only for the highlighted entry, so a pane
+--- capture or a file read happens per highlight, never per entry.
 local Backend = require("vantage.backend")
 local Review = require("vantage.frontend.review")
 local Util = require("vantage.util")
@@ -97,6 +97,29 @@ local function review_preview(entry)
   return vim.split(Review.render_item(entry.review, entry.cwd, entry.tool), "\n")
 end
 
+--- The preview for a highlighted entry, keyed by its kind. This is the one
+--- preview vocabulary: a pick opts in by passing it as `spec.preview`, and an
+--- entry whose kind has nothing to show previews empty.
+---@type table<string, fun(entry: any): string[]?>
+local PREVIEW = {
+  focused = agent_preview,
+  agent = agent_preview,
+  tool = none,
+  group = none,
+  file = file_preview,
+  buffer = buffer_preview,
+  review = review_preview,
+}
+
+--- Preview lines for the highlighted entry, or nil when its kind has nothing
+--- to show. A pick that wants a preview pane hands this function to the
+--- Picker; one that does not, leaves `spec.preview` out.
+---@param entry vantage.picker.Entry
+---@return string[]?
+function M.preview(entry)
+  return (PREVIEW[entry.kind] or none)(entry)
+end
+
 --- An Agent entry. The pinned Focus entry carries `kind = "focused"`.
 ---@param agent vantage.Agent
 ---@param focused? boolean this entry is the pinned Focus
@@ -107,7 +130,6 @@ function M.agent(agent, focused)
     kind = focused and "focused" or "agent",
     text = focused and (text .. " (focused)") or text,
     agent = agent,
-    preview = agent_preview,
   }
 end
 
@@ -115,14 +137,14 @@ end
 ---@param name string
 ---@return vantage.picker.ToolEntry
 function M.tool(name)
-  return { kind = "tool", text = TOOL_ICON .. name, name = name, preview = none }
+  return { kind = "tool", text = TOOL_ICON .. name, name = name }
 end
 
 --- A Group entry.
 ---@param group string
 ---@return vantage.picker.GroupEntry
 function M.group(group)
-  return { kind = "group", text = ("group %s"):format(group), group = group, preview = none }
+  return { kind = "group", text = ("group %s"):format(group), group = group }
 end
 
 --- A file entry: the reference source is the absolute path.
@@ -130,7 +152,7 @@ end
 ---@param cwd string relativization base (the focused Agent's cwd)
 ---@return vantage.picker.FileEntry
 function M.file(path, cwd)
-  return { kind = "file", text = Util.relpath(cwd, path), path = path, preview = file_preview }
+  return { kind = "file", text = Util.relpath(cwd, path), path = path }
 end
 
 --- A buffer entry. A modified buffer's on-disk content is stale; the marker
@@ -147,7 +169,6 @@ function M.buffer(buf, path, cwd, modified)
     text = modified and (name .. " [+]") or name,
     buf = buf,
     path = path,
-    preview = buffer_preview,
   }
 end
 
@@ -175,7 +196,6 @@ function M.review(review, cwd, tool)
     review = review,
     cwd = cwd,
     tool = tool,
-    preview = review_preview,
   }
 end
 

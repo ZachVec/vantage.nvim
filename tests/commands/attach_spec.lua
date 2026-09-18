@@ -5,6 +5,7 @@ local Helpers = require("helpers")
 describe("vantage.commands.attach", function()
   local Config
   local Attach
+  local Entries
   local backend
   local picker
   local terminal
@@ -69,7 +70,7 @@ describe("vantage.commands.attach", function()
       Attach.toggle()
     end
     assert.is_not_nil(captured_spec)
-    return captured_spec.items_provider()
+    return Helpers.entries(captured_spec)
   end
 
   setup(function()
@@ -130,23 +131,19 @@ describe("vantage.commands.attach", function()
 
     picker = {}
     function picker.capabilities()
-      return { preview = true, command = command_capable }
+      return { command = command_capable }
     end
-    function picker.pick(spec, opts)
-      captured_spec = spec
-      captured_opts = opts
-      -- Answer the way an implementation does: the opening read carries the
-      -- reason when the list could not be read.
-      local items, err = spec.items_provider()
+    function picker.pick_fancy(spec, opts)
+      captured_spec, captured_opts = spec, opts
       if picker.auto_select then
         local index = picker.auto_select == true and 1 or picker.auto_select
+        local items = Helpers.entries(spec)
         if items[index] then
-          opts.on_choice(items[index])
+          opts.on_choices({ items[index] })
         end
       end
-      return #items == 0, err
     end
-    function picker.pick_plain(_, _, on_choice)
+    function picker.pick_naive(_, _, on_choice)
       on_choice(picker.plain_choice)
     end
 
@@ -172,6 +169,7 @@ describe("vantage.commands.attach", function()
       end,
     }
     Attach = require("vantage.commands.attach")
+    Entries = require("vantage.frontend.entries")
   end)
 
   teardown(function()
@@ -247,8 +245,8 @@ describe("vantage.commands.attach", function()
     local items = items_for(nil)
     local entries = agent_entries(items)
 
-    assert.are.same({ "line" }, entries[1]:preview())
-    assert.are.equal(nil, items[#items]:preview())
+    assert.are.same({ "line" }, Entries.preview(entries[1]))
+    assert.are.equal(nil, Entries.preview(items[#items]))
     assert.are.same({ "@1" }, backend.captured)
   end)
 
@@ -320,7 +318,7 @@ describe("vantage.commands.attach", function()
     assert.are.equal(77, actions.applied)
   end)
 
-  it("warns the read's reason instead of the empty list message", function()
+  it("warns the read's reason from its own source", function()
     local notified = {}
     local original_notify = vim.notify
     vim.notify = function(msg)
@@ -331,8 +329,10 @@ describe("vantage.commands.attach", function()
     end
 
     Attach.toggle()
+    local items = Helpers.entries(captured_spec)
     vim.notify = original_notify
 
+    assert.are.same({}, items)
     assert.are.same({ "vantage: no server running" }, notified)
   end)
 end)

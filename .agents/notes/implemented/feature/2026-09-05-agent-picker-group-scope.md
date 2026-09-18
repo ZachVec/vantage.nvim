@@ -25,7 +25,7 @@ command:
 }
 ```
 
-The flow's `items_provider` reads the live inventory and Focus on every refresh and
+The flow's item stream reads the live inventory and Focus on every run and
 applies the filter when `state.group_on` is true. Tool entries always remain
 visible; with no focused Agent, the whole list shows. Because the scope is a
 normal `command`, a renderer without the `command` capability simply omits
@@ -55,7 +55,12 @@ in-place delete.
 
 - fzf-lua and snacks support the scope command; native shows the full list.
 - `<C-g>` is no longer a Picker concept, only an Agent-picker command.
-- Deleting the last visible entry and changing scope both re-read
-  `items_provider`; an empty result closes the picker.
+- Deleting the last visible entry and changing scope both re-read the flow's
+  item stream; a run that produces nothing leaves the picker open and empty.
 - The current Picker command contract is owned by
   [composition-root-and-neutral-seams](../architecture/2026-09-10-composition-root-and-neutral-seams.md).
+
+The picker contract this command rides on is current as of
+[picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md):
+`command` is the one declared capability, which is why the Agent picker still
+asks for it before choosing its default scope.

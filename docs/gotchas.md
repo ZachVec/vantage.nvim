@@ -72,6 +72,19 @@ A function contents is invoked as `contents(on_write_nl, on_write, ...)`. The
 once per item, then call it with `nil` to signal end-of-input. Passing a whole
 table to the first callback renders `table: 0x…`.
 
+The write lands in a pipe that stays open until the `nil` call, so the callback
+may be invoked **after** the contents function returned (from a libuv callback,
+say): a pick can push entries as a process produces them. Vantage's adapter
+relies on that, and ends the input with `nil` when the flow's stream is done.
+
+### No preview function means no preview pane
+
+`fzf_exec` hides the pane when `opts.preview` is nil and no explicit `--preview`
+is set: it writes `--preview-window=hidden:right:0`, which also overrides a
+preview in `$FZF_DEFAULT_OPTS`. So omitting the option is how a pick has no
+preview pane, while a preview function that returns nothing keeps the pane
+empty.
+
 ### Native in-place refresh (reload)
 
 To update the list without close/reopen — close/reopen flickers because fzf is
@@ -189,6 +202,20 @@ it depends on the implementation's close handler above.
 The finder is `fun(opts, ctx)` returning either an `Item[]` table or an async
 `fun(cb)`; it is **not** `fun(cb)` directly. The simplest form just returns the
 items table.
+
+The async form runs inside snacks' own task, and its `cb` drives that task's
+coroutine, so it must not be called straight from a libuv callback. Queue what
+arrives, resume the task, and call `cb` from inside the task's own loop — the
+shape `snacks.picker.source.proc` uses. Vantage's adapter does exactly that for
+a flow's stream that outlives the finder call; a stream that ended within the
+call is returned as the static items table.
+
+### No preview function means an empty pane, not no pane
+
+snacks' layout carries a preview window whether or not a `preview` function is
+given, and a nil one leaves it empty. To have no pane at all, pass
+`layout = { preview = false }`, which snacks moves into `layout.hidden`.
+Vantage's adapter does that when the flow did not ask for a preview.
 
 ### Native in-place refresh
 

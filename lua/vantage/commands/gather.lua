@@ -123,11 +123,13 @@ local function run(source)
     Util.warn(err or "no focused agent")
     return
   end
-  local items = SOURCES[source].items(agent.cwd)
-  local empty = Picker.pick_multi({
+  Picker.pick_fancy({
     prompt = SOURCES[source].prompt,
-    items_provider = function()
-      return items
+    many = true,
+    preview = Entries.preview,
+    items = function(emit, done)
+      emit(SOURCES[source].items(agent.cwd))
+      done()
     end,
   }, {
     on_choices = function(chosen)
@@ -152,9 +154,6 @@ local function run(source)
       end
     end,
   })
-  if empty then
-    Util.warn(("no %s"):format(source))
-  end
 end
 
 --- Choose files and send their references to the focused Agent.

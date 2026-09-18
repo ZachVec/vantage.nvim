@@ -1,7 +1,10 @@
 --- fzf-lua picker implementation. Drives fzf-lua's native `fzf_exec`; because
 --- fzf-lua returns display strings rather than the original objects, each
 --- emitted line carries a numeric prefix that round-trips the entry index —
---- the same scheme fzf-lua's own ui_select shim uses.
+--- the same scheme fzf-lua's own ui_select shim uses. The pick's item stream is
+--- pushed into fzf's stdin as it arrives: fzf-lua's function contents writes
+--- one line per `on_write_nl` call and takes nil as end of input, over a pipe
+--- that stays open until then (see docs/gotchas.md).
 local M = {}
 
 ---@type string
@@ -13,15 +16,8 @@ end
 
 --- "1. text" lines; the prefix encodes the 1-based index so a returned display
 --- string maps back to its entry. Emitted one per callback, matching fzf-lua's
---- function-contents contract (see docs/gotchas.md).
----@param items vantage.picker.Entry[]
----@param cb fun(line?: string)
-local function emit(items, cb)
-  for i, item in ipairs(items) do
-    cb(("%d. %s"):format(i, item.text))
-  end
-  cb(nil)
-end
+--- function-contents contract.
+local PREFIX = "%d. %s"
 
 --- The numeric prefix exists only to round-trip a line back to its entry; hide
 --- it from the list with `--with-nth`, the way fzf-lua's own providers do. fzf
@@ -36,21 +32,6 @@ local PREFIX_HIDDEN = { ["--with-nth"] = "2.." }
 ---@return integer?
 local function index_of(entry)
   return tonumber(entry:match("^%s*(%d+)%."))
-end
-
---- Map fzf's returned display strings back to their entries, in returned order.
----@param items vantage.picker.Entry[]
----@param selected string[]?
----@return vantage.picker.Entry[]
-local function items_of(items, selected)
-  local out = {}
-  for _, entry in ipairs(selected or {}) do
-    local item = items[index_of(entry) or 0]
-    if item then
-      out[#out + 1] = item
-    end
-  end
-  return out
 end
 
 --- Translate a Neovim key notation into fzf's action name.
@@ -84,39 +65,70 @@ end
 
 ---@type vantage.PickerCapabilities
 M.capabilities = {
-  preview = true,
   command = true,
-  multi = true,
 }
 
---- Open an fzf_exec picker over `spec` with a live item list and the flow's
---- neutral picker commands.
+--- Render a pick through fzf_exec. The flow's source is started once per fzf
+--- run: the opening run, and a fresh run whenever a command reported that the
+--- list may have changed (fzf's `reload` binding re-enters the contents
+--- function). A reload that changed nothing re-emits the snapshot instead.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
----@return boolean empty
----@return string? err
-function M.pick(spec, opts)
-  local items, err = spec.items_provider()
-  if #items == 0 then
-    return true, err
-  end
-  local state = { items = items }
+function M.pick_fancy(spec, opts)
+  local items = {}
+  local cancel ---@type fun()?
+  -- Start a fresh run on the next contents call: true for the opening run, and
+  -- again whenever a command returned true.
+  local rerun = true
 
-  local function content(cb)
-    emit(state.items, cb)
+  --- Map fzf's returned display strings back to their entries, in returned
+  --- order.
+  ---@param selected string[]?
+  ---@return vantage.picker.Entry[]
+  local function chosen_of(selected)
+    local out = {}
+    for _, line in ipairs(selected or {}) do
+      local entry = items[index_of(line) or 0]
+      if entry then
+        out[#out + 1] = entry
+      end
+    end
+    return out
   end
 
-  local function item_of(selected)
-    return items_of(state.items, selected)[1]
+  --- Write one prefixed line per entry, and nil as end of input.
+  ---@param write fun(line: string?)
+  local function content(write)
+    if cancel then
+      cancel()
+      cancel = nil
+    end
+    if rerun then
+      rerun = false
+      items = {}
+      cancel = spec.items(function(chunk)
+        for _, entry in ipairs(chunk) do
+          items[#items + 1] = entry
+          write(PREFIX:format(#items, entry.text))
+        end
+      end, function()
+        write(nil)
+      end)
+      return
+    end
+    for index, entry in ipairs(items) do
+      write(PREFIX:format(index, entry.text))
+    end
+    write(nil)
   end
 
   ---@type table<string, any>
   local actions = {
     ["default"] = function(selected)
-      local item = item_of(selected)
-      if item then
+      local chosen = chosen_of(selected)
+      if #chosen > 0 then
         vim.schedule(function()
-          opts.on_choice(item)
+          opts.on_choices(chosen)
         end)
       end
     end,
@@ -125,90 +137,59 @@ function M.pick(spec, opts)
     actions[fzf_key(command[1])] = {
       fn = function(selected)
         local changed = command[2]({
-          item = item_of(selected),
-          items = state.items,
+          item = chosen_of(selected)[1],
+          items = items,
         })
         if changed then
-          -- A re-read that fails answers with an empty list: the picker exits,
-          -- and the opening read's reason is already on its way back.
-          state.items = spec.items_provider()
-          if #state.items == 0 then
-            fzf().utils.fzf_exit()
-          end
+          rerun = true
         end
       end,
       reload = true,
     }
   end
 
-  fzf().fzf_exec(content, {
-    prompt = spec.prompt,
-    fzf_opts = PREFIX_HIDDEN,
-    actions = actions,
-    preview = function(selected)
-      local item = item_of(selected)
-      if not item then
-        return ""
-      end
-      local lines = item:preview()
-      if not lines then
-        return ""
-      end
-      return table.concat(lines, "\n")
-    end,
-  })
-  return false, nil
-end
-
---- Open an fzf picker with `--multi`: tab marks entries and Enter confirms the
---- marked set (fzf returns the entry under the cursor when nothing is marked).
----@param spec vantage.PickSpec
----@param opts vantage.PickMultiOpts
----@return boolean empty
----@return string? err
-function M.pick_multi(spec, opts)
-  local items, err = spec.items_provider()
-  if #items == 0 then
-    return true, err
+  local fzf_opts = vim.tbl_extend("force", {}, PREFIX_HIDDEN)
+  if spec.many then
+    fzf_opts["--multi"] = true
   end
 
-  fzf().fzf_exec(function(cb)
-    emit(items, cb)
-  end, {
+  local pick_opts = {
     prompt = spec.prompt,
-    fzf_opts = vim.tbl_extend("force", { ["--multi"] = true }, PREFIX_HIDDEN),
-    actions = {
-      ["default"] = function(selected)
-        local chosen = items_of(items, selected)
-        if #chosen > 0 then
-          vim.schedule(function()
-            opts.on_choices(chosen)
-          end)
+    fzf_opts = fzf_opts,
+    actions = actions,
+    winopts = {
+      on_close = function()
+        if cancel then
+          cancel()
+          cancel = nil
         end
       end,
     },
-    preview = function(selected)
-      local item = items_of(items, selected)[1]
-      if not item then
+  }
+  if spec.preview then
+    pick_opts.preview = function(selected)
+      local entry = chosen_of(selected)[1]
+      if not entry or not spec.preview then
         return ""
       end
-      local lines = item:preview()
+      local lines = spec.preview(entry)
       if not lines then
         return ""
       end
       return table.concat(lines, "\n")
-    end,
-  })
-  return false, nil
+    end
+  end
+
+  fzf().fzf_exec(content, pick_opts)
 end
 
 --- Pick from a plain list (no preview) on this engine: fzf-lua's own
 --- ui_select implementation — the same function fzf-lua registers as a global
 --- `vim.ui.select` override.
 ---@param items any[]
----@param opts vantage.PlainSelectOpts
+---@param opts vantage.NaiveOpts
 ---@param on_choice fun(item: any?, index?: integer)
-function M.pick_plain(items, opts, on_choice)
+function M.pick_naive(items, opts, on_choice)
   require("fzf-lua.providers.ui_select").ui_select(items, {
     prompt = opts.prompt,
     format_item = opts.format_item,

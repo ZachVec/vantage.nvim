@@ -4,6 +4,7 @@ local Helpers = require("helpers")
 
 describe("vantage.commands.gather", function()
   local Config
+  local Entries
   local Gather
   local backend
   local picker
@@ -22,11 +23,11 @@ describe("vantage.commands.gather", function()
     return path
   end
 
-  --- Run a flow without choosing rows and return the spec's items plus the
-  --- multi-pick options the flow passed to the Picker.
+  --- Run a flow without choosing rows and return the entries its source
+  --- produces, plus the options the flow passed to the Picker.
   ---@param source "files"|"buffers"
-  ---@return vantage.GatherItem[]
-  ---@return vantage.PickMultiOpts
+  ---@return vantage.picker.Entry[]
+  ---@return vantage.PickOpts
   local function run(source)
     pick_spec = nil
     pick_opts = nil
@@ -36,7 +37,7 @@ describe("vantage.commands.gather", function()
       Gather.buffers()
     end
     assert.is_not_nil(pick_spec)
-    return pick_spec.items_provider(), pick_opts
+    return Helpers.entries(pick_spec), pick_opts
   end
 
   --- A listed, on-disk buffer that starts out unmodified.
@@ -78,13 +79,8 @@ describe("vantage.commands.gather", function()
     end
 
     picker = {}
-    function picker.pick_multi(spec, opts)
-      pick_spec = spec
-      pick_opts = opts
-      return picker.empty_result == true
-    end
-    function picker.capabilities()
-      return { preview = true, command = true, multi = true }
+    function picker.pick_fancy(spec, opts)
+      pick_spec, pick_opts = spec, opts
     end
 
     package.loaded["vantage.backend"] = backend
@@ -96,6 +92,7 @@ describe("vantage.commands.gather", function()
       end,
     }
     Gather = require("vantage.commands.gather")
+    Entries = require("vantage.frontend.entries")
   end)
 
   teardown(function()
@@ -108,7 +105,6 @@ describe("vantage.commands.gather", function()
     backend.sent = {}
     pick_spec = nil
     pick_opts = nil
-    picker.empty_result = false
     Config.options.cli.tools = {}
     Config.options.gather.join = "\n"
     tmp = vim.fn.tempname()
@@ -132,7 +128,7 @@ describe("vantage.commands.gather", function()
     assert.are.equal(2, #items)
     assert.are.equal("a.lua", items[1].text)
     assert.are.equal("sub/b.lua", items[2].text)
-    assert.are.same({ "a" }, items[1]:preview())
+    assert.are.same({ "a" }, Entries.preview(items[1]))
   end)
 
   it("falls back to a Lua walk when no lister is available", function()
@@ -162,7 +158,7 @@ describe("vantage.commands.gather", function()
     assert.are.equal(2, #items)
     assert.are.equal("a.lua", items[1].text)
     assert.are.equal("b.lua [+]", items[2].text)
-    assert.are.same({ "b", "b2" }, items[2]:preview())
+    assert.are.same({ "b", "b2" }, Entries.preview(items[2]))
   end)
 
   it("skips unnamed, unlisted, and off-disk buffers", function()
@@ -237,11 +233,10 @@ describe("vantage.commands.gather", function()
     assert.is_true(notified[1]:find("no focused agent", 1, true) ~= nil)
   end)
 
-  it("warns when a source has no candidates", function()
-    picker.empty_result = true
+  it("opens the picker with nothing when a source has no candidates", function()
+    local items = run("buffers")
 
-    Gather.buffers()
-
-    assert.is_true(notified[1]:find("no buffers", 1, true) ~= nil)
+    assert.are.equal(0, #items)
+    assert.are.same({}, notified)
   end)
 end)

@@ -163,7 +163,7 @@ function M.run()
     end
   end
   table.sort(names)
-  Picker.pick_plain(names, { prompt = "Prompt: " }, function(name)
+  Picker.pick_naive(names, { prompt = "Prompt: " }, function(name)
     if name then
       send_prompt(name)
     end

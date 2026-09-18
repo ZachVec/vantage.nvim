@@ -85,3 +85,10 @@ fact the return already delivers.
   `picker_snacks_spec.lua` each pin an engine answering `empty` with the read's
   reason; `tests/commands/attach_spec.lua` and `tests/commands/kill_spec.lua`
   pin the flows warning the reason instead of their empty-list message.
+
+Superseded by [picker-two-interfaces](2026-09-18-picker-two-interfaces.md): a
+pick no longer answers `empty, err`. It renders its stream and opens empty when
+nothing arrives, and the flow reports a failed read from inside its own source.
+The gap this note records — a read that fails after the picker opened has no
+channel back to the flow — is unchanged, and so is the condition for adding a
+close-time channel back.

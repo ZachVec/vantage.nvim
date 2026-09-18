@@ -9,16 +9,19 @@ local M = {}
 
 local PROMPT = Util.picker_prompt
 
---- Agents (creation order) then Groups (by name), or an empty list plus the
---- Driver's reason when the inventory could not be read.
+--- Agents (creation order) then Groups (by name), or nothing plus the Driver's
+--- reason when the inventory could not be read.
 ---@return vantage.PickSpec
 local function spec()
   return {
     prompt = PROMPT,
-    items_provider = function()
+    many = true,
+    preview = Entries.preview,
+    items = function(emit, done)
       local inventory, err = Backend.inventory()
       if inventory == nil then
-        return {}, err
+        Util.warn(err or "failed to read agents")
+        return done()
       end
       local agents = inventory.agents
       -- The inventory derives Groups in the Agents' order, which is what the
@@ -40,7 +43,8 @@ local function spec()
           end)
           :totable()
       )
-      return items
+      emit(items)
+      done()
     end,
   }
 end
@@ -59,19 +63,16 @@ local function kill(entry)
 end
 
 function M.run()
-  local empty, err = Picker.pick(spec(), {
-    on_choice = function(entry)
-      local ok, kill_err = kill(entry)
-      if not ok then
-        Util.warn(kill_err or "failed to kill")
+  Picker.pick_fancy(spec(), {
+    on_choices = function(entries)
+      for _, entry in ipairs(entries) do
+        local ok, kill_err = kill(entry)
+        if not ok then
+          Util.warn(kill_err or "failed to kill")
+        end
       end
     end,
   })
-  if err then
-    Util.warn(err)
-  elseif empty then
-    Util.warn("nothing to kill")
-  end
 end
 
 return M

@@ -58,13 +58,7 @@ function M.check()
     err(tostring(capabilities))
     return
   end
-  ok(
-    ("picker: %s (preview=%s, command=%s)"):format(
-      picker,
-      capabilities.preview and "yes" or "no",
-      capabilities.command and "yes" or "no"
-    )
-  )
+  ok(("picker: %s (command=%s)"):format(picker, capabilities.command and "yes" or "no"))
 
   check_tools()
 end

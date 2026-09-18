@@ -97,6 +97,10 @@ or `nil, err`.
 - `:checkhealth vantage` reports the configured picker's `preview`/`command`
   capabilities and reports an initialization failure instead of replaying
   setup.
+- The picker facade's methods and its capability table are current as of
+  [picker-two-interfaces](2026-09-18-picker-two-interfaces.md):
+  `pick_fancy`/`pick_naive`, and `command` as the one capability
+  (`:checkhealth` now reports `command` alone).
 - Invalid backend/picker configuration now raises during `setup()`; user docs
   state that there is no fallback.
 - `frontend/review.lua` remains editor-local state in the Frontend; the

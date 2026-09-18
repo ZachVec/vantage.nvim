@@ -26,7 +26,7 @@ describe("vantage.commands.review", function()
     captured_spec = nil
     ReviewCmd.run("list", 1, 1)
     assert.is_not_nil(captured_spec)
-    return captured_spec.items_provider()
+    return Helpers.entries(captured_spec)
   end
 
   setup(function()
@@ -43,9 +43,8 @@ describe("vantage.commands.review", function()
     end
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = {
-      pick = function(spec)
+      pick_fancy = function(spec)
         captured_spec = spec
-        return false, nil
       end,
     }
     package.loaded["vantage.frontend.terminal"] = {

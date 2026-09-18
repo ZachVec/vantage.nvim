@@ -78,3 +78,9 @@ site. The callback result channel keeps each engine's native async shape.
 - The capability set above is this note's; the commands contract and the
   facade's failure semantics are current as of
   [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
+
+The method, spec, and capability shapes above are superseded by
+[picker-two-interfaces](2026-09-18-picker-two-interfaces.md): implementations
+are still pure renderers over a flow-owned spec, but a pick now carries a
+streaming item source plus the flow's `many` and `preview` requests, and the
+only declared capability is `command`.

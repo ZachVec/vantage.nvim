@@ -79,7 +79,7 @@ describe("vantage.frontend.entries", function()
     vim.fn.delete(tmp, "rf")
   end)
 
-  it("hands the Picker plain data with one shared preview function per kind", function()
+  it("hands the Picker plain data, carrying no preview of its own", function()
     local path = vim.fs.joinpath(tmp, "a.lua")
     local review_buf = named_buffer(path, { "a", "b" })
     local entries = {
@@ -96,12 +96,14 @@ describe("vantage.frontend.entries", function()
       assert.are.equal("nil", type(getmetatable(entry)))
       assert.are.equal("string", type(entry.text))
       assert.are.equal("string", type(entry.kind))
-      assert.are.equal("function", type(entry.preview))
+      assert.is_nil(rawget(entry, "preview"))
     end
-    -- One module-level function per kind: an entry never allocates a closure.
-    assert.are.equal(entries[1].preview, entries[2].preview) -- the pinned Focus shares the Agent preview
-    assert.are.equal(entries[5].preview, Entries.file(path, tmp).preview)
-    assert.are.equal(entries[6].preview, Entries.buffer(review_buf, path, tmp, false).preview)
+  end)
+
+  it("previews through the one kind-keyed preview function", function()
+    assert.is_nil(Entries.preview(Entries.tool("codex")))
+    assert.is_nil(Entries.preview(Entries.group("work")))
+    assert.is_nil(Entries.preview({ kind = "unknown", text = "?" }))
   end)
 
   it("spells an Agent entry with its Tool, Group, and cwd, pinning the Focus", function()
@@ -118,11 +120,11 @@ describe("vantage.frontend.entries", function()
   it("previews an Agent's pane, and the Driver's reason when the capture fails", function()
     local entry = Entries.agent(agent())
 
-    assert.are.same({ "pane line" }, entry:preview())
+    assert.are.same({ "pane line" }, Entries.preview(entry))
     assert.are.same({ "@1" }, backend.captured)
 
     backend.capture_err = "no server running"
-    assert.are.same({ "no server running" }, entry:preview())
+    assert.are.same({ "no server running" }, Entries.preview(entry))
   end)
 
   it("previews a file entry from disk", function()
@@ -131,7 +133,7 @@ describe("vantage.frontend.entries", function()
 
     assert.are.equal("file", entry.kind)
     assert.are.equal("sub/b.lua", entry.text)
-    assert.are.same({ "b", "b2" }, entry:preview())
+    assert.are.same({ "b", "b2" }, Entries.preview(entry))
   end)
 
   it("previews a buffer entry from the buffer, marking a modified one in its text", function()
@@ -141,7 +143,7 @@ describe("vantage.frontend.entries", function()
 
     assert.are.equal("buffer", entry.kind)
     assert.are.equal("a.lua [+]", entry.text)
-    assert.are.same({ "in buffer" }, entry:preview())
+    assert.are.same({ "in buffer" }, Entries.preview(entry))
   end)
 
   it("falls back to the file when a buffer entry's buffer is gone", function()
@@ -150,7 +152,7 @@ describe("vantage.frontend.entries", function()
     local entry = Entries.buffer(buf, path, tmp, false)
     Helpers.wipe(buf)
 
-    assert.are.same({ "on disk" }, entry:preview())
+    assert.are.same({ "on disk" }, Entries.preview(entry))
   end)
 
   it("spells a Review row through the one reference owner", function()
@@ -163,7 +165,7 @@ describe("vantage.frontend.entries", function()
     -- The row is the `{lines}` reference plus the note's first line; the
     -- preview renders what a `{reviews}` send would produce.
     assert.are.equal("a.lua :L1-2  note", entry.text)
-    assert.are.same({ "a.lua :L1-2 note" }, entry:preview())
+    assert.are.same({ "a.lua :L1-2 note" }, Entries.preview(entry))
   end)
 
   it("spells a Review row in the focused Tool's dialect", function()
@@ -181,7 +183,7 @@ describe("vantage.frontend.entries", function()
     local entry = Entries.review(review, tmp, "dialect")
 
     assert.are.equal("@a.lua :L1-2  note", entry.text)
-    assert.are.same({ "@a.lua :L1-2 note" }, entry:preview())
+    assert.are.same({ "@a.lua :L1-2 note" }, Entries.preview(entry))
   end)
 
   it("keeps a Review row readable when the Tool declines the reference", function()
@@ -201,11 +203,6 @@ describe("vantage.frontend.entries", function()
     -- The row falls back to the default dialect so the list stays navigable;
     -- the preview keeps the "no reference" answer a send would give.
     assert.are.equal("a.lua :L1-2  note", entry.text)
-    assert.are.same({ "" }, entry:preview())
-  end)
-
-  it("returns nil for entries that have nothing to preview", function()
-    assert.are.equal(nil, Entries.tool("codex"):preview())
-    assert.are.equal(nil, Entries.group("work"):preview())
+    assert.are.same({ "" }, Entries.preview(entry))
   end)
 end)

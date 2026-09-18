@@ -88,13 +88,16 @@ end
 local function spec()
   return {
     prompt = PROMPT,
-    items_provider = function()
+    many = false,
+    preview = Entries.preview,
+    items = function(emit, done)
       local cwd, tool = list_context()
       local items = {}
       for _, review in ipairs(Review.collect()) do
         items[#items + 1] = Entries.review(review, cwd, tool)
       end
-      return items
+      emit(items)
+      done()
     end,
   }
 end
@@ -111,8 +114,9 @@ end
 
 --- Open the review picker; selecting a review opens its note float.
 local function review_list()
-  local empty = Picker.pick(spec(), {
-    on_choice = function(entry)
+  Picker.pick_fancy(spec(), {
+    on_choices = function(entries)
+      local entry = entries[1]
       ---@cast entry vantage.picker.ReviewEntry
       open_note(entry.review)
     end,
@@ -126,9 +130,6 @@ local function review_list()
       },
     },
   })
-  if empty then
-    Util.warn("no reviews — add one with :Vantage review")
-  end
 end
 
 --- Add a review over the command's range (a visual selection, else the

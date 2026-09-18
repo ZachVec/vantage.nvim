@@ -95,3 +95,6 @@ This supersedes the
 the teardown window remains the reference for the residual boundary), both
 archived; the Picker seam itself is [the
 pluggable-picker note](2026-08-31-pluggable-picker-frontend.md).
+
+The method it introduces is now `pick_naive`; its `vim.ui.select` shape is
+unchanged. See [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

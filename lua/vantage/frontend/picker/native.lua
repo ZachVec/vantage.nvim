@@ -4,42 +4,47 @@ local M = {}
 
 ---@type vantage.PickerCapabilities
 M.capabilities = {
-  preview = false,
   command = false,
-  multi = false,
 }
 
---- Render a spec's items with vim.ui.select. Commands are ignored because
---- vim.ui.select has no custom-key surface.
+--- Render a streaming pick. `vim.ui.select` takes a fixed list, so the stream
+--- is drained first and rendered through this implementation's own plain
+--- select: waiting for the final list is what an engine with no stream surface
+--- can do, and `many` degrades to one choice because `vim.ui.select` has no
+--- marking.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
----@return boolean empty
----@return string? err
-function M.pick(spec, opts)
-  local items, err = spec.items_provider()
-  if #items == 0 then
-    return true, err
+function M.pick_fancy(spec, opts)
+  local items, finished = {}, false
+  spec.items(function(chunk)
+    vim.list_extend(items, chunk)
+  end, function()
+    finished = true
+  end)
+  while not finished do
+    vim.wait(1000, function()
+      return finished
+    end, 10)
   end
-  vim.ui.select(items, {
+  M.pick_naive(items, {
     prompt = spec.prompt,
-    format_item = function(item)
-      return item.text
+    format_item = function(entry)
+      return entry.text
     end,
-  }, function(item)
-    if item then
-      opts.on_choice(item)
+  }, function(entry)
+    if entry then
+      opts.on_choices({ entry })
     end
   end)
-  return false, nil
 end
 
 --- Pick from a plain list (no preview) on this engine: the live global
 --- `vim.ui.select` — including any override — since native is defined as
 --- "follow the environment's renderer".
 ---@param items any[]
----@param opts vantage.PlainSelectOpts
+---@param opts vantage.NaiveOpts
 ---@param on_choice fun(item: any?, index?: integer)
-function M.pick_plain(items, opts, on_choice)
+function M.pick_naive(items, opts, on_choice)
   vim.ui.select(items, {
     prompt = opts.prompt,
     format_item = opts.format_item,
