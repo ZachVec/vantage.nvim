@@ -12,7 +12,7 @@ lua/vantage/
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
 ├── backend/            init.lua + driver/ (registry, tmux, resources/tmux)
-├── frontend/           terminal, entries, note, review, picker/
+├── frontend/           terminal, entries, review, picker/
 └── commands/           dispatch + flows (attach, gather, kill, prompt, review)
 ```
 
@@ -46,10 +46,9 @@ graph; a module that imports against it fails the gate.
   importing nothing but itself. It is a dependency-checking category, not a
   domain term: the [glossary](glossary.md) is where domain words live. The
   verifier files any module path it cannot classify here. A seam's contract
-  types live with their seam — `vantage.Driver` in `backend/driver/init.lua`,
-  the picker contract in `frontend/picker/init.lua`, `vantage.NoteOpts` in
-  `frontend/note.lua`; `config.lua` keeps the option types and the reference
-  spelling.
+  types live with their seam — `vantage.Driver` in `backend/driver/init.lua`
+  and the picker contract in `frontend/picker/init.lua`; `config.lua` keeps the
+  option types and the reference spelling.
 - `health` — `health.lua`, the diagnostics adapter. It may inspect Backend and
   Frontend but never the command layer, and no module imports it: Neovim calls
   it through `:checkhealth`.
@@ -290,4 +289,7 @@ Every location reference — a Prompt's placeholders, each Review's `{lines}` /
 space), and `gather.join` decides how gathered references are joined. A Review
 reads the same in the list, in its preview, and in the `{reviews}` send — an
 entry is the `{lines}` reference plus the note's first line — and the note
-float's title names no reference of its own.
+float's title names no reference of its own. `frontend/review.lua` also owns
+that editing float (`Review.edit` / `Review.create`), including the jump, the
+active tint, and the empty-deletes policy; the command layer only wires the
+list and the add range.

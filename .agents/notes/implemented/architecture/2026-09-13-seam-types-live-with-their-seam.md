@@ -25,7 +25,6 @@ A seam's contract types live with the seam, and `AGENTS.md` now says so:
   `vantage.PlainSelectOpts`, `vantage.PickerCapabilities`, `vantage.PickerImpl`
   — lives in `frontend/picker/init.lua`, the facade that validates capabilities
   and commands.
-- `vantage.NoteOpts` lives in `frontend/note.lua`, its only consumer.
 - `config.lua` keeps the option types (`vantage.Config`, `vantage.Tool`,
   `vantage.Win`, `vantage.ReviewConfig`, `vantage.ReviewFloatConfig`,
   `vantage.GatherConfig`) and `vantage.ReferenceFormat`.

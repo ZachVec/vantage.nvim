@@ -44,7 +44,7 @@ _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend; the Backend never imports the Frontend.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and its editing float. The Frontend imports the Backend; the Backend never imports the Frontend.
 _Avoid_: client, ui
 
 ## Terminal

@@ -26,7 +26,7 @@ The command layer is a directory mirroring the repo's existing
   `send_prompt`).
 - `commands/review.lua` owns `:Vantage review` and its sub-actions
   (`run(action, line1, line2)` + list/clear/add); the note editor itself lives
-  in `frontend/note.lua`.
+  in `frontend/review.lua`.
 - `commands/actions.lua` owns terminal action tokens and installs
   `cli.win.keys`.
 

@@ -172,8 +172,8 @@ function M.buffer(buf, path, cwd, modified)
   }
 end
 
---- A Review entry: the flow opens the note float from the entry's data. The
---- entry is a display of the Review, not a second spelling of it:
+--- A Review entry: the flow hands the Review to `Review.edit`, which opens its
+--- float. The entry is a display of the Review, not a second spelling of it:
 --- `Review.location` spells its `{lines}` reference through the one owner, and
 --- the note's first line follows. The preview renders exactly what a
 --- `{reviews}` send would produce.
