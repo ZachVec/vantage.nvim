@@ -149,7 +149,7 @@ end
 
 --- A file entry: the reference source is the absolute path.
 ---@param path string absolute file path
----@param cwd string relativization base (the focused Agent's cwd)
+---@param cwd string display base (Neovim's global cwd, the listing root)
 ---@return vantage.picker.FileEntry
 function M.file(path, cwd)
   return { kind = "file", text = Util.relpath(cwd, path), path = path }
@@ -159,7 +159,7 @@ end
 --- keeps that visible without leaking into the reference text.
 ---@param buf integer
 ---@param path string absolute file path
----@param cwd string relativization base
+---@param cwd string display base (Neovim's global cwd, the listing root)
 ---@param modified boolean
 ---@return vantage.picker.BufferEntry
 function M.buffer(buf, path, cwd, modified)

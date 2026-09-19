@@ -17,7 +17,9 @@ reason nobody wanted it invoked.
 ## Decision
 
 The `files` source is live. The chain is `fd` → `rg` → `find`, in that order,
-each invoked in the Agent's cwd with one exclusion:
+each invoked in Neovim's global cwd — the listing root, not the Agent's
+([the listing-root note](../bug-fix/2026-09-19-files-listing-root-is-neovim-cwd.md))
+— with one exclusion:
 
 ```sh
 fd --type f --type l --color never -E .git
@@ -92,7 +94,7 @@ per lister instead.
 
 ### Why not start over when a lister fails midway?
 
-Entries already on screen are real paths under the Agent's cwd; retracting them
+Entries already on screen are real paths under Neovim's cwd; retracting them
 to try a cruder lister would trade a partial answer for a different one. The
 chain only gives way before a lister has produced anything.
 

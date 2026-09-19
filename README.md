@@ -136,15 +136,17 @@ cli = {
 }
 ```
 
-`files` lists files under the focused Agent's working directory: `fd` when
-available, then `ripgrep`, then `find` — all three skip `.git`, and the list
-appears as the lister prints it, so `Esc` stops a long listing. `buffers`
-lists listed buffers whose file exists on disk, most recently used first; a
-modified buffer is marked `[+]` because the Agent reads the on-disk version.
-Each chosen entry is typed as its path relative to the Agent's cwd, spelled by
-the tool's `format` hook (a gathered entry has no position, so `loc` is nil) —
-no `@` unless you add one — then `gather.join` decides the separator (default
-one per line), and a trailing space follows the last reference.
+`files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
+tree you are browsing, wherever the Agent was started: `fd` when available,
+then `ripgrep`, then `find` — all three skip `.git`, and the list appears as
+the lister prints it, so `Esc` stops a long listing. `buffers` lists listed
+buffers whose file exists on disk, most recently used first; a modified buffer
+is marked `[+]` because the Agent reads the on-disk version. Each chosen entry
+is typed as its path relative to the Agent's cwd (absolute when the file lies
+outside it), spelled by the tool's `format` hook (a gathered entry has no
+position, so `loc` is nil) — no `@` unless you add one — then `gather.join`
+decides the separator (default one per line), and a trailing space follows the
+last reference.
 
 ```lua
 tools = {

@@ -15,9 +15,11 @@ and flows own their items. Vantage also picked through a single-choice contract
 ## Decision
 
 Two Terminal actions, `files` and `buffers`, owned by `commands/gather.lua`.
-Each lists candidates for the focused Agent's cwd, renders them as
-`<relpath>` references, and types them into the Agent's input through the
-Backend — bracketed paste, no auto-submit, references joined with
+Each lists candidates under Neovim's global cwd and renders them relative to
+that tree (the listing root is Neovim's, not the Focus's — see
+[the listing-root note](../bug-fix/2026-09-19-files-listing-root-is-neovim-cwd.md)),
+then types each chosen entry's `<relpath>` reference into the Agent's input
+through the Backend — bracketed paste, no auto-submit, references joined with
 `setup { gather = { join = … } }` (default one per line), a trailing space
 after the last one, and no trailing newline.
 

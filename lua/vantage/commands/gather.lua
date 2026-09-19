@@ -33,10 +33,11 @@ local function answered(name, code)
   return code == 0 or (name == "rg" and code == 1)
 end
 
---- Stream the file candidates under `cwd`, one batch per chunk of a lister's
---- output. The chain is asynchronous — a lister's failure is only known when it
---- exits — so a failed attempt gives way from its own callback, and a lister
---- that already produced lines keeps them.
+--- Stream the file candidates under `cwd`, the listing root and display base:
+--- Neovim's global cwd, the tree the user is browsing rather than the Agent's.
+--- One batch per chunk of a lister's output. The chain is asynchronous — a
+--- lister's failure is only known when it exits — so a failed attempt gives way
+--- from its own callback, and a lister that already produced lines keeps them.
 ---@param cwd string
 ---@param emit fun(entries: vantage.picker.Entry[])
 ---@param done fun()
@@ -91,7 +92,8 @@ local function stream_files(cwd, emit, done)
 end
 
 --- Buffer candidates: listed, normal-buftype, named, readable-on-disk
---- buffers, most recently used first (path order breaks ties).
+--- buffers, most recently used first (path order breaks ties), each displayed
+--- relative to `cwd` (Neovim's global cwd).
 ---@param cwd string
 ---@return vantage.picker.Entry[]
 local function buffer_items(cwd)
@@ -149,7 +151,10 @@ local function run(source)
     many = true,
     preview = Entries.preview,
     items = function(emit, done)
-      return SOURCES[source].stream(agent.cwd, emit, done)
+      -- Candidates come from the tree the user is browsing; the chosen
+      -- references are still spelled against the Agent's cwd below (relative
+      -- inside it, absolute outside), so the two bases are deliberately split.
+      return SOURCES[source].stream(Util.cwd(), emit, done)
     end,
   }, {
     on_choices = function(chosen)

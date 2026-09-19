@@ -14,9 +14,11 @@ describe("vantage.commands.gather", function()
   local notified
   local original_notify
   local original_path
+  local original_cwd
   local tmp
   local bufs = {}
   local bin_dirs = {}
+  local roots = {}
 
   local function write(relpath, lines)
     local path = vim.fs.joinpath(tmp, relpath)
@@ -130,6 +132,7 @@ describe("vantage.commands.gather", function()
     Config = require("vantage.config")
     original_notify = vim.notify
     original_path = vim.env.PATH
+    original_cwd = vim.fn.getcwd()
     vim.notify = function(msg)
       notified[#notified + 1] = msg
     end
@@ -182,23 +185,30 @@ describe("vantage.commands.gather", function()
     Config.options.gather.join = "\n"
     tmp = vim.fn.tempname()
     vim.fn.mkdir(tmp, "p")
+    -- `files` lists from Neovim's global cwd; pin it to the fixture root.
+    vim.fn.chdir(tmp)
     focused = { id = "@1", seq = 1, group = "g", cmd = "codex", cwd = tmp, tool = "codex" }
   end)
 
   after_each(function()
     vim.env.PATH = original_path
+    vim.fn.chdir(original_cwd)
     for _, buf in ipairs(bufs) do
       Helpers.wipe(buf)
     end
     bufs = {}
     vim.fn.delete(tmp, "rf")
+    for _, dir in ipairs(roots) do
+      vim.fn.delete(dir, "rf")
+    end
+    roots = {}
     for _, dir in ipairs(bin_dirs) do
       vim.fn.delete(dir, "rf")
     end
     bin_dirs = {}
   end)
 
-  it("streams files under the agent cwd, relative to it", function()
+  it("streams files under Neovim's cwd, relative to it", function()
     write("a.lua", { "a" })
     write("sub/b.lua", { "b" })
 
@@ -208,6 +218,41 @@ describe("vantage.commands.gather", function()
 
     assert.are.same({ "a.lua", "sub/b.lua" }, listed)
     assert.are.same({ "a" }, Entries.preview(named(items, "a.lua")))
+  end)
+
+  it("lists from Neovim's cwd and spells references against the agent's", function()
+    local root = vim.fn.tempname()
+    roots[#roots + 1] = root
+    local sub = vim.fs.joinpath(root, "sub")
+    vim.fn.mkdir(sub, "p")
+    vim.fn.writefile({ "a" }, vim.fs.joinpath(root, "a.lua"))
+    vim.fn.writefile({ "b" }, vim.fs.joinpath(sub, "b.lua"))
+    vim.fn.chdir(root)
+    focused.cwd = sub
+
+    local items, opts = run("files")
+    local listed = texts(items)
+    table.sort(listed)
+    -- Displayed relative to the tree that was listed.
+    assert.are.same({ "a.lua", "sub/b.lua" }, listed)
+
+    opts.on_choices({ named(items, "a.lua"), named(items, "sub/b.lua") })
+    -- Outside the Agent's cwd escapes to an absolute path; inside is relative.
+    assert.are.equal(vim.fs.normalize(vim.fs.joinpath(root, "a.lua")) .. "\nb.lua ", backend.sent[1].text)
+  end)
+
+  it("sends absolute references when the listed tree is outside the agent's cwd", function()
+    local other = vim.fn.tempname()
+    roots[#roots + 1] = other
+    vim.fn.mkdir(other, "p")
+    vim.fn.writefile({ "z" }, vim.fs.joinpath(other, "z.lua"))
+    vim.fn.chdir(other)
+
+    local items, opts = run("files")
+    assert.are.same({ "z.lua" }, texts(items))
+
+    opts.on_choices({ items[1] })
+    assert.are.equal(vim.fs.normalize(vim.fs.joinpath(other, "z.lua")) .. " ", backend.sent[1].text)
   end)
 
   it("keeps the lister's own order and reads one batch per chunk", function()
