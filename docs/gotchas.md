@@ -282,6 +282,15 @@ defers it), so a test lister that is supposed to notice a cancel needs
 
 ## Neovim
 
+### `vim.notify` raises inside a fast event context
+
+The default `vim.notify` handler calls `nvim_echo`, which is main-loop only:
+from a libuv callback (a `vim.system` exit callback, a timer) it raises
+`E5560: nvim_echo must not be called in a fast event context`. The raise also
+unwinds the callback, so any statement after the notify — a `done()` that ends
+a stream, say — does not run and the stream never ends. Route the notification
+through `vim.schedule` instead (`vantage.util`'s `notify` already does).
+
 ### `<cmd>` mappings keep Visual mode active
 
 With a `<cmd>` (or Lua-fn) visual mapping, the `'<` / `'>` marks are not set yet

@@ -98,6 +98,10 @@ function M.pick_fancy(spec, opts)
   local finished = false
   local task ---@type vantage.SnacksPickerTask?
   local cancel ---@type fun()?
+  -- Which `start` owns `items`/`queue`/`finished`/`cancel`. Snacks aborts the
+  -- previous task a tick after the next finder call has already started a
+  -- fresh run, so a run's abort handler must check it is still the current one.
+  local generation = 0
 
   --- Start a fresh run. True when the flow's source finished within the call.
   ---@return boolean
@@ -106,6 +110,7 @@ function M.pick_fancy(spec, opts)
       cancel()
       cancel = nil
     end
+    generation = generation + 1
     items, queue, finished = {}, {}, false
     cancel = spec.items(function(chunk)
       vim.list_extend(items, chunk)
@@ -129,9 +134,13 @@ function M.pick_fancy(spec, opts)
     if start() then
       return items
     end
+    local own_generation = generation
     return function(cb)
       task = ctx.async
       ctx.async:on("abort", function()
+        if own_generation ~= generation then
+          return
+        end
         if cancel then
           cancel()
           cancel = nil

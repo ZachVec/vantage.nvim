@@ -31,6 +31,42 @@ describe("vantage.frontend.picker.snacks", function()
     }
   end
 
+  --- A snacks-like async task driving one drain run: `suspend` parks the drain
+  --- coroutine, `resume` re-enters it, and `fire_abort` calls the handler the
+  --- adapter registered. Snacks delivers a run's abort a tick after the finder
+  --- call that superseded it, so the test fires it by hand at that moment.
+  ---@return table
+  local function async_task()
+    local self = { suspended = false }
+    local co
+    function self.suspend()
+      self.suspended = true
+      coroutine.yield()
+    end
+    function self.resume()
+      if co and self.suspended then
+        self.suspended = false
+        coroutine.resume(co)
+      end
+    end
+    function self.on(_, event, cb)
+      if event == "abort" then
+        self.abort_handler = cb
+      end
+    end
+    function self.fire_abort()
+      if self.abort_handler then
+        self.abort_handler()
+      end
+    end
+    function self.drain(drain)
+      co = coroutine.create(drain)
+      coroutine.resume(co)
+      return self
+    end
+    return self
+  end
+
   setup(function()
     Helpers.reload_vantage()
     items = {
@@ -228,6 +264,50 @@ describe("vantage.frontend.picker.snacks", function()
 
     abort()
     assert.is_true(cancelled)
+  end)
+
+  it("ignores a superseded run's abort and keeps the re-run's source streaming", function()
+    local sources = {}
+    Snacks.pick_fancy({
+      prompt = "pick",
+      many = false,
+      items = function(emit, done)
+        local source = { emit = emit, done = done, cancelled = false }
+        function source.cancel()
+          source.cancelled = true
+        end
+        sources[#sources + 1] = source
+        return source.cancel
+      end,
+    }, { on_choices = function() end })
+
+    local received = {}
+    local function cb(item)
+      received[#received + 1] = item.text
+    end
+
+    -- Run 1's live source parks the drain with an empty queue.
+    local first = async_task()
+    first.drain(function()
+      captured.finder({}, { async = first })(cb)
+    end)
+    assert.is_false(sources[1].cancelled)
+
+    -- A finder re-run (snacks' toggle keys) starts run 2, abandoning run 1.
+    local second = async_task()
+    second.drain(function()
+      captured.finder({}, { async = second })(cb)
+    end)
+    assert.is_true(sources[1].cancelled)
+
+    -- Snacks delivers run 1's abort only after run 2 has started.
+    first.fire_abort()
+    assert.is_false(sources[2].cancelled)
+
+    -- Run 2's stream is intact: its batches still arrive and it ends on done.
+    sources[2].emit({ { kind = "agent", text = "fresh" } })
+    sources[2].done()
+    assert.are.same({ "fresh" }, received)
   end)
 
   it("picks a plain list through snacks' own select", function()

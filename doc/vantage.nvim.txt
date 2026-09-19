@@ -133,17 +133,18 @@ type their references into the focused Agent without submitting: >
 <
 `files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
 tree you are browsing, wherever the Agent was started (`fd`, then `ripgrep`,
-then `find`; all three skip `.git`) and fills in as the lister prints, so `Esc`
-stops a long listing. `buffers` lists listed buffers whose file exists on disk,
-most recently used first; a modified buffer is marked `[+]` because the Agent
-reads the on-disk version. Each chosen entry is typed as its path relative to
-the Agent's cwd (absolute when the file lies outside it), spelled by the Tool's
-`format` hook (a gathered entry has no position, so `loc` is nil) — no `@`
-unless you add one — then `gather.join` decides the separator (default one per
-line), and a trailing space follows the last reference. `fzf-lua` and `snacks`
-select several entries at once (`<Tab>` marks, Enter sends the marked set or
-the entry under the cursor when none is marked); `native` sends one entry at a
-time.
+then `find`; all three skip `.git`). With `fzf-lua` or `snacks` the list fills
+in as the lister prints, so `Esc` stops a long listing; `native` waits for the
+whole listing before it opens. `buffers` lists listed buffers whose file exists
+on disk, most recently used first; a modified buffer is marked `[+]` because
+the Agent reads the on-disk version. Each chosen entry is typed as its path
+relative to the Agent's cwd (absolute when the file lies outside it), spelled
+by the Tool's `format` hook (a gathered entry has no position, so `loc` is nil)
+— no `@` unless you add one — then `gather.join` decides the separator (default
+one per line), and a trailing space follows the last reference. `fzf-lua` and
+`snacks` select several entries at once (`<Tab>` marks, Enter sends the marked
+set or the entry under the cursor when none is marked); `native` sends one entry
+at a time.
 Claude's `@` lives in the hook: >
 
     claude = {

@@ -119,10 +119,19 @@ file back on the hot path of a 100k-file listing.
   ignore-file difference, find's precedence trap, `vim.system`'s signal
   reporting, and the interruptible-wait requirement for a TERM-trapping
   script.
+- The user-facing wording of the stream is scoped to the pickers that have a
+  stream surface: README and `doc/vantage.nvim.txt` say `fzf-lua`/`snacks` fill
+  the list in as the lister prints, so `Esc` stops a long listing, while
+  `native` waits for the whole listing before it opens.
+- Two defects the streaming shape exposed are fixed and pinned separately: a
+  notification raised from the lister's exit callback must reach the main loop
+  ([note](../bug-fix/2026-09-19-notify-reaches-the-main-loop.md)), and snacks'
+  abort of a superseded run must not stop the fresh one
+  ([note](../bug-fix/2026-09-19-snacks-abort-is-scoped-to-its-run.md)).
 - The gather spec drives the chain with fake listers on `PATH` (fd succeeds,
   fails before a line, fails after a line, rg's empty answer, find alone, no
   lister at all, and a cancelled run), `tests/util_spec.lua` covers
   `run_lines`'s splitting, flush, failure code, and cancel, and
   `tests/helpers.lua`'s `entries(spec)` now waits for a live source instead of
   asserting it finished synchronously.
-- `make check` and `make test` pass (141 cases).
+- `make check` and `make test` pass (148 cases).

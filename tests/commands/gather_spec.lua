@@ -308,6 +308,31 @@ describe("vantage.commands.gather", function()
     assert.is_true(notified[1]:find("no file lister", 1, true) ~= nil)
   end)
 
+  it("finishes the chain when the last lister fails from its exit callback", function()
+    -- Neovim's default `vim.notify` calls `nvim_echo`, which raises E5560 in a
+    -- libuv callback; the chain's warning comes from exactly there.
+    local strict = vim.notify
+    vim.notify = function(msg)
+      notified[#notified + 1] = msg
+      if vim.in_fast_event() then
+        error("E5560: nvim_echo must not be called in a fast event context")
+      end
+    end
+
+    local ok, result = pcall(function()
+      use_bins(bins({ fd = "exit 2" }))
+      return run("files")
+    end)
+    vim.wait(500, function()
+      return #notified > 0
+    end, 10)
+    vim.notify = strict
+
+    assert.is_true(ok, tostring(result))
+    assert.are.same({}, result)
+    assert.is_true(notified[1]:find("file listing failed", 1, true) ~= nil)
+  end)
+
   it("stops the running lister when the source is cancelled", function()
     local marker = vim.fs.joinpath(tmp, "killed")
     -- `sleep & wait` so the TERM trap runs while the lister is still going.

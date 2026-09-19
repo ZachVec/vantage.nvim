@@ -184,10 +184,23 @@ function M.tilde(path)
   return path
 end
 
+--- Notify on Neovim's main loop. `vim.notify`'s default handler calls
+--- `nvim_echo`, which raises E5560 in a fast event context — a libuv callback,
+--- such as `run_lines`' exit callback — so a notification raised from one is
+--- deferred instead of raising. Deferring also keeps the caller running: a
+--- `warn` inside a chain step must not skip the step's own cleanup.
 ---@param msg string
 ---@param level? integer
 function M.notify(msg, level)
-  vim.notify("vantage: " .. msg, level or vim.log.levels.ERROR)
+  local text = "vantage: " .. msg
+  local log_level = level or vim.log.levels.ERROR
+  if vim.in_fast_event() then
+    vim.schedule(function()
+      vim.notify(text, log_level)
+    end)
+    return
+  end
+  vim.notify(text, log_level)
 end
 
 ---@param msg string

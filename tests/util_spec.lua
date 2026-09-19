@@ -101,6 +101,35 @@ describe("vantage.util", function()
     end)
   end)
 
+  describe("notify", function()
+    it("defers a notification raised inside a libuv callback", function()
+      local original_notify = vim.notify
+      local seen, in_callback = {}, nil
+      vim.notify = function(msg)
+        seen[#seen + 1] = msg
+      end
+
+      local timer = (vim.uv or vim.loop).new_timer()
+      timer:start(0, 0, function()
+        assert.is_true(vim.in_fast_event())
+        Util.warn("from a callback")
+        -- `nvim_echo` raises E5560 here, so nothing may be delivered while
+        -- the callback is still on the stack.
+        in_callback = #seen
+      end)
+
+      vim.wait(5000, function()
+        return #seen > 0
+      end, 10)
+      timer:stop()
+      timer:close()
+      vim.notify = original_notify
+
+      assert.are.equal(0, in_callback)
+      assert.are.equal("vantage: from a callback", seen[1])
+    end)
+  end)
+
   describe("relpath", function()
     it("relativizes paths below cwd", function()
       assert.are.equal("src/a.lua", Util.relpath("/proj", "/proj/src/a.lua"))
