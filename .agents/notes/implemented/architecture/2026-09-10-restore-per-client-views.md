@@ -62,7 +62,9 @@ mode adds a protocol layer without changing the session/window model.
 - The Driver surface replaces `attach_command(agent)` with
   `attach(agent) → { view, argv }` and adds `kill_view(view)`.
 - Views are cleaned up by the `client-detached` hook, by cross-Group retarget,
-  and explicitly when Terminal startup fails.
+  and explicitly when Terminal startup fails; `tests/commands/attach_spec.lua`
+  pins the failed-startup kill, including that the Terminal keymaps are left
+  unapplied.
 - Driver integration tests cover two clients in one Group switching to
   different Agents independently, plus cross-Group relocation.
 - The “no View” premise in

@@ -147,7 +147,7 @@ describe("vantage.commands.attach", function()
       on_choice(picker.plain_choice)
     end
 
-    terminal = { buffer = 77, pid_value = 42, toggle_result = false, opened = nil }
+    terminal = { buffer = 77, pid_value = 42, toggle_result = false, opened = nil, open_result = true }
     function terminal.toggle()
       return terminal.toggle_result
     end
@@ -156,7 +156,7 @@ describe("vantage.commands.attach", function()
     end
     function terminal.open(argv)
       terminal.opened = argv
-      return true
+      return terminal.open_result
     end
 
     actions = { applied = nil }
@@ -191,6 +191,7 @@ describe("vantage.commands.attach", function()
     terminal.pid_value = 42
     terminal.toggle_result = false
     terminal.opened = nil
+    terminal.open_result = true
     actions.applied = nil
   end)
 
@@ -316,6 +317,17 @@ describe("vantage.commands.attach", function()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
     assert.are.equal(77, actions.applied)
+  end)
+
+  it("removes the View and installs no keys when the terminal cannot start", function()
+    picker.auto_select = true
+    terminal.open_result = false
+
+    Attach.toggle()
+
+    assert.are.same({ "attach", "@1" }, terminal.opened)
+    assert.are.equal("view-1", backend.killed_view)
+    assert.is_nil(actions.applied)
   end)
 
   it("warns the read's reason from its own source", function()
