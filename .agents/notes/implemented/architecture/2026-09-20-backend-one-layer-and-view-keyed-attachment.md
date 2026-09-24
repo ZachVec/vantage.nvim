@@ -109,4 +109,4 @@ letting the hook collect the View — two mechanisms do not want one name.
   [seam-types-live-with-their-seam](2026-09-13-seam-types-live-with-their-seam.md)'s
   principle stand; their paths move with the files.
 - The flows' own deferred simplifications — the second inventory read, the
-  pinned entry's no-op scope command in `toggle` — are unchanged here.
+  pinned entry's no-op scope command in `show` — are unchanged here.

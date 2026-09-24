@@ -192,8 +192,8 @@ scheduled from inside the choice handler) keeps the scheduler alive while its
 `c` mode is active: a re-entry check queued after the handler would see `c`,
 skip, and strand the terminal in Normal once the prompt closes. Queued first,
 the `startinsert` stays pending across the cmdline and lands when it closes
-(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage toggle`
-ends in terminal mode via the toggle tail's `Terminal.open` (`startinsert`)
+(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage show`
+ends in terminal mode via the show tail's `Terminal.open` (`startinsert`)
 and skips the re-entry; a `switch` re-points without showing (`retarget`), so
 it depends on the implementation's close handler above.
 

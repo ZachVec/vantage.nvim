@@ -1,6 +1,6 @@
 --- The Terminal attachment flows and the shared Agent picker they use.
 ---
---- `toggle` owns Terminal presence; `switch` owns the attached client's
+--- `show` owns Terminal presence; `switch` owns the attached client's
 --- target. The Agent/Tool entries, Group choice, and creation handoff are
 --- local to this module because both flows are their only consumers.
 local Actions = require("vantage.commands.actions")
@@ -213,9 +213,10 @@ local function open_on(agent)
   Terminal.hold(attachment)
 end
 
---- Toggle Terminal presence; with no Terminal, pick an Agent and open it.
-function M.toggle()
-  if Terminal.toggle() then
+--- Show the Terminal: focus it when it is up, re-open it when it is hidden, and
+--- with no Terminal pick an Agent and open one on it.
+function M.show()
+  if Terminal.show() then
     return
   end
   pick(open_on)
@@ -225,7 +226,7 @@ end
 function M.switch()
   local attachment = Terminal.attachment
   if not attachment then
-    Util.warn("no terminal — use :Vantage toggle first")
+    Util.warn("no terminal — use :Vantage show first")
     return
   end
 

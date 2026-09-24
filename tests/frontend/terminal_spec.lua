@@ -54,27 +54,59 @@ describe("vantage.frontend.terminal", function()
 
   it("opens the configured float layout", function()
     Config.options.cli.win.layout = "float"
-    local buf = Helpers.buffer({ "terminal" })
-    local win = Terminal.open_win(buf)
 
+    assert.is_true(open())
+
+    local win = Terminal.window
     assert.is_true(vim.api.nvim_win_is_valid(win))
     assert.are.equal("editor", vim.api.nvim_win_get_config(win).relative)
-
-    pcall(vim.api.nvim_win_close, win, true)
-    Helpers.wipe(buf)
+    Terminal.destroy()
   end)
 
   it("opens the full layout in a dedicated tab", function()
     Config.options.cli.win.layout = "full"
     local before = #vim.api.nvim_list_tabpages()
-    local buf = Helpers.buffer({ "terminal" })
-    local win = Terminal.open_win(buf)
 
-    assert.is_true(vim.api.nvim_win_is_valid(win))
+    assert.is_true(open())
+
+    assert.is_true(vim.api.nvim_win_is_valid(Terminal.window))
     assert.are.equal(before + 1, #vim.api.nvim_list_tabpages())
+    Terminal.destroy()
+    assert.are.equal(before, #vim.api.nvim_list_tabpages())
+  end)
 
-    vim.cmd("tabclose")
-    Helpers.wipe(buf)
+  it("hides the window but keeps the buffer and the job", function()
+    assert.is_true(open())
+    local buffer, job = Terminal.buffer, Terminal.job
+
+    Terminal.hide()
+
+    assert.is_nil(Terminal.window)
+    assert.is_true(vim.api.nvim_buf_is_valid(buffer))
+    assert.are.equal(job, Terminal.job)
+    Terminal.destroy()
+  end)
+
+  it("shows the hidden buffer again, focused", function()
+    assert.is_true(open())
+    local buffer, job = Terminal.buffer, Terminal.job
+    Terminal.hide()
+
+    assert.is_true(Terminal.show())
+
+    assert.are.equal(buffer, Terminal.buffer)
+    assert.are.equal(job, Terminal.job)
+    assert.are.equal(Terminal.window, vim.api.nvim_get_current_win())
+    assert.are.equal(buffer, vim.api.nvim_win_get_buf(Terminal.window))
+    Terminal.destroy()
+  end)
+
+  it("answers false from show with no client, and ignores a stray hide", function()
+    Terminal.destroy()
+
+    assert.is_false(Terminal.show())
+    assert.is_true(pcall(Terminal.hide))
+    assert.is_nil(Terminal.window)
   end)
 
   it("installs the configured keys on the buffer it opened, resolving each rhs", function()

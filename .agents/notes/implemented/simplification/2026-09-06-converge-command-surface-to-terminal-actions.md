@@ -23,11 +23,11 @@ is fixed by construction, that probe has nothing left to decide.
 
 ## Decision
 
-- `:Vantage` dispatches only `toggle`, `detach`, `review` (`list`/`clear`)
+- `:Vantage` dispatches only `show`, `hide`, `detach`, `review` (`list`/`clear`)
   and `status`. `switch`, `kill` and `prompt` are removed from `run`,
   completion, and the `usage()` help.
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
-  `switch`, `kill`, `prompt`, or `toggle` resolves to the built-in action
+  `hide`, `switch`, `prompt`, `files`, or `buffers` resolves to the built-in action
   (`commands/actions.lua` owns the token map; the Terminal installs the
   mappings on its own buffer — see
   [terminal-installs-its-keymaps](../architecture/2026-09-20-terminal-installs-its-keymaps.md));
@@ -35,7 +35,7 @@ is fixed by construction, that probe has nothing left to decide.
   bound verbatim as before. No default keymaps
   are shipped (the
   [single-terminal-frontend](../architecture/2026-08-31-single-terminal-frontend.md)
-  "no default keymaps" decision stands); the four actions are opt-in.
+  "no default keymaps" decision stands); the actions are opt-in.
 - The `invoked_from_terminal()` probe was deleted at the time of this note.
   The later layered refactor removed the caller-declared `from_terminal` field
   too: the snacks renderer detects the Terminal by buffer filetype at pick
@@ -78,7 +78,10 @@ terminal and remain `:Vantage` commands, not terminal actions.
 ## Consequences
 
 - `switch`, `kill` and `prompt` have no `:Vantage` entry point; they run only
-  through a `cli.win.keys` token. `toggle` remains both a command and a token.
+  through a `cli.win.keys` token. The one name that was both a command and a
+  token, `toggle`, is gone: presence is `:Vantage show` plus the `hide`
+  token — see the [show/hide
+  split](../architecture/2026-09-24-show-and-hide-split-presence.md).
 - `from_terminal` no longer exists in `PickSpec`/`PlainSelectOpts`; the snacks
   renderer detects the Terminal by filetype. Native and fzf-lua never needed
   the field.

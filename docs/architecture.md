@@ -244,11 +244,11 @@ concept.
 
 ## Flows and the command surface
 
-- `commands/attach.lua` owns `toggle`/`switch` plus their shared
+- `commands/attach.lua` owns `show`/`switch` plus their shared
   Agent/Tool entries, Group choice, creation handoff, and the `<c-g>` scope and
   `<c-x>` kill commands. An Entry is data: its `kind` (`focused`, `agent`,
   `tool`) says what choosing it means, and the flow — not the Entry — creates,
-  retargets, or opens the Terminal. `toggle` and `switch` each keep their own
+  retargets, or opens the Terminal. `show` and `switch` each keep their own
   tail; only the "attach a client and hold it" step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
   lists candidates under Neovim's global cwd — the tree the user browses,
@@ -257,20 +257,27 @@ concept.
   through the Tool's `format` (relative inside it, absolute outside), joins the
   results with `setup { gather = { join = … } }`, and pastes them with a
   trailing space. One reference dropped by the hook drops the whole send.
-- `commands/actions.lua` owns the Terminal action tokens (`toggle`, `switch`,
+- `commands/actions.lua` owns the Terminal action tokens (`hide`, `switch`,
   `prompt`, `files`, `buffers`) — the strings a `cli.win.keys` `rhs` may name —
-  and maps them to command functions. The Terminal installs `cli.win.keys` on
-  its own buffer and takes that resolver, because the Frontend may not import
-  the command layer.
-- `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
-  (Tool entries create one) and open the Terminal on it.
+  and resolves each to the function that runs it. The Terminal installs
+  `cli.win.keys` on its own buffer and takes that resolver, because the
+  Frontend may not import the command layer.
+- `:Vantage show` owns presence: focus the Terminal when it is up, re-open the
+  same buffer when it is hidden, and with no Terminal pick an Agent (Tool
+  entries create one) and open the Terminal on it. The Frontend's `show`
+  answers false when there is no client, so "which Agent" stays a command-layer
+  decision.
+- `:Vantage hide` (and the `hide` token) closes the Terminal's window and keeps
+  the client attached. The key that hides never has to ask whether a Terminal
+  exists, and the token set has no `show` — a token is installed on the
+  Terminal's own buffer, where that window is open by construction.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
 - `:Vantage detach` destroys the Terminal; Agents and Groups survive.
 - `:Vantage status` shows the Driver's session/client summary.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
 - `:Vantage kill` picks an Agent or Group and kills it.
-- Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`, `files`,
+- Terminal actions via `cli.win.keys`: `hide`, `switch`, `prompt`, `files`,
   `buffers`.
 
 Creating an Agent from a Tool entry resolves the tool to its command, uses the

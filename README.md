@@ -26,7 +26,8 @@ reference.
 ## Usage
 
 ```vim
-:Vantage toggle          " hide/show the terminal; picks an Agent if none is open
+:Vantage show            " show the terminal; picks an Agent if none is open
+:Vantage hide            " hide the terminal window; the client stays attached
 :Vantage detach          " close the terminal; Agents keep running
 :Vantage review          " add a review over the current selection/line
 :Vantage review list     " open reviews
@@ -36,7 +37,7 @@ reference.
 ```
 
 Create an Agent from the Agent picker: use the `switch` terminal key, or run
-`:Vantage toggle` when no terminal is open. Pick a Tool, then choose or create
+`:Vantage show` when no terminal is open. Pick a Tool, then choose or create
 a Group. Multiple Neovim instances can show different Agents in the same Group.
 
 ## Configuration
@@ -226,8 +227,7 @@ Use `cli.win.keys` for Terminal actions or plain keymaps:
 cli = {
   win = {
     keys = {
-      { "<c-q>", "toggle", mode = "t", desc = "hide/show terminal" },
-      { "q", "toggle", mode = "n", desc = "hide/show terminal" },
+      { "<c-q>", "hide", mode = "t", desc = "hide terminal" },
       { "s", "switch", mode = "n", desc = "switch Agent" },
       { "p", "prompt", mode = "n", desc = "send prompt" },
       { "<c-f>", "files", mode = "t", desc = "send file references" },
@@ -237,8 +237,16 @@ cli = {
 }
 ```
 
-`rhs` may be a Terminal action (`"switch"`, `"prompt"`, `"toggle"`, `"files"`,
-`"buffers"`) or any value accepted by `vim.keymap.set`.
+`rhs` may be a Terminal action (`"hide"`, `"switch"`, `"prompt"`, `"files"`,
+`"buffers"`) or any value accepted by `vim.keymap.set`. Those keys live on the
+terminal buffer; showing the terminal again is `:Vantage show`, which you bind
+in an ordinary window:
+
+```lua
+vim.keymap.set("n", "<c-q>", "<cmd>Vantage show<CR>", {
+  desc = "show terminal",
+})
+```
 
 You can also use a normal `FileType` autocmd on `vantage_terminal` for full
 control with `vim.keymap.set`.

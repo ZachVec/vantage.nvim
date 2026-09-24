@@ -88,14 +88,15 @@ Frontend:
 
 Commands:
 
-- `:Vantage` subcommands: `toggle`, `detach`, `status`, `review`, `kill`.
+- `:Vantage` subcommands: `show`, `hide`, `detach`, `status`, `review`, `kill`.
 - Terminal tokens via `cli.win.keys` (resolved in `commands/attach.lua`):
-  `switch`, `prompt`, `toggle`. `switch` and `prompt` exist only inside the
+  `hide`, `switch`, `prompt`, `files`, `buffers`. These exist only inside the
   terminal; `kill` moved out to a command.
-- Toggle owns presence (hide/show; with no terminal, pick-or-create then
-  attach+show); switch owns target (`retarget`). The pick flow is shared; only
-  the tail after `resolve()` differs, and that tail lives in each command —
-  no callback is injected into entries.
+- Presence and target are separate commands: `show` owns presence (focus,
+  re-open, or with no terminal pick-or-create then attach+show) and `hide`
+  closes the window and keeps the client; `switch` owns target (`retarget`).
+  The pick flow is shared; only the tail after `resolve()` differs, and that
+  tail lives in each command — no callback is injected into entries.
 
 Renames and behavior references:
 
@@ -147,7 +148,7 @@ caller-declared parameter and the restore-mode branching that followed it.
 
 - `setup{}` keys and defaults are preserved except `annotations` → `reviews`
   (an intentional exception to the keep-the-keys rule); `cli.win.keys` tokens
-  become `switch`/`prompt`/`toggle`.
+  become `hide`/`switch`/`prompt`/`files`/`buffers`.
 - The Agent list's in-place `<c-x>` kill was later restored under flow-owned
   commands (the
   [restored kill note](../bug-fix/2026-09-10-agent-picker-cx-kill-restored.md));

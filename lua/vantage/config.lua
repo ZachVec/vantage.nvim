@@ -127,7 +127,8 @@ local defaults = {
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
       --- 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is passed verbatim to
       --- vim.keymap.set, except a string naming a built-in terminal action —
-      --- "switch", "prompt", or "toggle" — which resolves to that action.
+      --- "hide", "switch", "prompt", "files", or "buffers" — which resolves to
+      --- that action.
       keys = {},
     },
   },

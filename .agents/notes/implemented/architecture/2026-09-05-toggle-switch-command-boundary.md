@@ -1,4 +1,4 @@
-# Agent Note: toggle owns presence, switch owns target
+# Agent Note: show owns presence, switch owns target
 
 Status: implemented
 
@@ -17,10 +17,12 @@ offered.
 
 The single Terminal has two independent concerns:
 
-- `:Vantage toggle` owns **presence** — hide the open terminal, show the hidden
-  terminal, or, with no live terminal, open the Agent picker and open the
-  terminal on the chosen Agent. It no longer re-opens to the last-focused Agent
-  and no longer runs a creation wizard: with no terminal it always picks.
+- `:Vantage show` owns **presence** — focus the open terminal, re-open the
+  hidden terminal, or, with no live terminal, open the Agent picker and open
+  the terminal on the chosen Agent. It never re-opens to the last-focused Agent
+  and never runs a creation wizard: with no terminal it always picks. Hiding is
+  its own command and token, `hide`, so this command no longer has an inverse —
+  see the [show/hide split](2026-09-24-show-and-hide-split-presence.md).
 - `switch` (the `cli.win.keys` terminal action) owns **target** — re-point the
   existing terminal to another Agent, never showing or hiding it. The terminal
   is live by construction when the key is pressed.
@@ -29,7 +31,7 @@ The tail action after a pick is the only difference, so it is injected as a
 callback rather than forked:
 
 - `commands/attach.lua` owns one shared pick flow and threads the
-  caller's tail through after creation. Its `toggle` opens the Terminal on the
+  caller's tail through after creation. Its `show` opens the Terminal on the
   chosen Agent; its `switch` calls the Attachment's `retarget(agent)` and never
   shows or hides it.
 - The Agent-creation wizard (`create_wizard`) is deleted: creation lives only
@@ -38,17 +40,17 @@ callback rather than forked:
 
 ## Alternatives considered
 
-### Why not keep toggle's "re-open to last Agent" shortcut?
+### Why not keep the presence command's "re-open to last Agent" shortcut?
 
 It mixed target selection into a presence command and hid an unasked focus.
-Making toggle always pick when the terminal is gone keeps the command
+Making `show` always pick when the terminal is gone keeps the command
 predictable; the picker's pinned `(focused)` entry still marks where the terminal
 was when it exists.
 
 ### Why not let switch bootstrap when there is no terminal?
 
 That would have switch creating a terminal, re-coupling the two axes. Warning
-instead keeps switch pure re-point and makes `toggle` the single place a
+instead keeps switch pure re-point and makes `show` the single place a
 terminal is materialized.
 
 ### Why not fork `pick_or_new` into two per-command copies?
@@ -59,11 +61,11 @@ creation takes the same callback for the same reason.
 
 ## Consequences
 
-- `:Vantage toggle` no longer "creates if empty" nor re-opens to the last
+- `:Vantage show` no longer "creates if empty" nor re-opens to the last
   Agent: with no terminal it opens the picker. The `switch` key never creates
   or shows a terminal — it only re-points.
 - The `switch` key has no `@N` form: it always opens the picker. After a
-  detach the terminal must be reopened with `:Vantage toggle` first.
+  detach the terminal must be reopened with `:Vantage show` first.
 - `create_wizard` and its Tool step are gone; the Tool entries are the single
   creation channel.
 - README, `doc/vantage.nvim.txt`, and `docs/architecture.md` describe the

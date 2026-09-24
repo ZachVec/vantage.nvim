@@ -64,7 +64,7 @@ _Avoid_: current agent, active agent, last agent, focused agent
 
 ## Terminal action
 
-A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+A named action available only from a keymap inside the Terminal: `hide`, `switch`, `prompt`, `files`, or `buffers`. `hide` closes the Terminal's window and leaves its client attached; it is not the inverse of any action here, because showing the Terminal is a `:Vantage` command, not a key pressed inside it. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
 _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker

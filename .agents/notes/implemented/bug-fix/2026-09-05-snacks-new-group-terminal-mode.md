@@ -11,7 +11,7 @@ Agent was created — typing did nothing until the user pressed `i`. Switch's
 tail is the Attachment's `retarget(agent)`, which only re-points the existing
 terminal and never touches the mode, so the flow depends entirely on the snacks picker's
 terminal-mode re-entry after its pickers close. The same creation through
-`:Vantage toggle` was unaffected (`Terminal.show` ends in
+`:Vantage show` was unaffected (`Terminal.show` ends in
 `startinsert`).
 
 The re-entry is a single tick check (`restore_terminal_mode`: scheduled for

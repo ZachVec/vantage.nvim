@@ -17,9 +17,10 @@ The command layer is a directory mirroring the repo's existing
 
 - `commands/init.lua` is the dispatch only: `run` maps a subcommand name to one
   function call, `complete` answers completion, and the few one-line commands
-  (`toggle`, `detach`, `status`) live here as thin local functions. No complex
-  logic sits in `run`.
-- `commands/attach.lua` owns `toggle`/`switch` and their shared
+  (`show`, `hide`, `detach`, `status`) live here as thin local functions. No
+  complex logic sits in `run`: the subcommand table drives dispatch, the usage
+  text, and completion alike.
+- `commands/attach.lua` owns `show`/`switch` and their shared
   Agent/Tool selection, Group choice, and creation handoff;
   `commands/kill.lua` owns the kill flow.
 - `commands/prompt.lua` owns the `prompt` terminal action (`run` +
@@ -43,7 +44,7 @@ subordination. `review.run` owns the remaining sub-dispatch (list/clear/add);
 ### Why not one file per subcommand?
 
 Seven subcommands would produce several ~10-line files plus a shared creation
-flow that both switch and toggle need, forcing a `create.lua` anyway. Three
+flow that both switch and show need, forcing a `create.lua` anyway. Three
 domain modules match the domain's own seams and the repo's directory pattern.
 
 ### Why not nest Review under Prompt (`commands/prompt/review.lua`)?

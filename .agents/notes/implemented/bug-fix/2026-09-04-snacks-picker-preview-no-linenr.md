@@ -5,7 +5,7 @@ Status: implemented
 ## Problem
 
 With `setup { picker = "snacks" }`, every preview-capable Vantage pick — the
-Agent list behind `:Vantage switch` (and `toggle`'s pick step), the kill list,
+Agent list behind `:Vantage switch` (and `show`'s pick step), the kill list,
 and the Review picker — renders its preview inside snacks' preview window.
 Snacks creates that window with the `number` column on by default (its
 `picker/core/preview.lua` builds `wo.number = win.preview.minimal ~= true`,

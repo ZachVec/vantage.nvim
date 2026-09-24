@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The Agent picker behind `:Vantage switch` and `:Vantage toggle` stopped
+The Agent picker behind `:Vantage switch` and `:Vantage show` stopped
 binding `<c-x>`. The layered refactor moved in-flight picker actions from
 `PickSpec.on_delete` to flow-owned `opts.commands`, the attach flow registered
 only `<c-g>`, and the pre-refactor kill decision was archived instead of being

@@ -92,7 +92,7 @@ through per-tick read-only aggregation instead of mirroring it in the client.
   erroring; `vantage.Win` in `lua/vantage/config.lua`, the `README.md`
   sample, and `doc/vantage.nvim.txt` list
   `float | full | left | top | bottom | right` with `float` as the default.
-- With `full` the terminal owns a tab: `hide`/`toggle` closes the terminal
+- With `full` the terminal owns a tab: `hide` closes the terminal
   window, which also closes its tab when that window is the tab's only one
   (when the terminal window is the session's very last window, `hide` swaps in
   an empty buffer instead, per the pre-existing single-window rule). The

@@ -34,7 +34,7 @@ a query is typed):
   swallow it — see
   [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
   No engine-specific disabled-entry machinery is used (see Alternatives).
-  Declared not-from-terminal (`toggle`'s open-path fallback), there is no
+  Declared not-from-terminal (`show`'s open-path fallback), there is no
   focused Agent and no pin.
 - **Agent ordering.** Remaining Agent entries sort ascending by group, absolute
   cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
@@ -133,7 +133,7 @@ creation, unique, and already the storage key.
 - The empty-list handling later moved out of the engines into the caller,
   keyed on the picker's boolean `empty` return — see [the
   picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).
-- The toggle/switch command boundary later split presence from target: toggle
-  opens/hides the terminal (picking when there is none), switch only re-points
-  an existing one and warns with none — see the [toggle/switch boundary
+- The presence/target command boundary later split the two: `show` opens the
+  terminal (picking when there is none) and `hide` closes it, while switch only
+  re-points an existing one and warns with none — see the [show/switch boundary
   note](../architecture/2026-09-05-toggle-switch-command-boundary.md).

@@ -2,15 +2,15 @@
 ---
 --- The Terminal installs `cli.win.keys` on its buffer and asks this module what
 --- each string means; the token table lives here because a token's meaning is a
---- command. Command modules are required lazily so this module has no
---- module-load cycle with attach.lua.
+--- command. The targets are required lazily so this module stays a load leaf
+--- and keeps no module-load cycle with attach.lua.
 
 local M = {}
 
 ---@type table<string, fun()>
 local ACTIONS = {
-  toggle = function()
-    require("vantage.commands.attach").toggle()
+  hide = function()
+    require("vantage.frontend.terminal").hide()
   end,
   switch = function()
     require("vantage.commands.attach").switch()

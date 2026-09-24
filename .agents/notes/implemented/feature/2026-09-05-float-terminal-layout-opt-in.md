@@ -83,7 +83,7 @@ sizes can be layered on later if someone asks.
   `vantage.Win` type, the README sample, and `doc/vantage.nvim.txt` list
   `float` with its `cli.win.float` options and the flicker caveat. A stale or
   misspelled layout still falls through to the split path (bottom split).
-- With `float`, the Terminal no longer owns a tab: `hide`/`toggle` closes the
+- With `float`, the Terminal no longer owns a tab: `hide` closes the
   float directly, and the terminal reopens as a fresh float on `show`. The
   buffer `retitle` still runs — the name shows in other windows' bars and tabs
   when the buffer is displayed there; the float itself shows no winbar.

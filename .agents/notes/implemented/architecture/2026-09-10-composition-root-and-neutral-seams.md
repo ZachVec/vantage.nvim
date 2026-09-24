@@ -60,7 +60,7 @@ are globally bound, duplicate `lhs` values fail fast, and a renderer without
 `pick_agent`/`pick_kill`/`pick_review` methods are gone; group scoping is a
 flow-owned ordinary command.
 
-**Command ownership.** `commands/attach.lua` owns `toggle`/`switch`
+**Command ownership.** `commands/attach.lua` owns `show`/`switch`
 plus their shared Agent/Tool selection and Group creation;
 `commands/actions.lua` maps terminal action tokens and installs
 `cli.win.keys`.

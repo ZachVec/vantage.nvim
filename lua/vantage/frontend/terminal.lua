@@ -6,7 +6,9 @@
 --- terminal's existence IS the attachment's existence (the job is the attached
 --- client). A `TermClose` closes the window, deletes the buffer, and resets
 --- state; `hide` closes only the window and keeps the buffer + client alive,
---- `show` re-opens the same buffer.
+--- `show` re-opens the same buffer and answers false when there is no client to
+--- show. Materializing one is the command layer's job, not this module's: the
+--- Terminal never decides which Agent a hidden or absent client should display.
 local Config = require("vantage.config")
 local Util = require("vantage.util")
 
@@ -28,13 +30,13 @@ local M = {
   attachment = nil,
 }
 
-function M.reset()
+local function reset()
   M.job, M.buffer, M.window, M.attachment = nil, nil, nil, nil
 end
 
 --- True if the terminal window is currently open.
 ---@return boolean
-function M.is_open()
+local function is_open()
   return M.window ~= nil and vim.api.nvim_win_is_valid(M.window)
 end
 
@@ -95,7 +97,7 @@ end
 --- Open the terminal buffer in a float, tab, or split, per cli.win.layout.
 ---@param buffer integer
 ---@return integer window id
-function M.open_win(buffer)
+local function open_win(buffer)
   local cfg = Config.options.cli.win
   if cfg.layout == "float" then
     -- A centered, full-editor-size floating window. Floats render no
@@ -157,7 +159,7 @@ end
 
 --- Hide the terminal window, keeping the buffer + client alive.
 function M.hide()
-  if not M.is_open() then
+  if not is_open() then
     return
   end
   if vim.api.nvim_win_get_config(M.window).relative ~= "" then
@@ -179,29 +181,16 @@ end
 --- terminal (insert) mode.
 ---@return boolean
 function M.show()
-  if not M.is_open() then
+  if not is_open() then
     if not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
       return false
     end
-    M.window = M.open_win(M.buffer)
+    M.window = open_win(M.buffer)
     configure_window()
   end
   vim.api.nvim_set_current_win(M.window)
   vim.cmd("startinsert")
   return true
-end
-
---- Hide if open, show if hidden. Returns false when there is no live terminal.
----@return boolean
-function M.toggle()
-  if M.is_open() then
-    M.hide()
-    return true
-  end
-  if M.buffer and vim.api.nvim_buf_is_valid(M.buffer) then
-    return M.show()
-  end
-  return false
 end
 
 --- Destroy the terminal: close the window, stop the job (detaching the
@@ -217,7 +206,7 @@ function M.destroy()
   if M.buffer and vim.api.nvim_buf_is_valid(M.buffer) then
     pcall(vim.api.nvim_buf_delete, M.buffer, { force = true })
   end
-  M.reset()
+  reset()
 end
 
 --- Open a fresh terminal attached via `argv` (the Driver's attach command) and
@@ -233,7 +222,7 @@ function M.open(argv, resolve)
   vim.bo[buffer].swapfile = false
   vim.bo[buffer].filetype = "vantage_terminal"
 
-  local window = M.open_win(buffer)
+  local window = open_win(buffer)
   M.buffer = buffer
   M.window = window
   configure_window()
@@ -258,7 +247,7 @@ function M.open(argv, resolve)
         if vim.api.nvim_buf_is_valid(buffer) then
           pcall(vim.api.nvim_buf_delete, buffer, { force = true })
         end
-        M.reset()
+        reset()
       end)
     end,
   })

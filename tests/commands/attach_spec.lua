@@ -60,7 +60,7 @@ describe("vantage.commands.attach", function()
 
   --- Run a public flow without selecting a row and return the spec it passed
   --- to the Picker. `attached` runs the switch flow, which needs a live
-  --- Terminal; without it the toggle flow finds none.
+  --- Terminal; without it the show flow finds none.
   ---@param attached? boolean
   ---@return table[]
   local function items_for(attached)
@@ -69,7 +69,7 @@ describe("vantage.commands.attach", function()
       terminal.attachment = attachment_fixture
       Attach.switch()
     else
-      Attach.toggle()
+      Attach.show()
     end
     assert.is_not_nil(captured_spec)
     return Helpers.entries(captured_spec)
@@ -148,13 +148,13 @@ describe("vantage.commands.attach", function()
     terminal = {
       buffer = 77,
       attachment = nil,
-      toggle_result = false,
+      show_result = false,
       opened = nil,
       resolver = nil,
       open_result = true,
     }
-    function terminal.toggle()
-      return terminal.toggle_result
+    function terminal.show()
+      return terminal.show_result
     end
     function terminal.open(argv, resolve)
       terminal.opened = argv
@@ -194,7 +194,7 @@ describe("vantage.commands.attach", function()
     picker.auto_select = false
     picker.plain_choice = "z"
     terminal.attachment = nil
-    terminal.toggle_result = false
+    terminal.show_result = false
     terminal.opened = nil
     terminal.resolver = nil
     terminal.open_result = true
@@ -260,7 +260,7 @@ describe("vantage.commands.attach", function()
     local items = items_for(true)
     picker.auto_select = #items -- the last entry is a Tool entry
 
-    Attach.toggle()
+    Attach.show()
 
     assert.are.equal("zeta", backend.created[1].tool)
     assert.are.equal("z", backend.created[1].group)
@@ -272,7 +272,7 @@ describe("vantage.commands.attach", function()
     picker.auto_select = #items
     picker.plain_choice = nil
 
-    Attach.toggle()
+    Attach.show()
 
     assert.are.same({}, backend.created)
     assert.are.equal(nil, terminal.opened)
@@ -283,7 +283,7 @@ describe("vantage.commands.attach", function()
     local tool = items[#items]
     picker.auto_select = #items
 
-    Attach.toggle()
+    Attach.show()
 
     assert.is_true(vim.endswith(tool.text, "zeta")) -- Tool entries sort by name
     assert.are.equal("zeta", backend.created[1].tool)
@@ -317,19 +317,28 @@ describe("vantage.commands.attach", function()
     assert.are.same({}, backend.killed)
   end)
 
-  it("toggle opens the terminal and hands it the action resolver", function()
+  it("show opens the terminal and hands it the action resolver", function()
     picker.auto_select = true
-    Attach.toggle()
+    Attach.show()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
     assert.are.equal("action:switch", terminal.resolver("switch"))
+  end)
+
+  it("shows a live Terminal without picking an Agent", function()
+    terminal.show_result = true
+
+    Attach.show()
+
+    assert.is_nil(captured_spec)
+    assert.is_nil(terminal.opened)
   end)
 
   it("holds no attachment when the terminal cannot start", function()
     picker.auto_select = true
     terminal.open_result = false
 
-    Attach.toggle()
+    Attach.show()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
     assert.is_nil(terminal.attachment)
@@ -345,7 +354,7 @@ describe("vantage.commands.attach", function()
       return nil, "no server running"
     end
 
-    Attach.toggle()
+    Attach.show()
     local items = Helpers.entries(captured_spec)
     vim.notify = original_notify
 
