@@ -18,7 +18,8 @@ local PROMPT = Util.picker_prompt
 ---@return string cwd
 ---@return string? tool
 local function list_context()
-  local agent = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local agent = attachment and attachment:focus() or nil
   if agent then
     return agent.cwd, agent.tool
   end

@@ -6,6 +6,7 @@ describe("vantage.commands.gather", function()
   local Config
   local Entries
   local Gather
+  local attachment
   local backend
   local picker
   local pick_spec
@@ -139,15 +140,6 @@ describe("vantage.commands.gather", function()
     notified = {}
 
     backend = { sent = {} }
-    function backend.focus(pid)
-      if pid == nil then
-        return nil, Config.FOCUS_NO_TERMINAL
-      end
-      if focused == nil then
-        return nil, Config.FOCUS_NO_FOCUS
-      end
-      return focused, nil
-    end
     function backend.send(agent, text)
       backend.sent[#backend.sent + 1] = { agent = agent, text = text }
       return true, nil
@@ -160,12 +152,15 @@ describe("vantage.commands.gather", function()
 
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = picker
-    -- Only the job pid is needed; the flows read the Focus through the Backend.
-    package.loaded["vantage.frontend.terminal"] = {
-      pid = function()
-        return 42
-      end,
-    }
+    -- The flow reads the Focus through the Terminal's own Attachment.
+    attachment = {}
+    function attachment.focus()
+      if focused == nil then
+        return nil, Config.FOCUS_NO_FOCUS
+      end
+      return focused, nil
+    end
+    package.loaded["vantage.frontend.terminal"] = { attachment = attachment }
     Gather = require("vantage.commands.gather")
     Entries = require("vantage.frontend.entries")
   end)

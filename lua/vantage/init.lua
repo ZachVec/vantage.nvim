@@ -2,8 +2,8 @@
 ---
 --- This module is the composition root. It applies configuration, resolves the
 --- configured Driver and Picker, then installs the runtime hooks and command.
+local Backend = require("vantage.backend")
 local Config = require("vantage.config")
-local Driver = require("vantage.backend.driver")
 local Picker = require("vantage.frontend.picker")
 local Prompt = require("vantage.commands.prompt")
 local Review = require("vantage.frontend.review")
@@ -18,7 +18,7 @@ function M.setup(opts)
   -- side effects. A bad backend/picker therefore leaves no command or autocmd
   -- behind, while Config.options retains the attempted values for health.
   local ok, err = pcall(function()
-    Driver.setup()
+    Backend.setup()
     Picker.setup()
 
     Prompt.setup()
@@ -36,7 +36,7 @@ function M.setup(opts)
     })
   end)
   if not ok then
-    Driver.reset()
+    Backend.reset()
     Picker.reset()
     error(err, 0)
   end

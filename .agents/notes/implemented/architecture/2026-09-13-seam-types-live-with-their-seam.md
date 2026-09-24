@@ -6,7 +6,7 @@ Status: implemented
 
 Every `vantage.*` LuaLS type lived in `config.lua`, including contracts whose
 implementation lived elsewhere. `vantage.Driver`'s verb list sat in a different
-file from the `REQUIRED` list that validates it (`backend/driver/init.lua`), and
+file from the `REQUIRED` list that validates it (`backend/init.lua`), and
 the eight picker types — `PickSpec`, `PickerImpl`, `PickerCapabilities`,
 `PickOpts`, `PickMultiOpts`, `PlainSelectOpts`, `PickerCommand`, and
 `PickerCommandCtx` — sat away from the facade that enforces them. Reading one
@@ -18,7 +18,7 @@ seam's contract meant opening two files, and `AGENTS.md` stated a one-tier rule:
 A seam's contract types live with the seam, and `AGENTS.md` now says so:
 
 - `vantage.Driver`, `vantage.Attachment`, and `vantage.Agent` live in
-  `backend/driver/init.lua`, next to the registry and the `REQUIRED` list: the
+  `backend/init.lua`, next to the registry and the `REQUIRED` list: the
   Driver emits those records, so its file carries their shape.
 - The picker contract — `vantage.PickSpec`, `vantage.PickerCommand`,
   `vantage.PickerCommandCtx`, `vantage.PickOpts`, `vantage.PickMultiOpts`,
@@ -64,10 +64,10 @@ contract, not the copies of the verb list.
 
 ## Consequences
 
-- `backend/driver/init.lua` and `frontend/picker/init.lua` read as complete
+- `backend/init.lua` and `frontend/picker/init.lua` read as complete
   contracts: the shape, and the thing that enforces it.
 - `config.lua` holds the option table, its validation, and the reference
   spelling.
-- The Driver's verb list still appears in `driver/init.lua` (the type and
-  `REQUIRED`), `backend/init.lua`'s forwards, and the conformance test — but the pair
-  that must agree now sits in one file.
+- The Driver's verb list still appears in `backend/init.lua` (the type, the
+  `REQUIRED` list, and the surface's forwards) and the conformance test — but
+  the pair that must agree now sits in one file.

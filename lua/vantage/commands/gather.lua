@@ -141,7 +141,11 @@ local SOURCES = {
 --- focused Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local agent, err = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local agent, err
+  if attachment then
+    agent, err = attachment:focus()
+  end
   if not agent then
     Util.warn(err or "no focused agent")
     return

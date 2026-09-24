@@ -30,7 +30,7 @@ callback rather than forked:
 
 - `commands/attach.lua` owns one shared pick flow and threads the
   caller's tail through after creation. Its `toggle` opens the Terminal on the
-  chosen Agent; its `switch` calls `Backend.retarget(pid, agent)` and never
+  chosen Agent; its `switch` calls the Attachment's `retarget(agent)` and never
   shows or hides it.
 - The Agent-creation wizard (`create_wizard`) is deleted: creation lives only
   in the Tool entries of the Agent picker, whose post-create tail action is the

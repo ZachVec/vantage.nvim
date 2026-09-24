@@ -129,7 +129,11 @@ end
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local focused, err = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local focused, err
+  if attachment then
+    focused, err = attachment:focus()
+  end
   if not focused then
     Util.warn(err or "no focused agent")
     return

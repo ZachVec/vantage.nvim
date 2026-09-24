@@ -23,7 +23,7 @@ without a long-lived process and without shared mutable counters to corrupt.
   part of the [full-terminal-layout note](2026-09-03-full-terminal-layout.md).
 - **The pane's top tmux border carries the info.** The plugin owns the
   private server, so the border is applied unconditionally (no config
-  option): `apply_global_config()` in `lua/vantage/backend/driver/tmux.lua` sets
+  option): `apply_global_config()` in `lua/vantage/backend/tmux.lua` sets
   `status-interval 1`, `pane-border-status top`, and a global
   `pane-border-format`, padded with one leading and one trailing space:
   `Group · Tool · cwd` followed by the per-Group State counts. Group is
@@ -82,9 +82,10 @@ without a long-lived process and without shared mutable counters to corrupt.
   unset State as idle.
 - **the tmux Driver's `status.sh` resource** is a manual, vocabulary-validating writer —
   the skeleton every future per-Agent lifecycle script will call. It takes
-  `[-L <socket>] <window-id> <state>` and writes the full value. The socket
-  defaults to `vantage` (the plugin's default `Config.options.socket`); the
-  Lua side always passes the configured socket explicitly.
+  `-L <socket> <window-id> <state>` and writes the full value. It never guesses
+  a default socket: the Lua side always passes the configured one
+  (`backend_opts.tmux.socket`, the [driver-options
+  note](../architecture/2026-09-19-driver-options-live-with-the-driver.md)).
 - The border's only `#()` is the counts command, called by absolute path
   (`resource_path()` resolves the driver's `resources/tmux/counts.sh` through
   the plugin runtimepath — tmux runs `#()` with the server environment, where

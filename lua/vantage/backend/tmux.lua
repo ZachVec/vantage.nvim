@@ -18,7 +18,7 @@ local CLIENT_DETACHED_HOOK =
   [[run-shell "if [ \"#{@vantage-view}\" = \"1\" ]; then tmux -S \"#{socket_path}\" kill-session -t \"#{session_name}\"; fi"]]
 
 local function socket()
-  return Config.options.socket
+  return Config.options.backend_opts.tmux.socket
 end
 
 --- Resolve a tmux Driver resource from the plugin runtimepath. tmux runs
@@ -27,43 +27,47 @@ end
 ---@return string?
 ---@return string?
 local function resource_path(name)
-  local path = vim.api.nvim_get_runtime_file(("lua/vantage/backend/driver/resources/tmux/%s"):format(name), false)[1]
+  local path = vim.api.nvim_get_runtime_file(("lua/vantage/backend/resources/tmux/%s"):format(name), false)[1]
   if not path then
     return nil, ("tmux driver resource '%s' not found"):format(name)
   end
   return path, nil
 end
 
---- Run a tmux command synchronously.
----@return integer code
----@return string stdout
----@return string stderr
-local function run(...)
-  return Util.run({ "tmux", "-L", socket(), ... })
+--- The argv every tmux invocation starts from: the binary plus the private
+--- socket. M.attach hands this to the Terminal as well.
+---@return string[]
+local function tmux_argv(...)
+  return { "tmux", "-L", socket(), ... }
+end
+
+--- Build a user-facing failure message from a failed tmux result, including
+--- stderr when tmux supplied a reason.
+---@param prefix string
+---@param result { code: integer, stdout: string, stderr: string }
+---@return string
+local function fail_message(prefix, result)
+  local detail = vim.trim(result.stderr or "")
+  if detail == "" then
+    return prefix
+  end
+  return ("%s: %s"):format(prefix, detail)
 end
 
 --- Run a tmux command and return a structured result, so callers that need
---- diagnostics can read `stderr` without every caller handling three return
---- values.
+--- diagnostics can read `stdout`/`stderr` without every caller handling three
+--- return values; a caller that needs only the exit code reads `.code`.
 ---@return { code: integer, stdout: string, stderr: string }
-local function exec_result(...)
-  local code, stdout, stderr = run(...)
+local function exec(...)
+  local code, stdout, stderr = Util.run(tmux_argv(...))
   return { code = code, stdout = stdout, stderr = stderr }
 end
-
---- Exit code only, for the many commands where success/failure is the whole
---- question.
-local function exec(...)
-  return exec_result(...).code
-end
-
-local fail_message
 
 --- List of non-empty lines, or {} plus the failure message on error.
 ---@return string[]
 ---@return string?
 local function exec_lines(...)
-  local result = exec_result(...)
+  local result = exec(...)
   if result.code ~= 0 then
     return {}, fail_message("tmux command failed", result)
   end
@@ -78,24 +82,11 @@ local function exec_lines(...)
   return lines, nil
 end
 
---- Build a user-facing failure message from a failed tmux result, including
---- stderr when tmux supplied a reason.
----@param prefix string
----@param result { code: integer, stdout: string, stderr: string }
----@return string
-function fail_message(prefix, result)
-  local detail = vim.trim(result.stderr or "")
-  if detail == "" then
-    return prefix
-  end
-  return ("%s: %s"):format(prefix, detail)
-end
-
---- True when tmux reports that its server/socket does not exist yet.
----@param value table|string
+--- True when tmux's `text` — a stderr, or an error message embedding one —
+--- reports that its server/socket does not exist yet.
+---@param text string
 ---@return boolean
-local function missing_server(value)
-  local text = type(value) == "table" and (value.stderr or "") or tostring(value)
+local function missing_server(text)
   return text:find("no server running", 1, true) ~= nil or text:find("error connecting", 1, true) ~= nil
 end
 
@@ -105,31 +96,34 @@ end
 ---@return boolean
 ---@return string?
 local function apply_global_config()
+  local counts_path, resource_err = resource_path("counts.sh")
+  if not counts_path then
+    return false, resource_err
+  end
+  -- Per-Group State counts in the pane's top border: computed read-only per
+  -- status tick by the driver's counts.sh inside a #() substitution — never
+  -- stored; the command string embeds the expanded #{@agent-group}, so tmux
+  -- dedupes it to one small process per Group per tick.
+  local counts = ('#("%s" -L %s #{@agent-group})'):format(counts_path, socket())
   local settings = {
     { "set-hook", "-g", "client-detached", CLIENT_DETACHED_HOOK },
     { "set", "-g", "default-terminal", "tmux-256color" },
     { "set", "-g", "history-limit", "20000" },
     { "set", "-g", "focus-events", "on" },
+    -- No tmux status line: the terminal is the raw agent prompt.
+    { "set", "-g", "status", "off" },
+    { "set", "-g", "status-interval", "1" },
+    { "set", "-g", "pane-border-status", "top" },
+    {
+      "set",
+      "-g",
+      "pane-border-format",
+      (" #{@agent-group} · #{@agent-tool} · #{@agent-cwd-tilde}%s "):format(counts),
+    },
   }
-  -- No tmux status line: the terminal is the raw agent prompt.
-  settings[#settings + 1] = { "set", "-g", "status", "off" }
-  -- Agent info in the pane's top border: Group · Tool · cwd · per-Group State
-  -- counts. The counts are computed read-only per status tick by
-  -- the driver's counts.sh inside a #() substitution — never stored; the
-  -- command string embeds the expanded #{@agent-group}, so tmux dedupes it to
-  -- one small process per Group per tick.
-  settings[#settings + 1] = { "set", "-g", "status-interval", "1" }
-  settings[#settings + 1] = { "set", "-g", "pane-border-status", "top" }
-  local counts_path, resource_err = resource_path("counts.sh")
-  if not counts_path then
-    return false, resource_err
-  end
-  local counts = ('#("%s" -L %s #{@agent-group})'):format(counts_path, socket())
-  local border_format = (" #{@agent-group} · #{@agent-tool} · #{@agent-cwd-tilde}%s "):format(counts)
-  settings[#settings + 1] = { "set", "-g", "pane-border-format", border_format }
 
   for _, setting in ipairs(settings) do
-    local result = exec_result(setting[1], setting[2], setting[3], setting[4])
+    local result = exec(setting[1], setting[2], setting[3], setting[4])
     if result.code ~= 0 then
       return false, fail_message(("failed to apply tmux setting '%s'"):format(setting[1]), result)
     end
@@ -158,23 +152,25 @@ end
 ---@return string?
 ---@return string?
 local function session_group(session)
-  local result = exec_result("display", "-p", "-t", session, "#{?#{session_group},#{session_group},#{session_name}}")
+  local result = exec("display", "-p", "-t", session, "#{?#{session_group},#{session_group},#{session_name}}")
   if result.code ~= 0 then
     return nil, fail_message(("can't read session group for '%s'"):format(session), result)
   end
   return vim.trim(result.stdout), nil
 end
 
---- True when a session is a Vantage View.
----@param session string
+--- Kill a View this Driver created. Best-effort cleanup: the View of an
+--- attachment whose client never started, and the abandoned View of a
+--- cross-Group move.
+---@param view string
 ---@return boolean
 ---@return string?
-local function is_view(session)
-  local result = exec_result("display", "-p", "-t", session, "#{@vantage-view}")
+local function close_view(view)
+  local result = exec("kill-session", "-t", view)
   if result.code ~= 0 then
-    return false, fail_message(("can't inspect session '%s'"):format(session), result)
+    return false, fail_message(("can't kill view '%s'"):format(view), result)
   end
-  return vim.trim(result.stdout) == "1", nil
+  return true, nil
 end
 
 --- Create a fresh View in a Group and point it at an Agent window.
@@ -183,10 +179,10 @@ end
 ---@return string?
 ---@return string?
 local function create_view(group, target)
-  if exec("has-session", "-t", group) ~= 0 then
+  if exec("has-session", "-t", group).code ~= 0 then
     return nil, ("no such group '%s'"):format(group)
   end
-  local result = exec_result("new-session", "-d", "-P", "-F", "#{session_name}", "-t", group)
+  local result = exec("new-session", "-d", "-P", "-F", "#{session_name}", "-t", group)
   if result.code ~= 0 then
     return nil, fail_message(("failed to create a view for group '%s'"):format(group), result)
   end
@@ -195,12 +191,12 @@ local function create_view(group, target)
     return nil, ("failed to create a view for group '%s': tmux returned an empty session name"):format(group)
   end
 
-  local mark = exec_result("set-option", "-t", view, "@vantage-view", "1")
+  local mark = exec("set-option", "-t", view, "@vantage-view", "1")
   if mark.code ~= 0 then
     exec("kill-session", "-t", view)
     return nil, fail_message(("failed to mark view '%s'"):format(view), mark)
   end
-  local select = exec_result("select-window", "-t", view .. ":" .. target)
+  local select = exec("select-window", "-t", view .. ":" .. target)
   if select.code ~= 0 then
     exec("kill-session", "-t", view)
     return nil, fail_message(("failed to point view '%s' at %s"):format(view, target), select)
@@ -208,26 +204,27 @@ local function create_view(group, target)
   return view, nil
 end
 
---- Find the client attached to the terminal job whose pid is `pid`.
----@param pid integer
----@return { name: string, session: string }?
+--- The client sitting on a View, by its tty. A View is created for exactly one
+--- Terminal and destroyed when that client detaches, so its client is
+--- unambiguous. An empty answer is a View with nobody on it: the state an
+--- attachment is in between `attach` and its client starting.
+---@param view string
+---@return string? client the client's tty, or nil when the View has no client
 ---@return string?
-local function client_info(pid)
-  local lines, err = exec_lines("list-clients", "-F", "#{client_pid}\t#{client_name}\t#{session_name}")
-  if err then
-    return nil, err
+local function view_client(view)
+  local result = exec("display", "-p", "-t", view, "#{client_name}")
+  if result.code ~= 0 then
+    return nil, fail_message(("can't read the client of view '%s'"):format(view), result)
   end
-  for _, line in ipairs(lines) do
-    local client_pid, name, session = line:match("^(%d+)\t([^\t]*)\t([^\t]*)$")
-    if client_pid and tonumber(client_pid) == pid then
-      return { name = name, session = session }, nil
-    end
+  local client = vim.trim(result.stdout or "")
+  if client == "" then
+    return nil, nil
   end
-  return nil, nil
+  return client, nil
 end
 
 --- Move a client into a fresh View in the target Group.
----@param client { name: string, session: string }
+---@param client string the client's tty
 ---@param group string
 ---@param target string Agent window id (@N)
 ---@return string?
@@ -237,9 +234,9 @@ local function move_client_to_view(client, group, target)
   if not view then
     return nil, err
   end
-  local switch = exec_result("switch-client", "-c", client.name, "-t", view)
+  local switch = exec("switch-client", "-c", client, "-t", view)
   if switch.code ~= 0 then
-    exec("kill-session", "-t", view)
+    close_view(view)
     return nil, fail_message(("can't move client to group '%s'"):format(group), switch)
   end
   return view, nil
@@ -253,23 +250,44 @@ local function window_seq(id)
   return tonumber(id:match("^@(%d+)$")) or 0
 end
 
---- Remove a partially-created Agent. Returns an additional failure message
---- when rollback itself could not complete.
+--- The one place an Agent record is spelled from raw multiplexer fields.
+---@param group string
+---@param id string Agent window id (@N)
+---@param cmd string
+---@param cwd string
+---@param tool string
+---@param state string empty when the window reports no State
+---@return vantage.Agent
+local function agent_record(group, id, cmd, cwd, tool, state)
+  return {
+    id = id,
+    seq = window_seq(id),
+    group = group,
+    cmd = cmd,
+    cwd = cwd,
+    tool = tool,
+    state = (state ~= "" and state) or nil,
+  }
+end
+
+--- Report a failed Agent creation, rolling the partial Agent back first:
+--- kill the Anchor when this call created it, otherwise just the window.
+---@param primary string
 ---@param created_session boolean
 ---@param group string
 ---@param id string
----@return string?
-local function rollback_create(created_session, group, id)
+---@return string
+local function create_error(primary, created_session, group, id)
   local result
   if created_session then
-    result = exec_result("kill-session", "-t", group)
+    result = exec("kill-session", "-t", group)
   else
-    result = exec_result("kill-window", "-t", id)
+    result = exec("kill-window", "-t", id)
   end
   if result.code ~= 0 then
-    return fail_message("rollback failed", result)
+    return primary .. "; " .. fail_message("rollback failed", result)
   end
-  return nil
+  return primary
 end
 
 --- Create an Agent in a Group, creating the Group if it does not exist. The
@@ -280,15 +298,15 @@ end
 ---@return vantage.Agent?
 ---@return string?
 function M.create(opts)
-  local group_exists = exec("has-session", "-t", opts.group) == 0
+  local group_exists = exec("has-session", "-t", opts.group).code == 0
   local created_session = not group_exists
   local window_id = ""
   local result
 
   if group_exists then
-    result = exec_result("new-window", "-d", "-P", "-F", "#{window_id}", "-t", opts.group, "-c", opts.cwd, opts.cmd)
+    result = exec("new-window", "-d", "-P", "-F", "#{window_id}", "-t", opts.group, "-c", opts.cwd, opts.cmd)
   else
-    result = exec_result("new-session", "-d", "-s", opts.group, "-c", opts.cwd, opts.cmd)
+    result = exec("new-session", "-d", "-s", opts.group, "-c", opts.cwd, opts.cmd)
   end
   if result.code ~= 0 then
     return nil, fail_message(("failed to create agent in group '%s'"):format(opts.group), result)
@@ -297,22 +315,19 @@ function M.create(opts)
   if created_session then
     local config_ok, config_err = apply_global_config()
     if not config_ok then
-      local rollback_err = rollback_create(true, opts.group, "")
-      return nil, rollback_err and (config_err .. "; " .. rollback_err) or config_err
+      return nil, create_error(config_err or "failed to apply tmux settings", true, opts.group, "")
     end
-    result = exec_result("display", "-p", "-t", opts.group, "#{window_id}")
+    result = exec("display", "-p", "-t", opts.group, "#{window_id}")
     if result.code ~= 0 then
       local primary = fail_message(("failed to create agent in group '%s'"):format(opts.group), result)
-      local rollback_err = rollback_create(true, opts.group, "")
-      return nil, rollback_err and (primary .. "; " .. rollback_err) or primary
+      return nil, create_error(primary, true, opts.group, "")
     end
   end
 
   window_id = vim.trim(result.stdout)
   if window_id == "" then
     local primary = ("failed to create agent in group '%s': tmux returned an empty window id"):format(opts.group)
-    local rollback_err = rollback_create(created_session, opts.group, window_id)
-    return nil, rollback_err and (primary .. "; " .. rollback_err) or primary
+    return nil, create_error(primary, created_session, opts.group, window_id)
   end
 
   local metadata = {
@@ -329,24 +344,14 @@ function M.create(opts)
     { "@agent-state", "idle" },
   }
   for _, item in ipairs(metadata) do
-    result = exec_result("set-window-option", "-t", window_id, item[1], item[2])
+    result = exec("set-window-option", "-t", window_id, item[1], item[2])
     if result.code ~= 0 then
       local primary = fail_message(("failed to mark agent window '%s'"):format(window_id), result)
-      local rollback_err = rollback_create(created_session, opts.group, window_id)
-      return nil, rollback_err and (primary .. "; " .. rollback_err) or primary
+      return nil, create_error(primary, created_session, opts.group, window_id)
     end
   end
 
-  return {
-    id = window_id,
-    seq = window_seq(window_id),
-    group = opts.group,
-    cmd = opts.cmd,
-    cwd = opts.cwd,
-    tool = opts.tool,
-    state = "idle",
-  },
-    nil
+  return agent_record(opts.group, window_id, opts.cmd, opts.cwd, opts.tool, "idle"), nil
 end
 
 --- Agent rows: six tab-delimited fields.
@@ -359,10 +364,10 @@ local AGENT_FMT = table.concat({
   "#{@agent-state}",
 }, "\t")
 
---- Focus rows: the client's pid and current window id, then that window's
---- Agent fields (empty when the window is not an Agent).
-local CLIENT_FOCUS_FMT = table.concat({
-  "#{client_pid}",
+--- Focus rows: a View's current window id, then that window's Agent fields
+--- (empty when the window is not an Agent). A session-targeted display resolves
+--- both from the View alone, so a Focus read needs no client.
+local VIEW_FOCUS_FMT = table.concat({
   "#{window_id}",
   "#{@agent-group}",
   "#{@agent-cmd}",
@@ -376,9 +381,9 @@ local CLIENT_FOCUS_FMT = table.concat({
 ---@return vantage.Agent[]?
 ---@return string?
 function M.agents()
-  local result = exec_result("list-windows", "-a", "-f", "#{@agent-cmd}", "-F", AGENT_FMT)
+  local result = exec("list-windows", "-a", "-f", "#{@agent-cmd}", "-F", AGENT_FMT)
   if result.code ~= 0 then
-    if missing_server(result) then
+    if missing_server(result.stderr) then
       return {}, nil
     end
     return nil, fail_message("failed to read vantage state", result)
@@ -392,15 +397,7 @@ function M.agents()
       local group, id, cmd, cwd, tool, state = fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]
       if group ~= "" and id ~= "" and not seen[id] then
         seen[id] = true
-        agents[#agents + 1] = {
-          id = id,
-          seq = window_seq(id),
-          group = group,
-          cmd = cmd,
-          cwd = cwd,
-          tool = tool,
-          state = (state ~= "" and state) or nil,
-        }
+        agents[#agents + 1] = agent_record(group, id, cmd, cwd, tool, state)
       end
     end
   end
@@ -410,116 +407,111 @@ function M.agents()
   return agents, nil
 end
 
---- The Agent the client with `pid` displays: the Focus. One multiplexer query
---- reads the client's current window and that window's Agent fields together,
---- so the window id never needs matching against a second inventory read. A pid
---- with no live client answers `nil, Config.FOCUS_NO_CLIENT`; a client whose
---- window carries no Agent metadata answers `nil, Config.FOCUS_NO_FOCUS`; a
---- missing server answers `nil` plus the reason, because "no Terminal client"
---- and "nothing is running" are different answers to the caller.
----@param pid integer the terminal job's pid (its client)
+--- The Agent a View's client displays: the Focus. One multiplexer query reads
+--- the View's current window and that window's Agent fields together — a View
+--- has exactly one client, and a grouped session's current window is that
+--- client's, so no client lookup is involved. A window without Agent metadata
+--- answers `nil, Config.FOCUS_NO_FOCUS`; a View that no longer exists, or a
+--- server that is gone, answers `nil` plus the reason, because the
+--- attachment's own identity is then missing.
+---@param view string
 ---@return vantage.Agent?
 ---@return string?
-function M.focus(pid)
-  local lines, err = exec_lines("list-clients", "-F", CLIENT_FOCUS_FMT)
-  if err then
-    return nil, err
+local function view_focus(view)
+  local result = exec("display", "-p", "-t", view, VIEW_FOCUS_FMT)
+  if result.code ~= 0 then
+    return nil, fail_message(("can't read view '%s'"):format(view), result)
   end
-  for _, line in ipairs(lines) do
-    local fields = vim.split(line, "\t", { plain = true })
-    if #fields == 7 and tonumber(fields[1]) == pid then
-      local window, group = fields[2], fields[3]
-      if group == "" then
-        return nil, Config.FOCUS_NO_FOCUS
-      end
-      return {
-        id = window,
-        seq = window_seq(window),
-        group = group,
-        cmd = fields[4],
-        cwd = fields[5],
-        tool = fields[6],
-        state = (fields[7] ~= "" and fields[7]) or nil,
-      },
-        nil
-    end
+  -- Do not trim: the row is tab-delimited and may carry a trailing empty State.
+  local line = (result.stdout or ""):match("^([^\r\n]*)") or ""
+  local fields = vim.split(line, "\t", { plain = true })
+  if #fields ~= 6 then
+    return nil, ("can't read view '%s': unexpected output"):format(view)
   end
-  return nil, Config.FOCUS_NO_CLIENT
+  local window, group = fields[1], fields[2]
+  if group == "" then
+    return nil, Config.FOCUS_NO_FOCUS
+  end
+  return agent_record(group, window, fields[3], fields[4], fields[5], fields[6]), nil
 end
 
---- Re-point a client to an Agent without changing any other client's View.
----@param pid integer the terminal job's pid (its client)
+--- Create this Terminal's View and attach its client through `launch`: the View
+--- exists first, `launch(argv)` starts the client, and a client that cannot
+--- start takes the View back down with it, so a failed start leaves no session
+--- behind. The returned Attachment holds its View privately and answers every
+--- method from live state.
 ---@param agent vantage.Agent
----@return boolean
+---@param launch fun(argv: string[]): boolean, string?
+---@return vantage.Attachment?
 ---@return string?
-function M.retarget(pid, agent)
-  local client, client_err = client_info(pid)
-  if client_err then
-    return false, client_err
-  end
-  if not client then
-    return false, ("no client attached with pid %d"):format(pid)
-  end
-
-  local current_group, group_err = session_group(client.session)
-  if group_err then
-    return false, group_err
-  end
-  local old_is_view = is_view(client.session)
-
-  if current_group == agent.group and old_is_view then
-    local result = exec_result("select-window", "-t", client.session .. ":" .. agent.id)
-    if result.code ~= 0 then
-      return false, fail_message(("can't switch to %s:%s"):format(client.session, agent.id), result)
-    end
-    return true, nil
-  end
-
-  local _, move_err = move_client_to_view(client, agent.group, agent.id)
-  if move_err then
-    return false, move_err
-  end
-  if old_is_view then
-    local cleanup = exec_result("kill-session", "-t", client.session)
-    if cleanup.code ~= 0 then
-      return false, fail_message(("switched but failed to clean old view '%s'"):format(client.session), cleanup)
-    end
-  end
-  return true, nil
-end
-
---- Create a fresh View for this Terminal and return its attach command.
----@param agent vantage.Agent
----@return { view: string, argv: string[] }?
----@return string?
-function M.attach(agent)
+function M.attach(agent, launch)
   local view, err = create_view(agent.group, agent.id)
   if not view then
     return nil, err
   end
-  return {
-    view = view,
-    argv = { "tmux", "-L", socket(), "attach-session", "-t", view },
-  }, nil
-end
 
---- Remove a View created for a Terminal that failed to start.
----@param view string
----@return boolean
----@return string?
-function M.kill_view(view)
-  local view_ok, inspect_err = is_view(view)
-  if inspect_err then
-    return false, inspect_err
+  local started, launch_err = launch(tmux_argv("attach-session", "-t", view))
+  if not started then
+    local cleanup_ok, cleanup_err = close_view(view)
+    local reason = launch_err or "failed to start the terminal"
+    if not cleanup_ok then
+      return nil, reason .. "; " .. (cleanup_err or "rollback failed")
+    end
+    return nil, reason
   end
-  if not view_ok then
-    return false, ("session '%s' is not a view"):format(view)
+
+  local attachment = {}
+
+  --- The Agent this attachment's client currently displays.
+  ---@return vantage.Agent?
+  ---@return string?
+  function attachment:focus()
+    return view_focus(view)
   end
-  local result = exec_result("kill-session", "-t", view)
-  if result.code ~= 0 then
-    return false, fail_message(("can't kill view '%s'"):format(view), result)
+
+  --- Re-point this attachment's client to an Agent without touching any other
+  --- client's View. A same-Group move selects the Agent's window in the current
+  --- View; a cross-Group move needs the client itself, so it moves the client
+  --- into a fresh View of the destination Group and abandons the old one. The
+  --- handle adopts the new View before the old one is cleaned up, so a failed
+  --- cleanup cannot leave it pointing where the client no longer is.
+  ---@param other vantage.Agent
+  ---@return boolean
+  ---@return string?
+  function attachment:retarget(other)
+    local current_group, group_err = session_group(view)
+    if group_err then
+      return false, group_err
+    end
+    if current_group == other.group then
+      local result = exec("select-window", "-t", view .. ":" .. other.id)
+      if result.code ~= 0 then
+        return false, fail_message(("can't switch to %s:%s"):format(view, other.id), result)
+      end
+      return true, nil
+    end
+
+    local client, client_err = view_client(view)
+    if client_err then
+      return false, client_err
+    end
+    if not client then
+      return false, ("no client attached to view '%s'"):format(view)
+    end
+    local new_view, move_err = move_client_to_view(client, other.group, other.id)
+    if not new_view then
+      return false, move_err
+    end
+    local old_view = view
+    view = new_view
+    local cleanup = exec("kill-session", "-t", old_view)
+    if cleanup.code ~= 0 then
+      return false, fail_message(("switched but failed to clean old view '%s'"):format(old_view), cleanup)
+    end
+    return true, nil
   end
-  return true, nil
+
+  return attachment, nil
 end
 
 --- Kill a single Agent's window.
@@ -527,7 +519,7 @@ end
 ---@return boolean
 ---@return string?
 function M.kill_agent(agent)
-  local result = exec_result("kill-window", "-t", agent.id)
+  local result = exec("kill-window", "-t", agent.id)
   if result.code ~= 0 then
     return false, fail_message(("can't kill agent '%s'"):format(agent.id), result)
   end
@@ -556,7 +548,7 @@ function M.kill_group(group)
     return left < right
   end)
   for _, session in ipairs(sessions) do
-    local result = exec_result("kill-session", "-t", session)
+    local result = exec("kill-session", "-t", session)
     if result.code ~= 0 then
       return false, fail_message(("can't kill group '%s'"):format(group), result)
     end
@@ -573,13 +565,13 @@ end
 ---@return boolean
 ---@return string?
 function M.send_keys(agent, text)
-  local set_result = exec_result("set-buffer", "-b", "vantage-send", "--", text)
+  local set_result = exec("set-buffer", "-b", "vantage-send", "--", text)
   if set_result.code ~= 0 then
     return false, fail_message("failed to stage prompt text", set_result)
   end
 
-  local paste_result = exec_result("paste-buffer", "-p", "-t", agent.id, "-b", "vantage-send")
-  local delete_result = exec_result("delete-buffer", "-b", "vantage-send")
+  local paste_result = exec("paste-buffer", "-p", "-t", agent.id, "-b", "vantage-send")
+  local delete_result = exec("delete-buffer", "-b", "vantage-send")
   if paste_result.code ~= 0 then
     local message = fail_message("failed to paste prompt text", paste_result)
     if delete_result.code ~= 0 then
@@ -599,7 +591,7 @@ end
 ---@return string[]?
 ---@return string?
 function M.capture_pane(agent, max_lines)
-  local result = exec_result("capture-pane", "-p", "-S", "-" .. (max_lines or 50), "-t", agent.id)
+  local result = exec("capture-pane", "-p", "-S", "-" .. (max_lines or 50), "-t", agent.id)
   if result.code ~= 0 then
     return nil, fail_message(("failed to capture agent '%s'"):format(agent.id), result)
   end
@@ -628,7 +620,7 @@ function M.status()
   return {
     clients = clients,
     sessions = sessions,
-  }, err
+  }, nil
 end
 
 --- Health checks for the tmux driver: binary presence and socket state.
@@ -637,9 +629,9 @@ function M.health()
   if vim.fn.executable("tmux") ~= 1 then
     return { { status = "err", message = "tmux not found in PATH", fatal = true } }
   end
-  local version = vim.trim(vim.fn.system({ "tmux", "-V" }))
+  local version = vim.trim(exec("-V").stdout)
   local checks = { { status = "ok", message = ("tmux found: %s"):format(version) } }
-  local code = exec("list-sessions")
+  local code = exec("list-sessions").code
   if code == 0 then
     checks[#checks + 1] = { status = "ok", message = ("vantage tmux socket '%s' is running"):format(socket()) }
   elseif code == 1 then

@@ -15,6 +15,13 @@ Backend's composition — so the contract carried a verb no caller wanted.
 
 ## Decision
 
+The shape below is superseded by
+[backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md):
+the Focus read is now the Attachment's `focus()`, keyed by the View the client
+sits on rather than by its process pid, and it needs no client at all. The
+reasoning stands — one query per question, no optional-capability fallback, and
+reasons as messages.
+
 `vantage.Driver` exposes `focus(pid)` → `Agent?, string?` in place of
 `client_window(pid)`; the verb count stays 12. The tmux Driver answers it in one
 `list-clients -F`: the format reads the client's pid, its current window id, and
@@ -61,7 +68,7 @@ spelling, and the Driver already requires `config` for the socket.
   three queries (inventory, client, inventory again) to two.
 - The window-id match leaves the Backend: each Driver answers `focus` natively
   and returns the shared reason constants.
-- `tests/backend/driver_tmux_spec.lua` covers all four answers — the focused
+- `tests/backend/tmux_spec.lua` covers the answers — the focused
   Agent, no client for the pid, a client not on an Agent window, and a missing
   server — and `tests/backend/backend_spec.lua` covers the Backend's
   short-circuit and pass-through.

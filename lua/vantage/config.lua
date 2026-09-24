@@ -1,6 +1,6 @@
 --- Configuration and shared types for Vantage: the option table, its
 --- validation, and the reference spelling (`Config.tool_reference`). A seam's
---- contract types live with their seam — `vantage.Driver` in backend/driver,
+--- contract types live with their seam — `vantage.Driver` in backend/init.lua,
 --- the picker contract in frontend/picker.
 
 ---@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L` suffix in a Tool's dialect
@@ -28,7 +28,7 @@
 
 ---@class vantage.Config
 ---@field backend string
----@field socket string
+---@field backend_opts { tmux: { socket: string } } per-Driver options, keyed by Driver name
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
 ---@field reviews vantage.ReviewConfig
@@ -56,8 +56,13 @@ end
 local defaults = {
   --- Pluggable backend driver name (currently only "tmux").
   backend = "tmux",
-  --- Private tmux socket name, isolating Vantage from the daily tmux server.
-  socket = "vantage",
+  --- Per-Driver options, keyed by the Driver name in `backend`. The shared
+  --- option table names no multiplexer concept; each Driver owns and
+  --- interprets its own entry.
+  backend_opts = {
+    --- Private tmux socket name, isolating Vantage from the daily tmux server.
+    tmux = { socket = "vantage" },
+  },
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
   --- Named prompt templates (name -> template string) offered by the `prompt`
@@ -132,11 +137,8 @@ local defaults = {
 M.options = vim.deepcopy(defaults)
 
 --- Why a Focus read came back empty, for the flows that warn about it. The
---- Backend answers "no terminal" itself and the Driver answers the client and
---- window reasons; callers only report them, so the shapes are messages rather
---- than a cause vocabulary nobody branches on.
-M.FOCUS_NO_TERMINAL = "no terminal"
-M.FOCUS_NO_CLIENT = "no client for this terminal"
+--- Driver answers it and callers only report it, so it is a message rather than
+--- a cause vocabulary nobody branches on.
 M.FOCUS_NO_FOCUS = "no focused agent"
 
 --- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),

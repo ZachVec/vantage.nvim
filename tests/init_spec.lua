@@ -3,16 +3,16 @@
 local Helpers = require("helpers")
 
 describe("vantage.init", function()
+  local Backend
   local Init
   local Config
-  local Driver
   local Picker
 
   setup(function()
     Helpers.reload_vantage()
     Init = require("vantage")
     Config = require("vantage.config")
-    Driver = require("vantage.backend.driver")
+    Backend = require("vantage.backend")
     Picker = require("vantage.frontend.picker")
     pcall(vim.api.nvim_del_user_command, "Vantage")
   end)
@@ -27,7 +27,7 @@ describe("vantage.init", function()
 
     assert.are.equal(2, vim.fn.exists(":Vantage"))
     assert.are.equal("tmux", Config.options.backend)
-    assert.is_true(pcall(Driver.get))
+    assert.is_true(pcall(Backend.get))
     assert.are.same({ command = false }, Picker.capabilities())
   end)
 
@@ -38,11 +38,11 @@ describe("vantage.init", function()
     assert.is_false(ok)
     assert.is_true(tostring(err):find("unknown backend 'missing'", 1, true) ~= nil)
     assert.are.equal(0, vim.fn.exists(":Vantage"))
-    assert.is_false(pcall(Driver.get))
+    assert.is_false(pcall(Backend.get))
   end)
 
   it("fails fast when the driver violates the vantage.Driver contract", function()
-    package.loaded["vantage.backend.driver.tmux"] = {}
+    package.loaded["vantage.backend.tmux"] = {}
     local ok, err = pcall(Init.setup, { backend = "tmux" })
     assert.is_false(ok)
     assert.is_true(tostring(err):find("does not implement vantage.Driver", 1, true) ~= nil)

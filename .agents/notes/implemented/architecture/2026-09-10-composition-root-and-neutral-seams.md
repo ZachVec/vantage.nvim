@@ -7,7 +7,7 @@ Status: implemented
 The layered refactor left several boundaries softer than the architecture
 claimed. `config.lua` still applied configuration, installed Prompt/Review
 state, and registered `:Vantage`; `health.lua` loaded the command layer for
-Prompt vocabulary and both `backend/driver/init.lua` and `frontend/picker/init.lua`
+Prompt vocabulary and both `backend/init.lua` and `frontend/picker/init.lua`
 re-resolved their implementation on every call, warning and falling back on bad
 configuration. The shared `vantage.Agent` record exposed tmux's `@N` target and
 `Util.agent_window_index()` parsed it in the frontend, while each new Picker
@@ -24,16 +24,19 @@ Prompt/Review hooks and `:Vantage`. `config.lua` keeps defaults, shared types,
 `WinEnter` tracking and its placeholder-vocabulary warning live in
 `Prompt.setup()`.
 Unknown or unavailable backend/picker implementations, and missing picker
-dependencies, fail fast before any command/autocmd side effect. `Driver.get()`
+dependencies, fail fast before any command/autocmd side effect. `Backend.get()`
 and Picker `get()` are programming errors before setup; `health.lua` catches
 them with `pcall` and reports the failure. `Config.options` remains the global
 configuration singleton.
 
 **Neutral Driver records.** `vantage.Agent` carries an opaque `id` and a
-driver-neutral `seq`; tmux's `@N` is parsed only in `backend/driver/tmux.lua`.
-`attach(agent)` returns the per-client attachment record; the View restoration
-is owned by
-[restore-per-client-views](2026-09-10-restore-per-client-views.md). The formal
+driver-neutral `seq`; tmux's `@N` is parsed only in `backend/tmux.lua`.
+`attach(agent, launch)` creates the View, starts the client, and returns the
+Attachment handle; the View restoration is owned by
+[restore-per-client-views](2026-09-10-restore-per-client-views.md) and the
+handle's shape by
+[backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md).
+The formal
 `vantage.Driver` type names every verb, and a conformance test checks the surface.
 
 **Driver results.** Mutating verbs return `true` or `false, err`; `create`

@@ -19,9 +19,9 @@ explicit ordering and a pinned, inert current-Agent entry.
 every engine renders as given (engines only reorder by fuzzy relevance while
 a query is typed):
 
-- **Focused-Agent pin.** When the caller supplies the Terminal's job pid
-  (`switch`, which is terminal-only), the Agent that terminal shows
-  (`Backend.focus(pid)`) is pinned first,
+- **Focused-Agent pin.** When the Terminal has an Attachment (`switch`, which
+  is terminal-only), the Agent that terminal shows (`attachment:focus()`) is
+  pinned first,
   exempt from the ordering.
   Its entry text gains a ` (focused)` suffix. Confirming it does nothing:
   `commands/attach.lua` filters on the item's `focused` field and

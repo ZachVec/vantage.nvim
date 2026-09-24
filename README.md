@@ -44,7 +44,9 @@ a Group. Multiple Neovim instances can show different Agents in the same Group.
 ```lua
 require("vantage").setup({
   backend = "tmux",          -- only "tmux" today
-  socket = "vantage",        -- private tmux socket
+  backend_opts = {           -- options for the chosen backend
+    tmux = { socket = "vantage" }, -- private tmux socket
+  },
   picker = "native",         -- native | fzf-lua | snacks
 
   prompts = {                -- add or override prompt templates

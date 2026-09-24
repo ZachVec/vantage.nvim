@@ -24,19 +24,19 @@ reader, and `frontend/review.lua` spelled the default form on its own).
 ## Decision
 
 **One read per question.** The Driver exposes `agents()` (the inventory, in
-creation order; a missing server reads as empty) and `focus(pid)` (the Focus,
-answered in one query; a missing server is `nil` plus the reason).
+creation order; a missing server reads as empty) and the Attachment it hands
+back exposes `focus()` (the Focus, answered in one session-targeted query; a
+View that is gone is `nil` plus the reason).
 `snapshot(pid)` is gone. The split is:
 
 - `Backend.inventory()` → `{ agents, groups }`: Groups derived from the Agents,
   each once, in the Agents' order. It never reads clients, so the kill flow and
   the Group prompt do not pay for a client query.
-- `Backend.focus(pid?)` → `Agent?, string?`: the Focus. `nil` comes with the
-  reason — `Config.FOCUS_NO_TERMINAL` (the Backend's own "no Terminal" case,
-  which short-circuits before the Driver), `FOCUS_NO_CLIENT`, `FOCUS_NO_FOCUS`
-  (the Driver's), or the Driver's own error. Callers report that string as-is;
-  nothing branches on which reason it is, so the reasons stay messages rather
-  than a cause vocabulary.
+- `Attachment:focus()` → `Agent?, string?`: the Focus, read from the View's
+  current window. `nil` comes with the reason — `FOCUS_NO_FOCUS` for a window
+  that carries no Agent metadata, or the Driver's own error. Callers report
+  that string as-is; nothing branches on which reason it is, so the reasons
+  stay messages rather than a cause vocabulary.
 
 The command layer passes the pid in (`Terminal.pid()`); the Backend never
 reaches for it, which keeps `frontend → backend` one-way.
@@ -120,15 +120,17 @@ only place it is applied.
 - One Focus read for every flow; no flow carries its own "no focused agent"
   check or message.
 - The Focus read moved from a Backend composition of `client_window(pid)` and
-  `agents()` to a single native Driver `focus(pid)` query
-  ([focus-is-one-driver-read](2026-09-13-focus-is-one-driver-read.md)); the
-  split into `inventory` and a separate Focus read is unchanged.
+  `agents()` to a single native Focus query
+  ([focus-is-one-driver-read](2026-09-13-focus-is-one-driver-read.md)), and
+  later onto the Attachment's View
+  ([backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md));
+  the split into `inventory` and a separate Focus read is unchanged.
 - `commands/` contains only `init.lua` and flows; the shared send path is gone.
 - The reference-spelling default is configuration, resolved once at setup.
-- `vantage.Driver` has 12 verbs; the conformance list in
-  `tests/backend/driver_tmux_spec.lua`, `driver/init.lua`'s `REQUIRED`, and
-  `driver/init.lua`'s `vantage.Driver` type must stay in step (a known
-  duplication, owned by the record-shape work in `docs/architecture.md`).
+- `vantage.Driver` has 9 verbs; the conformance list in
+  `tests/backend/tmux_spec.lua` and `backend/init.lua`'s `REQUIRED` and
+  `vantage.Driver` type must stay in step (a known duplication, owned by the
+  record-shape work in `docs/architecture.md`).
 - `README.md` and `doc/vantage.nvim.txt` are unchanged: no user-visible
   command, option, default, or behavior moved.
 - The Focus read's reasons live in `config.lua` as the messages callers report.

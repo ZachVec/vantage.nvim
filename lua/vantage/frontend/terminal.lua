@@ -1,25 +1,35 @@
 --- The single :terminal that is Vantage's display surface.
 ---
---- One terminal per nvim instance. `open(argv)` starts the attach client as
---- the terminal's job; the terminal's existence IS the attachment's existence
---- (the job is the attached client), so a `TermClose` closes the window,
---- deletes the buffer, and resets state. `hide` closes only the window and
---- keeps the buffer + client alive; `show` re-opens the same buffer.
+--- One terminal per nvim instance. `open(argv, resolve)` starts the attach
+--- client as the terminal's job and installs cli.win.keys on its buffer;
+--- `hold(attachment)` keeps the Attachment that client sits on, so the
+--- terminal's existence IS the attachment's existence (the job is the attached
+--- client). A `TermClose` closes the window, deletes the buffer, and resets
+--- state; `hide` closes only the window and keeps the buffer + client alive,
+--- `show` re-opens the same buffer.
 local Config = require("vantage.config")
 local Util = require("vantage.util")
+
+--- The command layer's answer to a configured `cli.win.keys` `rhs`: a string
+--- naming a Terminal action becomes that action's function, and anything else
+--- (key sequence, `<cmd>` string, function) is returned unchanged. The
+--- Frontend cannot import the command layer, so the Terminal takes one.
+---@alias vantage.TerminalActionResolver fun(rhs: any): any
 
 ---@class vantage.Terminal
 ---@field job? integer terminal channel id
 ---@field buffer? integer
 ---@field window? integer
+---@field attachment? vantage.Attachment the handle this terminal's client sits on
 local M = {
   job = nil,
   buffer = nil,
   window = nil,
+  attachment = nil,
 }
 
 function M.reset()
-  M.job, M.buffer, M.window = nil, nil, nil
+  M.job, M.buffer, M.window, M.attachment = nil, nil, nil, nil
 end
 
 --- True if the terminal window is currently open.
@@ -28,13 +38,12 @@ function M.is_open()
   return M.window ~= nil and vim.api.nvim_win_is_valid(M.window)
 end
 
---- The terminal job's pid (the attached client's identity), or nil.
----@return integer?
-function M.pid()
-  if not M.job or M.job <= 0 then
-    return nil
-  end
-  return vim.fn.jobpid(M.job)
+--- Take custody of the Attachment this terminal's client sits on. It is the
+--- flows' identity for "the Terminal this Neovim instance is displaying", and
+--- it dies with the job.
+---@param attachment vantage.Attachment
+function M.hold(attachment)
+  M.attachment = attachment
 end
 
 local function configure_window()
@@ -43,6 +52,44 @@ local function configure_window()
   vim.wo[M.window].signcolumn = "no"
   vim.wo[M.window].statuscolumn = ""
   vim.wo[M.window].cursorline = false
+end
+
+--- Apply one cli.win.keys entry to `buffer`, resolving its rhs first.
+---@param buffer integer
+---@param keymap table
+---@param resolve vantage.TerminalActionResolver
+local function apply_key(buffer, keymap, resolve)
+  local lhs, rhs = keymap[1], keymap[2]
+  if not lhs or rhs == nil then
+    Util.warn("keymap entry must be a 4-tuple { lhs, rhs, mode?, desc? }")
+    return
+  end
+  rhs = resolve(rhs)
+  local mode = keymap.mode or "n"
+  if type(mode) == "table" then
+    mode = table.concat(mode, "")
+  end
+  local modes = vim.split(mode, "", { plain = true })
+  local ok, err = pcall(vim.keymap.set, modes, lhs, rhs, {
+    buffer = buffer,
+    desc = keymap.desc,
+    silent = true,
+    nowait = true,
+  })
+  if not ok then
+    Util.warn(("invalid terminal keymap '%s': %s"):format(lhs, tostring(err)))
+  end
+end
+
+--- Install cli.win.keys into the Terminal's own buffer. The buffer is this
+--- module's, so no caller carries the installation step; `resolve` is the only
+--- part of an entry the Frontend cannot answer for itself.
+---@param buffer integer
+---@param resolve vantage.TerminalActionResolver
+local function install_keys(buffer, resolve)
+  for _, keymap in ipairs(Config.options.cli.win.keys or {}) do
+    apply_key(buffer, keymap, resolve)
+  end
 end
 
 --- Open the terminal buffer in a float, tab, or split, per cli.win.layout.
@@ -173,10 +220,12 @@ function M.destroy()
   M.reset()
 end
 
---- Open a fresh terminal attached via `argv` (the Driver's attach command).
+--- Open a fresh terminal attached via `argv` (the Driver's attach command) and
+--- install cli.win.keys on its buffer.
 ---@param argv string[]
+---@param resolve vantage.TerminalActionResolver
 ---@return boolean
-function M.open(argv)
+function M.open(argv, resolve)
   M.destroy()
 
   local buffer = vim.api.nvim_create_buf(false, true)
@@ -196,6 +245,8 @@ function M.open(argv)
     return false
   end
   M.job = job
+
+  install_keys(buffer, resolve)
 
   vim.api.nvim_create_autocmd("TermClose", {
     buffer = buffer,

@@ -26,7 +26,7 @@ Shipped removals:
 - `frontend/review.lua` `M.get` drops a dead `or nil` tail (keeps `and by_id`).
 - `frontend/review.lua` `M.set_active` drops its `M.get()` re-check (keeps the
   `nvim_buf_is_valid` seam check).
-- `backend/driver/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
+- `backend/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
   `M.attach` drops the `target and target ~= ""` guard; `M.list` drops the
   `tool ~= ""` empty-check — `tool` is always a non-empty `cli.tools` key.
 - `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `commands/attach.lua`

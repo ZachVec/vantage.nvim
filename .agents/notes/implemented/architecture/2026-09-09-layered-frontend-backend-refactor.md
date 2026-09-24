@@ -22,19 +22,21 @@ and imports `frontend/` and `backend/`; `frontend/` imports `backend/`;
 
 Backend:
 
-- `backend/init.lua` is the Backend's public surface: pure-data domain verbs
-  (`inventory()` → the flat Agents plus the Groups derived from them,
-  `focus(pid)` → the Focus or the reason it is missing, `create`, `retarget`,
-  `send`, `capture`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
-  `status`).
-  It knows no UI and holds no state.
-- `backend/driver/` is the pluggable seam: `init.lua` resolves the configured
-  driver (a whitelist; an unknown or unavailable name fails fast at `setup()`,
-  per [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md)),
-  `tmux.lua` is pure tmux mapping with the domain-shaped verbs `create`, `agents()`, `focus(pid)`,
-  `retarget(pid, agent)`, `attach`, `kill_view`, `kill_agent`, `kill_group`,
-  `send_keys`, `capture_pane`, `status`, `health`. zellij remains a distant
-  seam only; no compatibility promise hardens the interface for it.
+- `backend/init.lua` is the Backend's public surface and the Driver seam: the
+  domain verbs (`inventory()` → the flat Agents plus the Groups derived from
+  them, `create`, `send`, `capture`, `attach`, `kill_agent`, `kill_group`,
+  `status`, `health`), the `REGISTRY`/`REQUIRED` pair that resolves and checks
+  the configured driver (a whitelist; an unknown or unavailable name fails fast
+  at `setup()`, per
+  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md)),
+  and the Focus and re-target methods on the Attachment `attach` returns. It
+  knows no UI and holds no state. The later
+  [one-layer, View-keyed Attachment note](2026-09-20-backend-one-layer-and-view-keyed-attachment.md)
+  folded the registry and the contract into that one file.
+- `tmux.lua` is pure tmux mapping with the domain-shaped verbs `create`,
+  `agents()`, `attach(agent, launch)`, `kill_agent`, `kill_group`, `send_keys`,
+  `capture_pane`, `status`, `health`. zellij remains a distant seam only; no
+  compatibility promise hardens the interface for it.
 
 Domain model:
 
@@ -49,20 +51,23 @@ Domain model:
 - The server starts on the first `create` (`new-session`, which applies the
   global config exactly once per server start); no verb re-checks it. External
   kills surface as warnings on the next operation; there is no watchdog or
-  reconciliation. `agents()` reads `list-windows` and `focus(pid)` reads
-  `list-clients` (the client's window and its Agent fields in one query), so a
-  caller that needs only the inventory never pays for the client query.
-- `retarget(pid, agent)` is the single switch verb (`switch-client`), handling
-  same-Group window changes and cross-Group relocation alike; the terminal's
-  client is identified by the terminal job's pid.
+  reconciliation. `agents()` reads `list-windows` and the Attachment's
+  `focus()` reads the View's current window with its Agent fields in one
+  session-targeted query, so a caller that needs only the inventory never pays
+  for the Focus read.
+- `retarget(agent)` is the single switch verb (`select-window`, or
+  `switch-client` across Groups), handling same-Group window changes and
+  cross-Group relocation alike; the client is identified by the View its
+  Attachment holds.
 
 Frontend:
 
 - `frontend/terminal.lua` is a dumb display surface: `open(argv)` starts the
-  terminal job and returns its pid, `show`/`hide`/`destroy` manage the window,
-  and `TermClose` closes the window, deletes the buffer, and resets state — the
-  attachment's lifecycle is the terminal's lifecycle. It stores no domain
-  state and never resolves the Focus (that is derived per `Backend.focus`).
+  terminal job, `hold(attachment)` keeps the handle its client sits on,
+  `show`/`hide`/`destroy` manage the window, and `TermClose` closes the window,
+  deletes the buffer, and resets state — the attachment's lifecycle is the
+  terminal's lifecycle. It stores no domain state and never resolves the Focus
+  itself (the Attachment answers it).
 - Each command offers its own entries: the attach flow Agent and Tool
   entries, the kill flow Agent and Group entries, the review flow Review
   entries — all built by the shared vocabulary in `frontend/entries.lua`,

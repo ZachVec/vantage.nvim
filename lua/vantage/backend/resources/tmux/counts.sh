@@ -13,7 +13,10 @@
 # external tampering). Unknown non-empty values are skipped (writers validate
 # the vocabulary in the sibling status.sh).
 #
-# Usage: counts.sh [-L <socket>] [group]
+# Usage: counts.sh -L <socket> [group]
+# The socket is always passed explicitly: the plugin's configured socket has
+# one owner (the tmux Driver's `backend_opts.tmux.socket`), and this script
+# never guesses a default that could disagree with it.
 # Prints e.g. " <glyph> 1 <glyph> 2" — a leading space, then per non-zero
 # bucket "Nerd Font glyph, space, count", in a fixed order — or nothing when
 # every bucket is zero. The leading space separates the counts from the
@@ -21,7 +24,7 @@
 
 set -eu
 
-socket_name=vantage
+socket_name=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -L)
@@ -33,6 +36,11 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+if [ -z "$socket_name" ]; then
+  echo "usage: counts.sh -L <socket> [group]" >&2
+  exit 2
+fi
 
 group="${1:-}"
 

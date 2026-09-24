@@ -42,7 +42,7 @@ describe("vantage.config", function()
     util.warn = original_warn
 
     assert.are.equal("tmux", Config.options.backend)
-    assert.are.equal("vantage", Config.options.socket)
+    assert.are.equal("vantage", Config.options.backend_opts.tmux.socket)
     assert.are.equal("native", Config.options.picker)
     local prompt_names = vim.tbl_keys(Config.options.prompts)
     table.sort(prompt_names)
@@ -57,7 +57,7 @@ describe("vantage.config", function()
     util.warn = function() end
     Config.apply({
       picker = "snacks",
-      socket = "custom",
+      backend_opts = { tmux = { socket = "custom" } },
       prompts = { review = "Review {file}" },
       reviews = { item = "{lines} {note} custom" },
       cli = {
@@ -70,7 +70,7 @@ describe("vantage.config", function()
     util.warn = original_warn
 
     assert.are.equal("snacks", Config.options.picker)
-    assert.are.equal("custom", Config.options.socket)
+    assert.are.equal("custom", Config.options.backend_opts.tmux.socket)
     assert.are.equal("Review {file}", Config.options.prompts.review)
     assert.are.equal("{file}", Config.options.prompts["{file}"])
     assert.are.same({ "good" }, vim.tbl_keys(Config.options.cli.tools))
