@@ -10,7 +10,7 @@ lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
   backend/         init.lua (surface + Driver seam) + tmux.lua
     resources/tmux/          tmux resources (counts.sh, status.sh)
   frontend/        terminal, entries, note, review, pluggable picker
-  commands/        dispatch + actions, attach, flows
+  commands/        init.lua (dispatch + Terminal actions), flows
   config.lua       defaults + shared LuaLS types
   health.lua       :checkhealth vantage
   util.lua         shared helpers

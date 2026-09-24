@@ -10,7 +10,6 @@ describe("vantage.commands.attach", function()
   local picker
   local terminal
   local attachment_fixture
-  local actions
   local captured_spec
   local captured_opts
   local command_capable
@@ -150,30 +149,22 @@ describe("vantage.commands.attach", function()
       attachment = nil,
       show_result = false,
       opened = nil,
-      resolver = nil,
       open_result = true,
     }
     function terminal.show()
       return terminal.show_result
     end
-    function terminal.open(argv, resolve)
+    function terminal.open(argv)
       terminal.opened = argv
-      terminal.resolver = resolve
       return terminal.open_result
     end
     function terminal.hold(attachment)
       terminal.attachment = attachment
     end
 
-    actions = {}
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = picker
     package.loaded["vantage.frontend.terminal"] = terminal
-    package.loaded["vantage.commands.actions"] = {
-      resolve = function(rhs)
-        return "action:" .. tostring(rhs)
-      end,
-    }
     Attach = require("vantage.commands.attach")
     Entries = require("vantage.frontend.entries")
   end)
@@ -196,7 +187,6 @@ describe("vantage.commands.attach", function()
     terminal.attachment = nil
     terminal.show_result = false
     terminal.opened = nil
-    terminal.resolver = nil
     terminal.open_result = true
   end)
 
@@ -317,12 +307,11 @@ describe("vantage.commands.attach", function()
     assert.are.same({}, backend.killed)
   end)
 
-  it("show opens the terminal and hands it the action resolver", function()
+  it("show opens the terminal on the chosen agent, handing it only argv", function()
     picker.auto_select = true
     Attach.show()
 
     assert.are.same({ "attach", "@1" }, terminal.opened)
-    assert.are.equal("action:switch", terminal.resolver("switch"))
   end)
 
   it("shows a live Terminal without picking an Agent", function()

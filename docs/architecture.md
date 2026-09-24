@@ -13,7 +13,7 @@ lua/vantage/
 ├── health.lua          diagnostics adapter
 ├── backend/            init.lua (surface + Driver seam), tmux.lua, resources/tmux/
 ├── frontend/           terminal, entries, review, picker/
-└── commands/           dispatch + flows (attach, gather, kill, prompt, review)
+└── commands/           dispatch + Terminal actions + flows (attach, gather, kill, prompt, review)
 ```
 
 Six categories, each with a fixed set of things it may import. `make check`
@@ -36,8 +36,8 @@ graph; a module that imports against it fails the gate.
 
 - `composition` — `init.lua`. The only module that reaches every other
   category, and the only one nothing imports. `setup()` applies configuration,
-  resolves the configured Driver and Picker, then installs Prompt/Review hooks
-  and the `:Vantage` command.
+  resolves the configured Driver and Picker, then installs Prompt/Review hooks,
+  the Terminal's action resolver, and the `:Vantage` command.
 - `commands` — orchestrates flows and imports `frontend/`, `backend/`, its own
   pieces, and shared modules.
 - `frontend` — imports `backend/` and its own pieces.
@@ -181,12 +181,13 @@ and
 [seam-types-live-with-their-seam](../.agents/notes/implemented/architecture/2026-09-13-seam-types-live-with-their-seam.md).
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface:
-`open(argv, resolve)` starts the terminal job and installs `cli.win.keys` on
-the buffer it just created, `hold(attachment)` keeps the Attachment its client
-sits on (identity, never domain state), `show`/`hide` manage the window without
-killing the job, `destroy` stops the job and deletes the buffer, and a
-`TermClose` autocmd does the same whenever the client exits. One Terminal per
-Neovim instance.
+`setup(resolve)` installs the resolver that says what a `cli.win.keys` `rhs`
+string means, and `open(argv)` starts the terminal job and installs
+`cli.win.keys` on the buffer it just created; `hold(attachment)` keeps the
+Attachment its client sits on (identity, never domain state), `show`/`hide`
+manage the window without killing the job, `destroy` stops the job and deletes
+the buffer, and a `TermClose` autocmd does the same whenever the client exits.
+One Terminal per Neovim instance.
 
 **Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
 Commands call `Picker.pick_fancy(spec, opts)` or `Picker.pick_naive(...)`;
@@ -257,11 +258,12 @@ concept.
   through the Tool's `format` (relative inside it, absolute outside), joins the
   results with `setup { gather = { join = … } }`, and pastes them with a
   trailing space. One reference dropped by the hook drops the whole send.
-- `commands/actions.lua` owns the Terminal action tokens (`hide`, `switch`,
+- `commands/init.lua` owns the Terminal action tokens (`hide`, `switch`,
   `prompt`, `files`, `buffers`) — the strings a `cli.win.keys` `rhs` may name —
-  and resolves each to the function that runs it. The Terminal installs
-  `cli.win.keys` on its own buffer and takes that resolver, because the
-  Frontend may not import the command layer.
+  and resolves each to the function that runs it, next to the `:Vantage`
+  dispatch. The Terminal installs `cli.win.keys` on its own buffer and resolves
+  each entry through that resolver, which the composition root installs at
+  setup, because the Frontend may not import the command layer.
 - `:Vantage show` owns presence: focus the Terminal when it is up, re-open the
   same buffer when it is hidden, and with no Terminal pick an Agent (Tool
   entries create one) and open the Terminal on it. The Frontend's `show`

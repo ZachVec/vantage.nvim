@@ -21,8 +21,9 @@ describe("vantage.frontend.terminal", function()
     Helpers.reload_vantage()
   end)
 
-  --- Open the Terminal with a stubbed job — no client starts, but `open` runs
-  --- to completion. Returns its answer.
+  --- Install `resolve` the way the composition root does, then open the
+  --- Terminal with a stubbed job — no client starts, but `open` runs to
+  --- completion. Returns `open`'s answer.
   ---@param resolve? fun(rhs: any): any
   ---@return boolean
   local function open(resolve)
@@ -30,9 +31,10 @@ describe("vantage.frontend.terminal", function()
     vim.fn.jobstart = function()
       return 4242
     end
-    local ok, opened = pcall(Terminal.open, { "attach" }, resolve or function(rhs)
+    Terminal.setup(resolve or function(rhs)
       return rhs
     end)
+    local ok, opened = pcall(Terminal.open, { "attach" })
     vim.fn.jobstart = jobstart
     assert(ok, opened)
     return opened
@@ -132,6 +134,27 @@ describe("vantage.frontend.terminal", function()
     assert.are.equal("zzz", mapped(Terminal.buffer, "<c-q>", "n").rhs)
     assert.are.equal("zzz", mapped(Terminal.buffer, "<c-q>", "t").rhs)
     Terminal.destroy()
+  end)
+
+  it("binds a token verbatim when no resolver was installed", function()
+    -- Reload so this runs against a Terminal that no spec has called
+    -- `setup` on — the identity default is the state under test.
+    Helpers.reload_vantage()
+    local Fresh = require("vantage.frontend.terminal")
+    local FreshConfig = require("vantage.config")
+    FreshConfig.options.cli.win.keys = { { "<c-s>", "switch" } }
+
+    local jobstart = vim.fn.jobstart
+    vim.fn.jobstart = function()
+      return 4242
+    end
+    local ok, opened = pcall(Fresh.open, { "attach" })
+    vim.fn.jobstart = jobstart
+    assert(ok, opened)
+    assert.is_true(opened)
+
+    assert.are.equal("switch", mapped(Fresh.buffer, "<c-s>").rhs)
+    Fresh.destroy()
   end)
 
   it("warns on a malformed entry and keeps installing the rest", function()

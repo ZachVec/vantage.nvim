@@ -28,7 +28,7 @@ is fixed by construction, that probe has nothing left to decide.
   completion, and the `usage()` help.
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
   `hide`, `switch`, `prompt`, `files`, or `buffers` resolves to the built-in action
-  (`commands/actions.lua` owns the token map; the Terminal installs the
+  (`commands/init.lua` owns the token map; the Terminal installs the
   mappings on its own buffer — see
   [terminal-installs-its-keymaps](../architecture/2026-09-20-terminal-installs-its-keymaps.md));
   any other `rhs` — a key sequence, a `<cmd>` string, or a Lua function — is

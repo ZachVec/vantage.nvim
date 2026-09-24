@@ -15,11 +15,11 @@ flow harder to find.
 The command layer is a directory mirroring the repo's existing
 `init.lua`-plus-per-concern pattern (`frontend/picker/`, `backend/`):
 
-- `commands/init.lua` is the dispatch only: `run` maps a subcommand name to one
-  function call, `complete` answers completion, and the few one-line commands
-  (`show`, `hide`, `detach`, `status`) live here as thin local functions. No
-  complex logic sits in `run`: the subcommand table drives dispatch, the usage
-  text, and completion alike.
+- `commands/init.lua` is the layer's own module: `run` maps a subcommand name
+  to one function call, `complete` answers completion, and the few one-line
+  commands (`show`, `hide`, `detach`, `status`) live here as thin local
+  functions. No complex logic sits in `run`: the subcommand table drives
+  dispatch, the usage text, and completion alike.
 - `commands/attach.lua` owns `show`/`switch` and their shared
   Agent/Tool selection, Group choice, and creation handoff;
   `commands/kill.lua` owns the kill flow.
@@ -28,8 +28,10 @@ The command layer is a directory mirroring the repo's existing
 - `commands/review.lua` owns `:Vantage review` and its sub-actions
   (`run(action, line1, line2)` + list/clear/add); the note editor itself lives
   in `frontend/review.lua`.
-- `commands/actions.lua` owns terminal action tokens and installs
-  `cli.win.keys`.
+- `commands/init.lua` also owns the Terminal action tokens, next to the
+  dispatch — the vocabulary moved there from the `commands/actions.lua` module
+  this split introduced
+  ([terminal-action-vocabulary-lives-with-the-dispatch](2026-09-24-terminal-action-vocabulary-lives-with-the-dispatch.md)).
 
 Prompt and Review are **peers**: the `{reviews}` placeholder is a prompt that
 reads Review data (a "uses" dependency), not a "Review is a kind of Prompt"
@@ -64,9 +66,9 @@ noise for no readability gain.
 
 ## Consequences
 
-- `lua/vantage/commands.lua` is deleted; `commands/` now holds dispatch,
-  `attach`, `actions`, `prompt`, `review`, and
-  `kill`. The composition root registers `run`/`complete`.
+- `lua/vantage/commands.lua` is deleted; `commands/` holds `init.lua` (dispatch
+  + Terminal action vocabulary), `attach`, `prompt`, `review`, and `kill`. The
+  composition root registers `run`/`complete`.
 - The stale `commands.lua` paths in older Agent Notes and `AGENTS.md` are
   updated to their new module; the `prompt_wizard` name is gone (`prompt.run`).
 - The dispatch is a flat name→function map; adding a subcommand is one branch

@@ -3,7 +3,6 @@
 --- `show` owns Terminal presence; `switch` owns the attached client's
 --- target. The Agent/Tool entries, Group choice, and creation handoff are
 --- local to this module because both flows are their only consumers.
-local Actions = require("vantage.commands.actions")
 local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
@@ -199,12 +198,13 @@ local function pick(after, attachment)
 end
 
 --- Attach a new Terminal client to `agent`. The Terminal installs its own
---- keymaps from the resolver it is handed. The Backend rolls its View back when
---- the client cannot start, so a failed open leaves no session behind.
+--- keymaps from the resolver the composition root installed. The Backend rolls
+--- its View back when the client cannot start, so a failed open leaves no
+--- session behind.
 ---@param agent vantage.Agent
 local function open_on(agent)
   local attachment, err = Backend.attach(agent, function(argv)
-    return Terminal.open(argv, Actions.resolve)
+    return Terminal.open(argv)
   end)
   if not attachment then
     Util.warn(err or "failed to attach the terminal")

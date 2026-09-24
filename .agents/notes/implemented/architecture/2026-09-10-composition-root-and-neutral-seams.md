@@ -62,8 +62,7 @@ flow-owned ordinary command.
 
 **Command ownership.** `commands/attach.lua` owns `show`/`switch`
 plus their shared Agent/Tool selection and Group creation;
-`commands/actions.lua` maps terminal action tokens and installs
-`cli.win.keys`.
+`commands/init.lua` owns the terminal action tokens.
 
 ## Alternatives considered
 

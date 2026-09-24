@@ -27,17 +27,20 @@ longer installs anything.
 
 The one part of an entry the Frontend cannot answer for itself is what a `rhs`
 string *means*, because a token names a command. That arrives as an injected
-dependency: `open(argv, resolve)` takes the resolver and applies it to each
-entry's `rhs`, and `commands/attach.lua` passes `commands/actions.lua`'s
-`resolve`. The resolver contract is the `vantage.TerminalActionResolver` alias
-in `frontend/terminal.lua`, next to its one consumer, and the Frontend never
-imports the command layer the architecture gate forbids.
+dependency: the composition root hands `commands/init.lua`'s `resolve` to
+`Terminal.setup` during `setup()`, `frontend/terminal.lua` keeps it, and
+`open(argv)` applies it to each entry's `rhs`. The resolver contract is the
+`vantage.TerminalActionResolver` alias in `frontend/terminal.lua`, next to its
+one consumer, and the Frontend never imports the command layer the architecture
+gate forbids.
 
-`commands/actions.lua` is now the token table and `resolve` alone: it no
-longer reads `Config.options` and no longer binds keymaps. The installation
-moved with its warnings, and keeps its ordering — entries are bound after the
-job starts, so a Terminal whose client cannot start installs nothing (and
-`destroy` removes the buffer with it).
+The token table and `resolve` live in `commands/init.lua`, next to the
+`:Vantage` dispatch
+([terminal-action-vocabulary-lives-with-the-dispatch](2026-09-24-terminal-action-vocabulary-lives-with-the-dispatch.md));
+neither reads `Config.options` nor binds keymaps. The installation moved with
+its warnings, and keeps its ordering — entries are bound after the job starts,
+so a Terminal whose client cannot start installs nothing (and `destroy` removes
+the buffer with it).
 
 ## Alternatives considered
 
@@ -54,6 +57,19 @@ whatever it was handed. Two layers would read one option family, and the
 install step would be the caller's to remember again — exactly the arrangement
 this change removes. Handing over the *meaning* of an `rhs` keeps the option
 read, the buffer, and the binding in one place.
+
+### Why not keep the resolver a parameter of `open`?
+
+That is the arrangement this decision first shipped: `open(argv, resolve)`,
+with `commands/attach.lua` passing the resolver it took from the command layer.
+It left knowledge of the `cli.win` option family outside the Terminal, in the
+flow that happened to open one, and it kept an import of the command layer in
+`commands/attach.lua` purely to thread a constant. The composition root is the
+only module allowed to reach both layers, so wiring the resolver there is the
+one place it costs no leak; `open` keeps one responsibility, starting the job
+and installing what `setup` gave it. Until `setup` runs the resolver stays
+identity, so an `open` that never saw it binds a plain `rhs` verbatim rather
+than failing.
 
 ### Why not resolve tokens in `Config.apply`, which runs in the composition root?
 
@@ -72,16 +88,19 @@ spec reaches it through `open` with a stubbed job — the same seam callers use.
 
 ## Consequences
 
-- `frontend/terminal.lua` owns the whole `cli.win` option family, and
-  `commands/actions.lua` shrank to the token map plus `resolve`, dropping its
-  `config` and `util` imports.
+- `frontend/terminal.lua` owns the whole `cli.win` option family, and the token
+  map plus `resolve` live in `commands/init.lua`
+  ([terminal-action-vocabulary-lives-with-the-dispatch](2026-09-24-terminal-action-vocabulary-lives-with-the-dispatch.md)).
 - Terminal keymaps are installed whenever the Terminal opens rather than by
   whichever command opened it; `commands/attach.lua` only attaches and holds.
 - `tests/frontend/terminal_spec.lua` pins the installation through `open`: a
   resolved token arrives as a callback, a plain `rhs` binds verbatim in every
-  mode its entry names, and a malformed entry warns without stopping the rest.
-  `tests/commands/attach_spec.lua` pins that the flow hands the Terminal the
-  action resolver.
+  mode its entry names, a malformed entry warns without stopping the rest, and
+  a token binds literally when no resolver was installed.
+  `tests/commands/attach_spec.lua` pins that the flow hands the Terminal only
+  `argv`, and `tests/init_spec.lua` pins that `setup` installs the resolver.
+- A Terminal opened without the composition root's `setup` keeps the identity
+  resolver: `cli.win.keys` tokens then bind as literal key sequences.
 - Facts updated in place:
   [converge-command-surface-to-terminal-actions](../simplification/2026-09-06-converge-command-surface-to-terminal-actions.md)
   and `docs/architecture.md`.

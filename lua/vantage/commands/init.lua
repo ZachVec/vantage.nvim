@@ -1,8 +1,10 @@
---- The :Vantage user command: subcommand dispatch. Each subcommand's logic
---- lives in its own module under `vantage.commands`; this file only maps
---- subcommand names to functions and owns the one-line commands (show, hide,
---- detach, status). Dispatch, the usage text, and completion all derive from
---- one table, so a subcommand is named once.
+--- The command layer's own module: the `:Vantage` subcommand dispatch and the
+--- Terminal action vocabulary. Every other module under `vantage.commands` is a
+--- flow. This one maps subcommand names to functions, owns the one-line
+--- commands (show, hide, detach, status), and holds the strings a
+--- `cli.win.keys` `rhs` may name — a token's meaning is a command, so the token
+--- table lives here too. Dispatch, the usage text, and completion all derive
+--- from one table, so a subcommand is named once.
 local Attach = require("vantage.commands.attach")
 local Backend = require("vantage.backend")
 local Kill = require("vantage.commands.kill")
@@ -162,6 +164,40 @@ function M.complete(arglead, cmdline)
     return matching(names_of(SUBCOMMANDS), arglead)
   end
   return {}
+end
+
+--- The Terminal action tokens: what a `cli.win.keys` `rhs` string may name. A
+--- token's meaning is a command, and the two flows the dispatch above does not
+--- require — `prompt` and gather — load when a token names them.
+---@type table<string, fun()>
+local ACTIONS = {
+  hide = function()
+    Terminal.hide()
+  end,
+  switch = function()
+    Attach.switch()
+  end,
+  prompt = function()
+    require("vantage.commands.prompt").run()
+  end,
+  files = function()
+    require("vantage.commands.gather").files()
+  end,
+  buffers = function()
+    require("vantage.commands.gather").buffers()
+  end,
+}
+
+--- Resolve a cli.win.keys rhs: a string naming a built-in action becomes that
+--- action's function; anything else is returned unchanged. The composition root
+--- installs this as the Terminal's resolver.
+---@param rhs any
+---@return any
+function M.resolve(rhs)
+  if type(rhs) == "string" then
+    return ACTIONS[rhs] or rhs
+  end
+  return rhs
 end
 
 return M
