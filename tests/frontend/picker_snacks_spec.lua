@@ -319,4 +319,47 @@ describe("vantage.frontend.picker.snacks", function()
     assert.are.equal(tostring, selected.opts.format_item)
     assert.is_not_nil(selected.on_choice)
   end)
+
+  it("hands the window a terminal pick opened from back on close", function()
+    local term_buf = Helpers.buffer({ "" })
+    vim.bo[term_buf].filetype = "vantage_terminal"
+    vim.api.nvim_set_current_buf(term_buf)
+    local term_win = vim.api.nvim_get_current_win()
+
+    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+
+    -- The pick armed its window-entry restore for as long as it is open.
+    assert.are.equal(1, vim.fn.exists("#vantage_picker_restore#WinEnter"))
+
+    -- Its close re-asserts the window and disarms the restore.
+    vim.cmd("new")
+    assert.are_not.equal(term_win, vim.api.nvim_get_current_win())
+
+    captured.on_close(nil)
+    vim.wait(1000, function()
+      return vim.api.nvim_get_current_win() == term_win
+    end)
+
+    assert.are.equal(term_win, vim.api.nvim_get_current_win())
+    assert.are.equal(0, vim.fn.exists("#vantage_picker_restore#WinEnter"))
+    vim.cmd("only")
+    Helpers.wipe(term_buf)
+  end)
+
+  it("leaves a pick that did not open from the terminal alone", function()
+    local plain = Helpers.buffer({ "" })
+    vim.api.nvim_set_current_buf(plain)
+    local armed = vim.fn.exists("#vantage_picker_restore#WinEnter")
+
+    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+    assert.are.equal(armed, vim.fn.exists("#vantage_picker_restore#WinEnter"))
+
+    vim.cmd("enew")
+    local other = vim.api.nvim_get_current_win()
+    captured.on_close(nil)
+    vim.wait(100)
+
+    assert.are.equal(other, vim.api.nvim_get_current_win())
+    Helpers.wipe(plain)
+  end)
 end)

@@ -142,8 +142,10 @@ cli = {
 `files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
 tree you are browsing, wherever the Agent was started: `fd` when available,
 then `ripgrep`, then `find` — all three skip `.git`. With `fzf-lua` or `snacks`
-the list appears as the lister prints it, so `Esc` stops a long listing;
-`native` waits for the whole listing before it opens. `buffers` lists listed
+the list appears as the lister prints it, so cancelling the pick stops a long
+listing instead of waiting it out (`snacks`' prompt starts in insert mode, so
+`Esc` cancels on its second press; `<C-c>` cancels at once); `native` waits
+for the whole listing before it opens. `buffers` lists listed
 buffers whose file exists on disk, most recently used first; a modified buffer
 is marked `[+]` because the Agent reads the on-disk version. Each chosen entry
 is typed as its path relative to the Agent's cwd (absolute when the file lies

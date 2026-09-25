@@ -159,11 +159,11 @@ which fields an entry carries, so the shipped flows stay clear of the name.
 
 The snacks picker input is a **prompt buffer, not a terminal window**, and on
 close it deliberately leaves insert mode (`stopinsert`), returning you to
-Normal. If the picker was opened over a terminal window that was in terminal
-mode, that terminal does *not* get terminal mode back: it ends in Normal.
-(fzf-lua floats do the opposite — the underlying terminal is left in terminal
-mode via the term-to-term transfer.) Terminal mode is exclusive to the focused
-window, so the terminal drops out of it for the whole time the picker is open.
+Normal. A terminal window the picker was opened over does *not* get terminal
+mode back on its own: it ends in Normal, because terminal mode is exclusive to
+the focused window and the terminal drops out of it for the whole time the
+picker is open. (fzf-lua floats do the opposite — the underlying terminal is
+left in terminal mode via the term-to-term transfer.)
 
 Consequence: a chain that mixes snacks then fzf-lua feeds the fzf float a
 terminal-in-normal-mode context — exactly the context in which fzf-lua's close
@@ -171,31 +171,72 @@ leaves the racy transient described in the fzf-lua section. Homogeneous chains
 (snacks-only, or fzf-lua floats opened from genuine terminal mode) never hit
 it.
 
-Vantage's snacks Picker compensates on its own: every snacks pick re-enters
-terminal mode (`startinsert`, scheduled for the next tick — `close()` has
-already returned focus synchronously and its teardown only destroys the
-picker's own windows, never touching the mode) whenever the picker closes back
-onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
-both an Esc cancel and the no-op confirm of the pinned `(focused)` entry. The
-same scheduled close handler also re-asserts the terminal window itself:
-Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
-window when that float is already gone, so closing the picker floats from a
-floating Terminal lands the focus on the editor behind it — the handler
-re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The engine hooks its own close on both
-paths, and no flow takes part in it: the preview-capable `Picker.pick` passes
-the handler as `on_close`, while `Picker.pick_plain` (the Agent-creation Group
-step and `:Vantage prompt`) wraps its `on_choice` *before* the flow's choice
-handler runs, because the plain select call hands the implementation no close
-hook of its own — and because the new-Group name prompt (a cmdline `input()`
-scheduled from inside the choice handler) keeps the scheduler alive while its
-`c` mode is active: a re-entry check queued after the handler would see `c`,
-skip, and strand the terminal in Normal once the prompt closes. Queued first,
-the `startinsert` stays pending across the cmdline and lands when it closes
-(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage show`
-ends in terminal mode via the show tail's `Terminal.open` (`startinsert`)
-and skips the re-entry; a `switch` re-points without showing (`retarget`), so
-it depends on the implementation's close handler above.
+Vantage's snacks Picker does not open a pick from terminal mode, and hands the
+terminal back in terminal mode on the way out. A pick that opens from the
+vantage terminal leaves terminal mode first (`stopinsert`, before snacks'
+windows take focus): the input window's insert is dropped when a float is
+focused *out* of terminal mode from a callback, which is exactly what a
+source that streams does — its first batch arrives from the lister's job a
+tick after the keymap that started the pick, so `files` would sit in Normal
+with a dead prompt while `buffers`, shown inside the keymap, inserts (see the
+entry below). On the way back the pick arms a `WinEnter` restore on the window
+it was invoked from, live for the pick's lifetime, and its `on_close`
+re-asserts that window one tick later: Neovim's float-close fallback returns
+to `prevwin`, or to the first *tiled* window when that float is already gone,
+so closing the picker over a floating Terminal lands the focus on the editor
+behind it — and a *synchronous* re-assert (or letting snacks' own main-window
+fallback do it) enters the terminal while the picker is still tearing down,
+where the restore's `startinsert` is dropped and the client stays in `nt`. One
+path covers an Esc cancel, a confirm, and the no-op confirm of the pinned
+`(focused)` entry, split or floated (verified on nvim 0.12.3).
+
+`Picker.pick_plain` (the Agent-creation Group step and `:Vantage prompt`) keeps
+its own single-tick check instead, because the plain select call hands the
+implementation no close hook of its own: it wraps its `on_choice` *before* the
+flow's choice handler runs, and because the new-Group name prompt (a cmdline
+`input()` scheduled from inside the choice handler) keeps the scheduler alive
+while its `c` mode is active, a re-entry check queued after the handler would
+see `c`, skip, and strand the terminal in Normal once the prompt closes.
+Queued first, the `startinsert` stays pending across the cmdline and lands when
+it closes (verified on nvim 0.12.3). A Tool-entry creation through `:Vantage
+show` ends in terminal mode via the show tail's `Terminal.open`
+(`startinsert`) and skips the re-entry; a `switch` re-points without showing
+(`retarget`), so it depends on the implementation's close handling above.
+
+### A pick's insert mode is dropped when the terminal-mode leave is unsettled
+
+snacks enters insert mode from the pick input window's `BufEnter`
+(`startinsert!`, scheduled a tick later when the mode it sees is `t`). Neovim
+drops that insert whenever the float takes focus while a terminal-mode leave is
+still in flight — the state a callback-driven focus change lands in. Measured
+on nvim 0.12.3 with real snacks: a `t`-mode keymap over a synchronous source
+ends in insert, the same keymap over a streaming source (`files`) ends in
+Normal, and the same streaming source from `nt` or from a plain window ends in
+insert. A minimal float without snacks reproduces it: focused inside the
+keymap, a scheduled `startinsert` sticks; focused from a callback, both a
+direct and a next-tick `startinsert` are dropped until the transfer settles
+(tens of ms). The fix is the leave, not the insert: Vantage runs `stopinsert`
+before handing a terminal-origin pick to snacks, so no transfer is in flight
+when the float takes focus.
+
+### The mini.test harness cannot observe modes
+
+`make test` runs `nvim --headless -l`, where `startinsert` never takes effect:
+`nvim_get_mode()` stays `n`, in the suite itself and from a deferred callback
+(verified on 0.12.3). Mode-level assertions therefore cannot be specs; the
+snacks picker spec covers the wiring (the window-entry restore armed while the
+pick is open and disarmed by its close, the close re-asserting the invoked-from
+window) and the modes are verified by hand with a script that reads
+`nvim_get_mode()` from `vim.defer_fn` callbacks:
+
+```sh
+nvim --headless -u NONE -c 'luafile <script>'
+```
+
+A `-c`-driven script runs on the main loop and reports real modes (`i`, `t`,
+`nt`); an `nvim -l` script does not. In such a script a `:terminal` window
+reaches terminal mode through a deferred `startinsert`, and a float can stand
+in for the client.
 
 ### Finder signature is `fun(opts, ctx): result`
 

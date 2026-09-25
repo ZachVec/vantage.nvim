@@ -14,10 +14,14 @@ terminal-mode re-entry after its pickers close. The same creation through
 `:Vantage show` was unaffected (`Terminal.show` ends in
 `startinsert`).
 
-The re-entry is a single tick check (`restore_terminal_mode`: scheduled for
-the tick after the picker closes, `startinsert` when the mode is `nt`; the
-same handler also re-asserts the invoked-from window's focus — see the
+For the plain select path the re-entry is a single tick check
+(`restore_terminal_mode`: scheduled for the tick after the picker closes,
+`startinsert` when the mode is `nt`; the same handler also re-asserts the
+invoked-from window's focus — see the
 [float client focus note](2026-09-05-float-terminal-switch-loses-focus.md)).
+Preview-capable picks have since moved their mode restore to a window-entry
+autocmd armed for the pick's lifetime
+([the pick terminal-mode note](2026-09-25-picks-over-the-terminal-keep-insert.md));
 `pick_plain` (the Group step) wraps its `on_choice` for the re-entry; the
 wrapper ran the choice handler **before** queueing the check. The new-Group
 handler (`ask_group` in `commands/attach.lua`) schedules the Group
@@ -95,8 +99,11 @@ the cmdline path is what works everywhere else.
 
 ## Verification
 
-Real-UI simulation (nvim 0.12.3 under tmux, driveable because terminal-mode
-entry needs a UI — headless cannot enter `t`): the wrapper's queue order was
+Real-UI simulation (nvim 0.12.3 under tmux: the suite itself runs
+`nvim --headless -l`, which cannot enter `t` — a headless run driven with `-c`
+can, see the
+[pick terminal-mode note](2026-09-25-picks-over-the-terminal-keep-insert.md)):
+the wrapper's queue order was
 the only variable. Current order: the new-Group path ended `nt` (defect);
 queued-first order: new-Group, existing-Group, no-Groups, Esc-cancel, and the
 prompt-flow variants all ended `t`, including the intermediate

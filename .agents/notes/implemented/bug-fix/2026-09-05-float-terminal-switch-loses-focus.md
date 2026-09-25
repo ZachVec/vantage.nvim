@@ -26,20 +26,25 @@ invoked from*, it restored the default first window.
 
 ## Decision
 
-The snacks close compensation (`restore_terminal_mode` in
-`lua/vantage/frontend/picker/snacks.lua`) now also re-asserts window focus. At pick
+The snacks close compensation (`reassert_window` in
+`lua/vantage/frontend/picker/snacks.lua`, run from the scheduled close handler)
+re-asserts window focus. At pick
 start, when the current window is the Vantage Terminal, the implementation captures
 `vim.api.nvim_get_current_win()` — at that moment the current window *is* the
 Terminal window, since filetype detection means the pick runs inside it — and
-passes it into the same scheduled close handler. In the scheduled handler the
+passes it into the scheduled close handler. In the scheduled handler the
 terminal window is re-focused with `nvim_set_current_win` when it is still
-valid and not already current, *before* the existing terminal-mode re-entry
-(`startinsert` when the mode is `nt`), whose check then runs against the
-re-focused window. When the engine's own teardown (or another picker) already
-restored the terminal, the re-assert is a no-op — focus re-assertion is
-universal, not float-specific — so split and `full` layouts gain the same
-guarantee (with `full` they were covered only by the coincidental
+valid and not already current. When the engine's own teardown (or another
+picker) already restored the terminal, the re-assert is a no-op — focus
+re-assertion is universal, not float-specific — so split and `full` layouts
+gain the same guarantee (with `full` they were covered only by the coincidental
 first-window fallback).
+
+Terminal mode follows the re-asserted window: for preview-capable picks the
+mode is restored by a window-entry autocmd the pick arms and disarms
+([the pick terminal-mode note](2026-09-25-picks-over-the-terminal-keep-insert.md)),
+and for the plain select path it is the scheduled handler's own `startinsert`
+check (`restore_terminal_mode`, which re-asserts the window the same way).
 
 The re-assert stays inside the picker implementation: like the terminal-mode
 re-entry, it is compensation for the engine's own close semantics, and the
@@ -74,9 +79,9 @@ already happened — covers both without layout-specific branches.
 
 ## Consequences
 
-- Every snacks pick invoked from the vantage terminal returns the focus — and
-  terminal mode — to the terminal window, float or tiled; Esc-cancel paths are
-  covered by the same `on_close` handler.
+- Every snacks pick invoked from the vantage terminal returns the focus — and,
+  through its terminal-mode restore, terminal mode — to the terminal window,
+  float or tiled; Esc-cancel paths are covered by the same `on_close` handler.
 - fzf-lua is untouched: it restores the window it was invoked from on its own
   (`set_current_win(self.src_winid)` in its exit path), so the defect was
   snacks (and the builtin `vim.ui.select`, which uses a cmdline `inputlist`,
