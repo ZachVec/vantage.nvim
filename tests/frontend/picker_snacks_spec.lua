@@ -94,6 +94,10 @@ describe("vantage.frontend.picker.snacks", function()
     local list = captured.finder({}, {})
     assert.are.equal("agent row", list[1].text)
     assert.are.same(before, items[1])
+    -- A pick without commands binds no actions and no pane keymaps.
+    assert.is_nil(captured.actions)
+    assert.is_nil(captured.win.input)
+    assert.is_nil(captured.win.list)
   end)
 
   it("confirms every marked entry when the flow acts on several", function()
@@ -178,6 +182,10 @@ describe("vantage.frontend.picker.snacks", function()
 
     assert.are.equal("vantage_command_1", captured.win.input.keys["<C-g>"][1])
     assert.are.same({ "i", "n" }, captured.win.input.keys["<C-g>"].mode)
+    -- The list pane binds the same action by name; snacks resolves a string
+    -- through the pick's own `opts.actions`.
+    assert.are.equal("vantage_command_1", captured.win.list.keys["<C-g>"])
+    assert.is_not_nil(captured.actions.vantage_command_1)
 
     local surface = picker()
     surface.refresh = function()
