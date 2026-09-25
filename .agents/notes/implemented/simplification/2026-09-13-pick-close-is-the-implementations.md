@@ -12,11 +12,12 @@ it from `PickOpts.on_close`; `commands/prompt.lua` captured the window and
 restored it from its plain-select choice callback (so a cancelled prompt was
 never restored at all). Both flows are Terminal actions, so the window they
 restored is the Vantage Terminal — and that window already had an owner. The
-snacks implementation re-asserts the terminal window and re-enters terminal
-mode from its own close handler, because two of its properties are snacks'
-own: its picker input is a prompt buffer that closes with `stopinsert` (so a
-terminal comes back in `nt`, not `t`), and its layout teardown destroys its
-floats in `pairs` order, which turns Neovim's float-close fallback
+snacks implementation names the terminal window as the pick's main window on
+close and lets the Terminal's window-entry rule restore the mode, because two
+of the properties are snacks' own: its picker input is a prompt buffer that
+closes with `stopinsert` (so a terminal comes back in `nt`, not `t`), and its
+layout teardown destroys its floats in `pairs` order, which turns Neovim's
+float-close fallback
 (`win_float_find_altwin` → `firstwin`) into a move to the editor behind the
 terminal. fzf-lua restores the window it was invoked from in its own exit path
 (`set_current_win(src_winid)`), and `native` follows the global
@@ -39,11 +40,13 @@ mechanics stay in `docs/gotchas.md`; the global `vim.ui.select` that `native`
 follows is the one named exception.
 
 `on_close` is gone from `PickOpts`, `PickMultiOpts`, the facade, and the three
-implementations. The snacks implementation keeps its own close handler — the
-window re-assert and the terminal-mode re-entry — and no longer wraps a flow
-callback; fzf-lua no longer sets `winopts.on_close`; `native` no longer calls
-one. `gather` and `prompt` are back to what a flow knows: which entries to
-offer and what a choice means.
+implementations. The snacks implementation still owns its own close — its
+`confirm` names the invoked-from window as the pick's main window, and the
+Terminal's window-entry rule restores the mode
+([the Terminal-owns-its-mode note](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md))
+— and no longer wraps a flow callback; fzf-lua no longer sets
+`winopts.on_close`; `native` no longer calls one. `gather` and `prompt` are back
+to what a flow knows: which entries to offer and what a choice means.
 
 ## Alternatives considered
 
@@ -95,10 +98,10 @@ says who is responsible, instead of leaving it to `docs/gotchas.md`.
 The premise was re-reproduced on nvim 0.12.3 with a one-shot headless script:
 an editor window, a terminal float, and two picker floats opened over it.
 Closing the two picker floats left `curwin` on the editor window — the
-float-close fallback — and the implementation's close handler, its body
-replicated verbatim in the script, put `curwin` back on the terminal float.
-That half of the compensation is therefore still doing the work the deleted
-flow code was duplicating.
+float-close fallback — while the picker's own close, with the terminal named as
+its main window, put `curwin` back on the terminal float. That half of the
+compensation is therefore still doing the work the deleted flow code was
+duplicating.
 
 The terminal-mode half could not be measured in that headless run: under
 `--headless -l` the terminal job never reached `t`, so the `nt` → `t`

@@ -320,46 +320,113 @@ describe("vantage.frontend.picker.snacks", function()
     assert.is_not_nil(selected.on_choice)
   end)
 
-  it("hands the window a terminal pick opened from back on close", function()
+  --- Run `body` with `vim.cmd` recorded, restoring it afterwards. Returns the
+  --- commands issued, in order — the mode transitions themselves are invisible
+  --- under `--headless` (see docs/gotchas.md), so specs pin the ordering.
+  ---@param body fun()
+  ---@return string[]
+  local function commands_during(body)
+    local commands = {}
+    local cmd = vim.cmd
+    vim.cmd = function(command)
+      commands[#commands + 1] = command
+      return cmd(command)
+    end
+    local ok, err = pcall(body)
+    vim.cmd = cmd
+    assert(ok, err)
+    return commands
+  end
+
+  it("closes a terminal-origin pick onto the terminal window, with no pick-lifetime restore", function()
     local term_buf = Helpers.buffer({ "" })
     vim.bo[term_buf].filetype = "vantage_terminal"
     vim.api.nvim_set_current_buf(term_buf)
     local term_win = vim.api.nvim_get_current_win()
 
-    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+    local chosen
+    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, {
+      on_choices = function(entries)
+        chosen = entries
+      end,
+    })
 
-    -- The pick armed its window-entry restore for as long as it is open.
-    assert.are.equal(1, vim.fn.exists("#vantage_picker_restore#WinEnter"))
+    -- The Terminal owns the mode now: the pick arms no restore of its own.
+    assert.are.equal(0, vim.fn.exists("#vantage_picker_restore#WinEnter"))
 
-    -- Its close re-asserts the window and disarms the restore.
-    vim.cmd("new")
-    assert.are_not.equal(term_win, vim.api.nvim_get_current_win())
-
-    captured.on_close(nil)
-    vim.wait(1000, function()
-      return vim.api.nvim_get_current_win() == term_win
+    local closed = false
+    local surface = picker()
+    surface.close = function()
+      closed = true
+    end
+    captured.confirm(surface, items[1])
+    vim.wait(500, function()
+      return chosen ~= nil
     end)
 
-    assert.are.equal(term_win, vim.api.nvim_get_current_win())
-    assert.are.equal(0, vim.fn.exists("#vantage_picker_restore#WinEnter"))
-    vim.cmd("only")
+    assert.is_true(closed)
+    assert.are.equal(term_win, surface.main) -- the close hands the terminal back
+    assert.are.equal("agent row", chosen[1].text)
     Helpers.wipe(term_buf)
   end)
 
   it("leaves a pick that did not open from the terminal alone", function()
     local plain = Helpers.buffer({ "" })
     vim.api.nvim_set_current_buf(plain)
-    local armed = vim.fn.exists("#vantage_picker_restore#WinEnter")
 
-    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
-    assert.are.equal(armed, vim.fn.exists("#vantage_picker_restore#WinEnter"))
+    local chosen
+    Snacks.pick_fancy({ prompt = "pick", many = false, items = source(items) }, {
+      on_choices = function(entries)
+        chosen = entries
+      end,
+    })
+    local surface = picker()
+    surface.close = function() end
+    captured.confirm(surface, items[1])
+    vim.wait(500, function()
+      return chosen ~= nil
+    end)
 
-    vim.cmd("enew")
-    local other = vim.api.nvim_get_current_win()
-    captured.on_close(nil)
-    vim.wait(100)
+    assert.is_nil(surface.main)
+    assert.are.equal("agent row", chosen[1].text)
+    Helpers.wipe(plain)
+  end)
 
-    assert.are.equal(other, vim.api.nvim_get_current_win())
+  it("hands terminal mode back before a plain pick's choice handler runs", function()
+    local term_buf = Helpers.buffer({ "" })
+    vim.bo[term_buf].filetype = "vantage_terminal"
+    vim.api.nvim_set_current_buf(term_buf)
+
+    local events = {}
+    Snacks.pick_naive({ "a" }, { prompt = "pick" }, function()
+      events[#events + 1] = "choice"
+    end)
+
+    local commands = commands_during(function()
+      selected.on_choice("a", 1)
+    end)
+
+    -- Issued first, the insert stays pending across a cmdline the handler opens.
+    assert.are.same({ "startinsert" }, commands)
+    assert.are.same({ "choice" }, events)
+    Helpers.wipe(term_buf)
+  end)
+
+  it("runs a plain pick's choice handler untouched when it did not open from the terminal", function()
+    local plain = Helpers.buffer({ "" })
+    vim.api.nvim_set_current_buf(plain)
+
+    local events = {}
+    Snacks.pick_naive({ "a" }, { prompt = "pick" }, function()
+      events[#events + 1] = "choice"
+    end)
+
+    local commands = commands_during(function()
+      selected.on_choice("a", 1)
+    end)
+
+    assert.are.same({}, commands)
+    assert.are.same({ "choice" }, events)
     Helpers.wipe(plain)
   end)
 end)

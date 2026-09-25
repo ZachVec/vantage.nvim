@@ -63,11 +63,12 @@
 --- presentation-only and depend on nothing but their engine.
 ---
 --- An implementation owns what its own close does: it leaves the window the
---- pick was invoked from current when the picker closes, with that window's
---- mode intact, and compensates for its own teardown whenever its engine
---- loses either. A flow therefore never restores a window or a mode.
---- `native` delegates this, like everything else, to the global
---- `vim.ui.select`.
+--- pick was invoked from current when the picker closes, and compensates for
+--- its own teardown whenever its engine loses that window. The window's own
+--- owner settles the mode — a Vantage Terminal restores terminal mode on
+--- window entry (`frontend/terminal.lua`). A flow therefore never restores a
+--- window or a mode. `native` delegates this, like everything else, to the
+--- global `vim.ui.select`.
 ---
 --- `pick_fancy` renders a streaming pick: it starts `spec.items`, maps every
 --- emitted batch into its engine as it arrives, and maps `done` to its

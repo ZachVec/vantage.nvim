@@ -47,86 +47,10 @@ local function terminal_window()
   return nil
 end
 
---- Re-assert the window a pick was invoked from, when the picker's own
---- teardown lost it: Neovim's float-close fallback returns to `prevwin` or the
---- first *tiled* window (never to a sibling float), so from a floating Client
---- the focus lands on the editor behind it. Called from inside a scheduled
---- callback — the tick is what makes the entry land in a settled window (see
---- docs/gotchas.md).
----@param terminal_win integer
-local function reassert_window(terminal_win)
-  if vim.api.nvim_win_is_valid(terminal_win) and vim.api.nvim_get_current_win() ~= terminal_win then
-    pcall(vim.api.nvim_set_current_win, terminal_win)
-  end
-end
-
---- Re-enter terminal mode when a snacks picker closes back onto the vantage
---- terminal in terminal-normal mode. Snacks pickers deliberately close into
---- Normal (their input is a prompt buffer, not a terminal — see
---- docs/gotchas.md), so a cancel (Esc) or a confirm that lands back on the
---- terminal would otherwise strand the client in Normal. The plain select
---- path (`pick_naive`) owns its close through this check alone: it runs the
---- choice handler after queueing it, so the pending insert survives the Group
---- name cmdline (see .agents/notes/implemented/bug-fix/
---- 2026-09-05-snacks-new-group-terminal-mode.md).
----@param terminal_win? integer
-local function restore_terminal_mode(terminal_win)
-  vim.schedule(function()
-    if terminal_win then
-      reassert_window(terminal_win)
-    end
-    if vim.api.nvim_get_mode().mode == "nt" then
-      vim.cmd("startinsert")
-    end
-  end)
-end
-
---- Arm the terminal-mode restore for a pick that opened from the vantage
---- terminal: entering that window during the pick's life puts the client back
---- in terminal mode. The pick's close re-asserts the window on the next tick,
---- which is what makes the entry (and so this restore) land in a settled
---- window; a synchronous re-assert enters while the picker is still tearing
---- down, and the insert is dropped (see docs/gotchas.md).
----@param terminal_win integer
----@return fun() disarm
-local function arm_terminal_restore(terminal_win)
-  local group = vim.api.nvim_create_augroup("vantage_picker_restore", { clear = true })
-  vim.api.nvim_create_autocmd("WinEnter", {
-    group = group,
-    callback = function()
-      if vim.api.nvim_get_current_win() == terminal_win then
-        vim.cmd("startinsert")
-      end
-    end,
-  })
-  return function()
-    pcall(vim.api.nvim_del_augroup_by_id, group)
-  end
-end
-
 ---@type vantage.PickerCapabilities
 M.capabilities = {
   command = true,
 }
-
---- The engine's own `on_close`: hand the terminal the pick opened from back,
---- window first and mode through the pick's own window-entry restore. The flow
---- takes no part in the close (see `vantage.PickerImpl`).
----@param terminal_win? integer
----@param disarm? fun()
----@return fun()
-local function close_handler(terminal_win, disarm)
-  return function()
-    if terminal_win then
-      vim.schedule(function()
-        reassert_window(terminal_win)
-        if disarm then
-          disarm()
-        end
-      end)
-    end
-  end
-end
 
 --- Render a streaming pick: snacks calls the finder once per run, and each
 --- emitted batch becomes finder items. A source that ended within the finder
@@ -137,15 +61,13 @@ end
 ---@param opts vantage.PickOpts
 function M.pick_fancy(spec, opts)
   local terminal_win = terminal_window()
-  ---@type fun()?
-  local disarm
+  local committed = false
   if terminal_win then
     -- Leave terminal mode before the pick's windows take focus. A source that
     -- streams shows the pick from a callback a tick later, and Neovim drops a
     -- float's insert mode when it is focused out of terminal mode from there
     -- — the pick would sit in Normal with its input window dead (see
     -- docs/gotchas.md).
-    disarm = arm_terminal_restore(terminal_win)
     vim.cmd("stopinsert")
   end
   local items, queue = {}, {}
@@ -220,15 +142,36 @@ function M.pick_fancy(spec, opts)
     format = function(item)
       return { { item.text, "" } }
     end,
-    on_close = close_handler(terminal_win, disarm),
     confirm = function(picker, item)
-      picker:close()
+      -- Take the choice, then close on the next tick. Leaving insert mode now
+      -- (the picker's input is a prompt buffer) puts the mode change in an
+      -- earlier event than the focus switch, so the Terminal's own window-entry
+      -- rule enters a settled window — a synchronous close runs while the
+      -- picker is still tearing down and the insert is dropped, stranding the
+      -- client in Normal (see docs/gotchas.md). Naming the invoked-from window
+      -- as the pick's main makes the picker's close focus it; `Picker:close()`
+      -- consumes `main` in the same pass, so it must be set first. The flow's
+      -- callback runs a tick after the close, when its UI changes are safe
+      -- (see `vantage.PickerImpl`).
+      vim.cmd("stopinsert")
       local chosen = spec.many and picker:selected({ fallback = true }) or (item and { item } or {})
-      if #chosen > 0 then
+      if #chosen == 0 then
+        picker:close()
+        return
+      end
+      if committed then
+        return
+      end
+      committed = true
+      vim.schedule(function()
+        if terminal_win then
+          picker.main = terminal_win
+        end
+        picker:close()
         vim.schedule(function()
           opts.on_choices(chosen)
         end)
-      end
+      end)
     end,
     finder = finder,
     win = { preview = { wo = NO_PREVIEW_LINENR } },
@@ -296,8 +239,13 @@ function M.pick_naive(items, opts, on_choice)
     prompt = opts.prompt,
     format_item = opts.format_item,
   }, function(item, idx)
+    -- Hand terminal mode back before the choice handler runs: this callback is
+    -- snacks' own post-close tick, so the insert lands on the settled window —
+    -- and issued first, it stays pending across a cmdline the handler opens
+    -- (the new-Group name prompt; see .agents/notes/implemented/bug-fix/
+    -- 2026-09-05-snacks-new-group-terminal-mode.md).
     if terminal_win then
-      restore_terminal_mode(terminal_win)
+      vim.cmd("startinsert")
     end
     on_choice(item, idx)
   end)

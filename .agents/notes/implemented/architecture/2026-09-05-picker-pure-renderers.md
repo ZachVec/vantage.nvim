@@ -71,10 +71,12 @@ site. The callback result channel keeps each engine's native async shape.
   `commands/review.lua` assemble their own entries and call `Picker.pick`.
 - `frontend/entries.lua` owns the entry vocabulary (the Agent text and the
   pane preview included); `frontend/review.lua` owns Review rendering.
-- The snacks terminal-mode restore applies to every snacks pick: the
-  preview-capable path via `on_close`, and `pick_plain` via its wrapped
-  `on_choice`, preserving the terminal-window re-entry described in
-  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
+- The snacks terminal-mode handling applies to every snacks pick: the
+  preview-capable path hands the terminal back from its own close, and
+  `pick_naive` from its wrapped `on_choice`, preserving the terminal-window
+  re-entry described in
+  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)
+  and [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
 - The capability set above is this note's; the commands contract and the
   facade's failure semantics are current as of
   [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).

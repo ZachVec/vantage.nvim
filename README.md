@@ -223,6 +223,11 @@ reference, and the Agent and Review lists act on the entry under the cursor.
 The terminal buffer has filetype `vantage_terminal`. No keymaps are added by
 default.
 
+Entering the terminal window always resumes terminal mode, so a pick closing
+over it, `:Vantage show`, or simply moving focus back leaves you typing into
+the Agent. A `<C-q>` into terminal-normal mode therefore lasts only while you
+stay in the window: leaving and returning re-enters terminal mode.
+
 Use `cli.win.keys` for Terminal actions or plain keymaps:
 
 ```lua

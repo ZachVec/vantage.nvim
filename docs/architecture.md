@@ -182,7 +182,9 @@ and
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface:
 `setup(resolve)` installs the resolver that says what a `cli.win.keys` `rhs`
-string means, and `open(argv)` starts the terminal job and installs
+string means and the window-entry rule that owns the Terminal's mode (entering
+its window restores terminal mode, since the Terminal has no Normal-mode state
+of its own), and `open(argv)` starts the terminal job and installs
 `cli.win.keys` on the buffer it just created; `hold(attachment)` keeps the
 Attachment its client sits on (identity, never domain state), `show`/`hide`
 manage the window without killing the job, `destroy` stops the job and deletes
@@ -223,12 +225,13 @@ one means.
 entry: a picker that cannot confirm several answers with a one-element list, so
 a flow that acts on a single entry reads `entries[1]`. An implementation owns
 what its own close does: it leaves the window the pick was invoked from
-current, with that window's mode intact, and compensates for its own teardown
-whenever its engine loses either — so no flow restores a window or a mode, and
-no flow passes a close callback. `native` delegates that, like everything
-else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
-mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
-fzf-lua's own `set_current_win(src_winid)` on the other).
+current and compensates for its own teardown whenever its engine loses that
+window, and lets the window's own owner settle the mode (a Vantage Terminal
+restores terminal mode on window entry) — so no flow restores a window or a
+mode, and no flow passes a close callback. `native` delegates that, like
+everything else, to the global `vim.ui.select` (`docs/gotchas.md` records the
+engine mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one
+side, fzf-lua's own `set_current_win(src_winid)` on the other).
 
 A pick that has nothing to show opens empty and stays open until the user
 cancels it: the "no agents" / "nothing to kill" warnings went with the design

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-25
+
 ## Problem
 
 The `files` key's pick opened in Normal mode: the pick's prompt buffer was

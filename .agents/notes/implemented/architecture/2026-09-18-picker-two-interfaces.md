@@ -111,7 +111,8 @@ own task (queue plus suspend/resume, the shape `snacks.picker.source.proc`
 uses). `many` confirms `picker:selected({ fallback = true })` instead of the
 entry under the cursor; `preview` sets the pane callback and its absence sets
 `layout = { preview = false }`; a changed command calls `picker:refresh()`, and
-`on_close` or the task's abort cancels the run.
+closing the picker (snacks aborts the finder task) or the task's own abort
+cancels the run.
 
 ### Flows
 

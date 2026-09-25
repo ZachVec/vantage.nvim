@@ -111,6 +111,17 @@ describe("vantage.frontend.terminal", function()
     assert.is_nil(Terminal.window)
   end)
 
+  it("owns the mode with one window-entry rule, installed once", function()
+    Terminal.setup(function(rhs)
+      return rhs
+    end)
+    Terminal.setup(function(rhs)
+      return rhs
+    end)
+
+    assert.are.equal(1, vim.fn.exists("#vantage_terminal_mode#WinEnter"))
+  end)
+
   it("installs the configured keys on the buffer it opened, resolving each rhs", function()
     local switched = function() end
     Config.options.cli.win.keys = { { "<c-s>", "switch", desc = "switch Agent" } }

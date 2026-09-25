@@ -1,7 +1,8 @@
 --- The single :terminal that is Vantage's display surface.
 ---
 --- One terminal per nvim instance. `setup(resolve)` installs the resolver that
---- says what a cli.win.keys `rhs` string means, and `open(argv)` starts the
+--- says what a cli.win.keys `rhs` string means and the rule that entering the
+--- terminal's window restores terminal mode, and `open(argv)` starts the
 --- attach client as the terminal's job and installs cli.win.keys on its buffer;
 --- `hold(attachment)` keeps the Attachment that client sits on, so the
 --- terminal's existence IS the attachment's existence (the job is the attached
@@ -40,10 +41,35 @@ local resolver = function(rhs)
   return rhs
 end
 
---- Install the resolver that answers what a cli.win.keys `rhs` string means.
+--- Install the resolver that answers what a cli.win.keys `rhs` string means,
+--- and the rule that owns the Terminal's mode: entering the Terminal's window
+--- puts its client back in terminal mode.
+---
+--- The Terminal has no Normal-mode state of its own. A Picker opened over it
+--- leaves it in Normal for as long as the pick is up — the picker's input is a
+--- prompt buffer, not this window — so the mode belongs to window entry, not
+--- to whichever close last took the window. The rule is installed once for the
+--- Terminal's lifetime and does nothing while no Terminal buffer exists.
+---
+--- Accepted cost: a user who deliberately leaves terminal mode (`<C-q>`, or
+--- the explicit `<C-\><C-N>`) and then leaves and re-enters the window is put
+--- back in terminal mode.
 ---@param resolve vantage.TerminalActionResolver
 function M.setup(resolve)
   resolver = resolve
+  local group = vim.api.nvim_create_augroup("vantage_terminal_mode", { clear = true })
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = group,
+    callback = function()
+      if not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
+        return
+      end
+      if vim.api.nvim_win_get_buf(vim.api.nvim_get_current_win()) ~= M.buffer then
+        return
+      end
+      vim.cmd("startinsert")
+    end,
+  })
 end
 
 local function reset()
