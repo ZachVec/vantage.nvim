@@ -33,12 +33,15 @@ describe("vantage.init", function()
 
   it("installs the terminal's action resolver", function()
     pcall(vim.api.nvim_del_user_command, "Vantage")
-    Init.setup({ backend = "tmux", picker = "native" })
+    Init.setup({
+      backend = "tmux",
+      picker = "native",
+      cli = { win = { keys = { { "<c-h>", "hide", desc = "hide" } } } },
+    })
 
     -- Open the real Terminal the resolver was installed into and check that a
     -- configured token arrived as the action's function, not as its string.
     local Terminal = require("vantage.frontend.terminal")
-    Config.options.cli.win.keys = { { "<c-h>", "hide", desc = "hide" } }
     local jobstart = vim.fn.jobstart
     vim.fn.jobstart = function()
       return 4242
@@ -57,7 +60,6 @@ describe("vantage.init", function()
     assert.are.equal("function", type(callback))
 
     Terminal.destroy()
-    Config.options.cli.win.keys = {}
   end)
 
   it("fails fast before installing command side effects", function()

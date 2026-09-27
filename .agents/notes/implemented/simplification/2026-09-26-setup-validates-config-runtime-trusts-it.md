@@ -35,7 +35,9 @@ as already valid.
   function; the surviving-Tool loop then only fills in a missing hook.
 - New `sanitize_prompts` drops non-string templates.
 - New `sanitize_win` validates `layout`, the float/split sizes, normalizes
-  `border = false` to `"none"`, and drops malformed `cli.win.keys` entries.
+  `border = false` to `"none"`, and drops malformed `cli.win.keys` entries;
+  it also normalizes each entry's `mode` spelling
+  ([cli-win-key-modes-normalized-at-setup](../bug-fix/2026-09-27-cli-win-key-modes-normalized-at-setup.md)).
 - `Review.setup` warns about a `reviews.item` template naming a field outside
   its vocabulary, mirroring the Prompt check; the `FIELDS` list moved above
   `setup` so it is the one owner of that vocabulary.

@@ -13,7 +13,18 @@
 ---@field layout string full | left | top | bottom | right | float
 ---@field float table relative-to-editor float window options (width/height/border)
 ---@field split table
----@field keys table[]
+---@field keys vantage.WinKey[]
+
+---@class vantage.WinKey A buffer-local Terminal keymap:
+--- `{ lhs, rhs, mode?, desc? }`. `rhs` is passed to `vim.keymap.set` verbatim,
+--- except a string naming a Terminal action. `mode` names one or more modes as
+--- a string (`"n"`, `"t"`, or `"nt"`) or a list of them; `sanitize_win`
+--- normalizes it to the single-mode list `vim.keymap.set` takes, defaulting to
+--- Normal mode.
+---@field [1] string lhs
+---@field [2] any rhs
+---@field mode? string|string[]
+---@field desc? string
 
 ---@class vantage.ReviewFloatConfig Note-float window options.
 ---@field style string "inherit" (default) | "minimal"
@@ -125,10 +136,10 @@ local defaults = {
       split = { width = 80, height = 20 },
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
-      --- 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is passed verbatim to
-      --- vim.keymap.set, except a string naming a built-in terminal action —
-      --- "hide", "switch", "prompt", "files", or "buffers" — which resolves to
-      --- that action.
+      --- 4-tuple { lhs, rhs, mode = "n", desc }; `mode` names one mode ("n",
+      --- "t") or several ("nt"), and `rhs` is passed verbatim to vim.keymap.set,
+      --- except a string naming a built-in terminal action — "hide", "switch",
+      --- "prompt", "files", or "buffers" — which resolves to that action.
       keys = {},
     },
   },
@@ -200,10 +211,33 @@ function M.sanitize_prompts(prompts)
   return prompts
 end
 
+--- The single-mode list `vim.keymap.set` takes, for one entry's `mode`
+--- spelling: a string like "nt" splits into its short-names, a list is joined
+--- first so each element may name several modes, and a missing mode is the
+--- documented Normal-mode default. nil means the spelling cannot name modes.
+---@param mode any
+---@return string[]?
+local function entry_modes(mode)
+  if mode == nil then
+    return { "n" }
+  elseif type(mode) == "table" then
+    for _, name in ipairs(mode) do
+      if type(name) ~= "string" then
+        return nil
+      end
+    end
+    mode = table.concat(mode)
+  elseif type(mode) ~= "string" then
+    return nil
+  end
+  return vim.split(mode, "", { plain = true })
+end
+
 --- Validate cli.win in place: an unknown layout or a non-numeric size falls
 --- back to its default, `float.border = false` becomes the "none" Neovim
---- spells, and malformed cli.win.keys entries are dropped. The Terminal can
---- then install the survivors verbatim.
+--- spells, malformed cli.win.keys entries are dropped, and each survivor's
+--- `mode` becomes the single-mode list `vim.keymap.set` takes. The Terminal
+--- can then install the survivors verbatim.
 ---@param win vantage.Win
 ---@return vantage.Win the same table, normalized
 function M.sanitize_win(win)
@@ -226,9 +260,11 @@ function M.sanitize_win(win)
   end
   local keys = {}
   for index, keymap in ipairs(win.keys) do
-    if type(keymap) ~= "table" or type(keymap[1]) ~= "string" or keymap[1] == "" or keymap[2] == nil then
+    local modes = type(keymap) == "table" and entry_modes(keymap.mode)
+    if type(keymap) ~= "table" or type(keymap[1]) ~= "string" or keymap[1] == "" or keymap[2] == nil or not modes then
       Util.warn(("dropping malformed cli.win.keys entry %d: expected { lhs, rhs, mode?, desc? }"):format(index))
     else
+      keymap.mode = modes
       keys[#keys + 1] = keymap
     end
   end

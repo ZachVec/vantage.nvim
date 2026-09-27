@@ -67,9 +67,9 @@ flow that happened to open one, and it kept an import of the command layer in
 `commands/attach.lua` purely to thread a constant. The composition root is the
 only module allowed to reach both layers, so wiring the resolver there is the
 one place it costs no leak; `open` keeps one responsibility, starting the job
-and installing what `setup` gave it. Until `setup` runs the resolver stays
-identity, so an `open` that never saw it binds a plain `rhs` verbatim rather
-than failing.
+and installing what `setup` gave it. The identity default that first shipped
+here was later rejected: a Terminal opened before `setup` now fails loudly
+([setup-validates-config-runtime-trusts-it](../simplification/2026-09-26-setup-validates-config-runtime-trusts-it.md)).
 
 ### Why not resolve tokens in `Config.apply`, which runs in the composition root?
 
@@ -95,12 +95,12 @@ spec reaches it through `open` with a stubbed job — the same seam callers use.
   whichever command opened it; `commands/attach.lua` only attaches and holds.
 - `tests/frontend/terminal_spec.lua` pins the installation through `open`: a
   resolved token arrives as a callback, a plain `rhs` binds verbatim in every
-  mode its entry names, a malformed entry warns without stopping the rest, and
-  a token binds literally when no resolver was installed.
+  mode its entry names, and a Terminal opened before `setup` refuses to open.
   `tests/commands/attach_spec.lua` pins that the flow hands the Terminal only
   `argv`, and `tests/init_spec.lua` pins that `setup` installs the resolver.
-- A Terminal opened without the composition root's `setup` keeps the identity
-  resolver: `cli.win.keys` tokens then bind as literal key sequences.
+- A Terminal opened without the composition root's `setup` fails loudly; the
+  identity-resolver default this note first shipped was rejected by
+  [setup-validates-config-runtime-trusts-it](../simplification/2026-09-26-setup-validates-config-runtime-trusts-it.md).
 - Facts updated in place:
   [converge-command-surface-to-terminal-actions](../simplification/2026-09-06-converge-command-surface-to-terminal-actions.md)
   and `docs/architecture.md`.

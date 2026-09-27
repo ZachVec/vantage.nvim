@@ -108,14 +108,16 @@ local function configure_window()
   vim.wo[M.window].cursorline = false
 end
 
---- Apply one validated cli.win.keys entry to `buffer`, resolving its rhs first.
+--- Apply one validated cli.win.keys entry to `buffer`, resolving its rhs
+--- first. `Config.sanitize_win` already turned the entry's `mode` into the
+--- single-mode list `vim.keymap.set` takes.
 ---@param buffer integer
 ---@param keymap table
 ---@param resolve vantage.TerminalActionResolver
 local function apply_key(buffer, keymap, resolve)
   local lhs, rhs = keymap[1], keymap[2]
   rhs = resolve(rhs)
-  local ok, err = pcall(vim.keymap.set, keymap.mode or "n", lhs, rhs, {
+  local ok, err = pcall(vim.keymap.set, keymap.mode, lhs, rhs, {
     buffer = buffer,
     desc = keymap.desc,
     silent = true,

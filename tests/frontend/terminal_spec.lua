@@ -21,12 +21,14 @@ describe("vantage.frontend.terminal", function()
     Helpers.reload_vantage()
   end)
 
-  --- Install `resolve` the way the composition root does, then open the
-  --- Terminal with a stubbed job — no client starts, but `open` runs to
-  --- completion. Returns `open`'s answer.
+  --- Normalize the configured keys the way setup does, install `resolve` the
+  --- way the composition root does, then open the Terminal with a stubbed job
+  --- — no client starts, but `open` runs to completion. Returns `open`'s
+  --- answer.
   ---@param resolve? fun(rhs: any): any
   ---@return boolean
   local function open(resolve)
+    Config.sanitize_win(Config.options.cli.win)
     local jobstart = vim.fn.jobstart
     vim.fn.jobstart = function()
       return 4242
@@ -152,6 +154,16 @@ describe("vantage.frontend.terminal", function()
 
   it("binds a non-action rhs verbatim in every mode the entry names", function()
     Config.options.cli.win.keys = { { "<c-q>", "zzz", mode = { "n", "t" } } }
+
+    assert.is_true(open())
+
+    assert.are.equal("zzz", mapped(Terminal.buffer, "<c-q>", "n").rhs)
+    assert.are.equal("zzz", mapped(Terminal.buffer, "<c-q>", "t").rhs)
+    Terminal.destroy()
+  end)
+
+  it("binds a concatenated mode string in each mode it names", function()
+    Config.options.cli.win.keys = { { "<c-q>", "zzz", mode = "nt" } }
 
     assert.is_true(open())
 

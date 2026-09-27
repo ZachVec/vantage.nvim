@@ -62,7 +62,13 @@ describe("vantage.config", function()
       layout = "botom",
       float = { width = "wide", height = 0.5, border = false },
       split = { width = 10, height = "tall" },
-      keys = { { "<c-x>" }, { "<c-y>", "yy", mode = { "n", "t" } } },
+      keys = {
+        { "<c-x>" },
+        { "<c-y>", "yy", mode = { "n", "t" } },
+        { "<c-z>", "zz", mode = "nt" },
+        { "<c-w>", "ww" },
+        { "<c-v>", "vv", mode = 42 },
+      },
     }
     Config.sanitize_win(win)
     util.warn = original_warn
@@ -73,8 +79,12 @@ describe("vantage.config", function()
     assert.are.equal(10, win.split.width)
     assert.are.equal(20, win.split.height)
     assert.are.equal("none", win.float.border)
-    assert.are.same({ { "<c-y>", "yy", mode = { "n", "t" } } }, win.keys)
-    assert.are.equal(4, #warned)
+    assert.are.same({
+      { "<c-y>", "yy", mode = { "n", "t" } },
+      { "<c-z>", "zz", mode = { "n", "t" } },
+      { "<c-w>", "ww", mode = { "n" } },
+    }, win.keys)
+    assert.are.equal(5, #warned)
   end)
 
   it("apply applies defaults with no options", function()
