@@ -26,7 +26,7 @@ A gate that always passes is worse than no gate: it implies a guarantee it canno
 
 ## Consequences
 
-- `make check` is now Agent Notes + stylua + lua-language-server; there is no markdown link gate.
+- `make check` is now Agent Notes + stylua + architecture + lua-language-server; there is no markdown link gate.
 - The prior markdown-gate note is rejected, since its rationale (marksman diagnostics before commit) no longer holds.
 
 The rejected note is [markdown-gate-untracked](../../rejected/process/2026-08-31-markdown-gate-untracked.md).

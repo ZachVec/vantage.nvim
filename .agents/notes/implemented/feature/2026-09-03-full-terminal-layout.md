@@ -88,11 +88,11 @@ through per-tick read-only aggregation instead of mirroring it in the client.
   layout opt-in note](2026-09-05-float-terminal-layout-opt-in.md), and is the
   default now, see the [float terminal layout default
   note](2026-09-05-float-terminal-layout-default.md). An unknown layout value
-  still silently falls through to the split path (a bottom split) rather than
-  erroring; `vantage.Win` in `lua/vantage/config.lua`, the `README.md`
+  warns at setup and falls back to the default (`float`) rather than erroring;
+  `vantage.Win` in `lua/vantage/config.lua`, the `README.md`
   sample, and `doc/vantage.nvim.txt` list
   `float | full | left | top | bottom | right` with `float` as the default.
-- With `full` the terminal owns a tab: `hide`/`toggle` closes the terminal
+- With `full` the terminal owns a tab: `hide` closes the terminal
   window, which also closes its tab when that window is the tab's only one
   (when the terminal window is the session's very last window, `hide` swaps in
   an empty buffer instead, per the pre-existing single-window rule). The

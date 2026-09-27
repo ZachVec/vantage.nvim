@@ -26,27 +26,34 @@ invoked from*, it restored the default first window.
 
 ## Decision
 
-The snacks close compensation (`restore_terminal_mode` in
-`lua/vantage/frontend/picker/snacks.lua`) now also re-asserts window focus. At pick
-start, when the current window is the Vantage Terminal, the implementation captures
+The snacks implementation's own close names the window the pick was invoked
+from as the pick's main window (`lua/vantage/frontend/picker/snacks.lua`). At
+pick start, when the current window is the Vantage Terminal, it captures
 `vim.api.nvim_get_current_win()` — at that moment the current window *is* the
 Terminal window, since filetype detection means the pick runs inside it — and
-passes it into the same scheduled close handler. In the scheduled handler the
-terminal window is re-focused with `nvim_set_current_win` when it is still
-valid and not already current, *before* the existing terminal-mode re-entry
-(`startinsert` when the mode is `nt`), whose check then runs against the
-re-focused window. When the engine's own teardown (or another picker) already
-restored the terminal, the re-assert is a no-op — focus re-assertion is
-universal, not float-specific — so split and `full` layouts gain the same
-guarantee (with `full` they were covered only by the coincidental
-first-window fallback).
+its deferred `confirm` sets `picker.main` to that window before
+`picker:close()`. Snacks' own close focuses `main`, so the focus comes back
+from the engine's own mechanism instead of a Vantage `nvim_set_current_win`;
+`Picker:close()` consumes `main` in the same pass and only moves focus when the
+current window is one of the picker's, so the naming is a no-op for a close
+that already landed on the terminal. Naming the main window is unconditional
+and layout-free, so split and `full` layouts get the same guarantee (with
+`full` they were covered only by the coincidental first-window fallback), and
+a cancel is covered by snacks' own cancel, which names the invoking window as
+its main.
 
-The re-assert stays inside the picker implementation: like the terminal-mode
-re-entry, it is compensation for the engine's own close semantics, and the
+Terminal mode follows the focused window: it is the Terminal's own
+window-entry rule
+([the Terminal-owns-its-mode note](2026-09-25-the-terminal-owns-its-mode.md)),
+and the plain select path issues its `startinsert` from snacks' post-close
+callback before running the choice handler.
+
+The compensation stays inside the picker implementation: like the terminal-mode
+restore, it corrects the engine's own close semantics, and the
 [picker-pure-renderers boundary](../architecture/2026-09-05-picker-pure-renderers.md)
 is kept — the implementation still requires nothing but its engine
-(`nvim_get_current_win()`/`nvim_set_current_win()` are core API, and the
-invoked-from window is captured, not looked up through a Vantage module).
+(`nvim_get_current_win()` is core API, and the invoked-from window is captured,
+not looked up through a Vantage module).
 
 ## Alternatives considered
 
@@ -62,38 +69,37 @@ same reasoning as the [new-Group terminal-mode note](2026-09-05-snacks-new-group
 The close order is snacks' layout `pairs` iteration, and Neovim's
 `win_float_find_altwin` fallback would still land on `firstwin` once the
 `prevwin` chain is exhausted for any close order where the last destroyed
-window is current. Compensating on the Vantage side is deterministic and does
-not fork snacks' internals.
+window is current. Telling the engine which window the close should land on is
+deterministic and does not fork snacks' internals.
 
 ### Why not re-focus only when the Terminal is a float?
 
 The tiled paths are already restored by the same fallback only in the `full`
 layout; split layouts have the identical defect (the terminal is not
-`firstwin` then). A single unconditional re-assert — no-op when the restore
-already happened — covers both without layout-specific branches.
+`firstwin` then). Naming the pick's main window is unconditional and covers
+both without layout-specific branches.
 
 ## Consequences
 
-- Every snacks pick invoked from the vantage terminal returns the focus — and
-  terminal mode — to the terminal window, float or tiled; Esc-cancel paths are
-  covered by the same `on_close` handler.
+- Every snacks pick invoked from the vantage terminal returns the focus — and,
+  through the Terminal's window-entry rule, terminal mode — to the terminal
+  window, float or tiled; Esc-cancel paths are covered by snacks' own cancel.
 - fzf-lua is untouched: it restores the window it was invoked from on its own
   (`set_current_win(self.src_winid)` in its exit path), so the defect was
   snacks (and the builtin `vim.ui.select`, which uses a cmdline `inputlist`,
   with no window to lose).
-- `docs/gotchas.md` and the
-  [snacks terminal-mode re-entry note](2026-09-05-snacks-new-group-terminal-mode.md)
-  describe the re-asserted close handler; the picker-pure-renderers note's
-  snacks section references the same handler. No config or user-visible API
-  change; the float layout note is unaffected (it is another consequence of
-  the same layout, not a re-decision).
+- `docs/gotchas.md` and
+  [the Terminal-owns-its-mode note](2026-09-25-the-terminal-owns-its-mode.md)
+  describe the close that names the invoked-from window. No config or
+  user-visible API change; the float layout note is unaffected (it is another
+  consequence of the same layout, not a re-decision).
 
 ## Verification
 
 Headless reproduction on nvim 0.12.3 with plain floats (the mechanics are
 Neovim's, snacks' teardown is only the close): editor + terminal float +
 two picker floats, destroy picker floats in either order — focus lands on the
-tiled editor window (`curwin` = editor), and the scheduled re-assert puts it
-back on the terminal float (`curwin` = terminal). The `full`-layout path was
-left as the control: the single-window tab's `firstwin` is the terminal, no
-re-assert needed.
+tiled editor window (`curwin` = editor), while the picker's own close, with the
+terminal named as its main window, puts it back on the terminal float
+(`curwin` = terminal). The `full`-layout path was left as the control: the
+single-window tab's `firstwin` is the terminal, no compensation needed.

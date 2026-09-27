@@ -21,17 +21,19 @@ Restore the tmux session-group model:
 - Each Terminal client attaches to a transient **View** session grouped with
   the Anchor. The View is marked `@vantage-view 1`; its current window is
   independent from every other client's View.
-- `Driver.attach(agent)` creates a fresh View, selects the target Agent in it,
-  and returns `{ view, argv }`. `Backend.attach(agent)` exposes that record to
-  the Terminal flow; `kill_view(view)` cleans up a View when the terminal job
-  cannot start.
-- Same-Group `retarget(pid, agent)` selects the Agent window in the client's
-  own View. Cross-Group retarget creates a fresh View in the destination
-  Group, moves the client into it, and destroys the old View. A client found
-  attached directly to an Anchor is migrated to a View before switching.
+- `Driver.attach(agent, launch)` creates a fresh View, selects the target Agent
+  in it, and starts the client through `launch`; it hands back the Attachment
+  handle the Terminal holds, and a client that cannot start takes the View back
+  down with it. The current shape of that handle and its methods is owned by
+  [backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md).
+- Same-Group `retarget(agent)` selects the Agent window in the client's own
+  View. Cross-Group retarget creates a fresh View in the destination Group,
+  moves the client into it, adopts the new View, and destroys the old one. The
+  client is always on a View the plugin created, so no Anchor-migration branch
+  remains.
 - A global `client-detached` hook destroys a View when its client exits, so
   Views never accumulate. `kill_group` destroys the Anchor and every View.
-- `Backend.focus(pid)` still derives the Focus from the client's current
+- `Attachment:focus()` still derives the Focus from the client's current
   window; with Views that window is per-client, so the Frontend stores no
   focus state.
 
@@ -59,10 +61,12 @@ mode adds a protocol layer without changing the session/window model.
 - [Group/Anchor/Agent/View](../../archived/architecture/2026-08-31-group-anchor-agent-view.md)
   is current again; the archived note's model is restored under the current
   Driver result contract.
-- The Driver surface replaces `attach_command(agent)` with
-  `attach(agent) → { view, argv }` and adds `kill_view(view)`.
+- The Driver surface replaces `attach_command(agent)` with an `attach` that
+  creates the View and starts the client.
 - Views are cleaned up by the `client-detached` hook, by cross-Group retarget,
-  and explicitly when Terminal startup fails.
+  and explicitly when Terminal startup fails; `tests/commands/attach_spec.lua`
+  pins the failed-startup kill, including that the Terminal keymaps are left
+  unapplied.
 - Driver integration tests cover two clients in one Group switching to
   different Agents independently, plus cross-Group relocation.
 - The “no View” premise in

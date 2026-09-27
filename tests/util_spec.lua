@@ -8,6 +8,61 @@ describe("vantage.util", function()
     assert.are.equal(vim.fs.normalize(vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":p")), Util.cwd())
   end)
 
+  describe("run_lines", function()
+    --- Run a shell command to completion, collecting every line batch.
+    ---@param script string
+    ---@return string[] lines
+    ---@return integer[] batches sizes
+    ---@return integer code
+    local function collect(script)
+      local lines, batches, code = {}, {}, nil
+      Util.run_lines({ "sh", "-c", script }, {}, function(batch)
+        batches[#batches + 1] = #batch
+        vim.list_extend(lines, batch)
+      end, function(exit_code)
+        code = exit_code
+      end)
+      vim.wait(5000, function()
+        return code ~= nil
+      end, 10)
+      assert(code ~= nil, "command did not finish")
+      return lines, batches, code
+    end
+
+    it("hands over complete lines and the exit code", function()
+      local lines, batches, code = collect("printf 'a\\nb\\nc\\n'")
+      assert.are.same({ "a", "b", "c" }, lines)
+      assert.are.same({ 3 }, batches)
+      assert.are.equal(0, code)
+    end)
+
+    it("carries a partial line across chunks and flushes it at exit", function()
+      local lines, _, code = collect("printf 'ab'; /bin/sleep 0.05; printf 'c\\nd'")
+      assert.are.same({ "abc", "d" }, lines)
+      assert.are.equal(0, code)
+    end)
+
+    it("answers the failure code when the command cannot be spawned", function()
+      local code
+      Util.run_lines({ "vantage-no-such-command" }, {}, function() end, function(exit_code)
+        code = exit_code
+      end)
+      assert.are.equal(-1, code)
+    end)
+
+    it("stops the command and still reports its exit", function()
+      local finished = false
+      local cancel = Util.run_lines({ "sh", "-c", "printf 'a\\n'; sleep 30 & wait" }, {}, function() end, function()
+        finished = true
+      end)
+      cancel()
+      vim.wait(5000, function()
+        return finished
+      end, 20)
+      assert.is_true(finished)
+    end)
+  end)
+
   describe("interpolate", function()
     local allowed = { name = true, file = true }
 
@@ -43,6 +98,35 @@ describe("vantage.util", function()
 
     it("joins an argv array with preserved argument boundaries", function()
       assert.are.equal("'sh' '-c' 'echo hello world'", Util.shell_join({ "sh", "-c", "echo hello world" }))
+    end)
+  end)
+
+  describe("notify", function()
+    it("defers a notification raised inside a libuv callback", function()
+      local original_notify = vim.notify
+      local seen, in_callback = {}, nil
+      vim.notify = function(msg)
+        seen[#seen + 1] = msg
+      end
+
+      local timer = (vim.uv or vim.loop).new_timer()
+      timer:start(0, 0, function()
+        assert.is_true(vim.in_fast_event())
+        Util.warn("from a callback")
+        -- `nvim_echo` raises E5560 here, so nothing may be delivered while
+        -- the callback is still on the stack.
+        in_callback = #seen
+      end)
+
+      vim.wait(5000, function()
+        return #seen > 0
+      end, 10)
+      timer:stop()
+      timer:close()
+      vim.notify = original_notify
+
+      assert.are.equal(0, in_callback)
+      assert.are.equal("vantage: from a callback", seen[1])
     end)
   end)
 

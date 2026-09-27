@@ -2,12 +2,14 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The module the Frontend imports as its door to the Backend lived at
 `backend/bridge.lua`, a bespoke name. The repo's convention for a facade over a
 pluggable implementation is `X/init.lua`: `frontend/picker/init.lua` presents
-the Picker over its renderers, and `backend/driver/init.lua` presents the Driver
+the Picker over its renderers, and `backend/init.lua` presents the Driver
 seam over its implementations. `backend/` had no `init.lua`, so
 `require("vantage.backend")` did not exist and every consumer reached a level
 deeper into `vantage.backend.bridge`.
@@ -15,10 +17,12 @@ deeper into `vantage.backend.bridge`.
 The name was residue, not a design. `backend/init.lua` was once the Driver
 registry, mirroring `frontend/picker/init.lua`
 ([backend-seam-registry](../../archived/architecture/2026-09-05-backend-seam-registry.md));
-when resolution moved down into `backend/driver/init.lua`
+when resolution moved down into a separate `backend/driver/` module
 ([backend-driver-seam](2026-08-31-backend-driver-seam.md)), the facade stayed
-behind under the old `bridge.lua` name. Two glossary terms — Backend and
-Bridge — then described one thing.
+behind under the old `bridge.lua` name, and the split was later folded back
+into one layer
+([backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md)).
+Two glossary terms — Backend and Bridge — then described one thing.
 
 ## Decision
 

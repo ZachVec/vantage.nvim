@@ -39,12 +39,12 @@ _Avoid_: api, server
 
 ## Driver
 
-A concrete multiplexer implementation behind the Backend — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, creates/destroys Views for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
+A concrete multiplexer implementation behind the Backend — `tmux` today, `zellij` later. The Driver is pure multiplexer mapping: it exposes the domain-shaped verb surface, outputs neutral records with an opaque Agent `id` and creation `seq`, hands back an Attachment for the Terminal attachment lifecycle, returns explicit operation errors instead of notifying, and keeps every tool-specific command syntax inside it.
 _Avoid_: adapter
 
 ## Frontend
 
-The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and the note float. The Frontend imports the Backend; the Backend never imports the Frontend.
+The plugin's UI layer: the Picker and the single `:terminal` that is the Terminal, plus display helpers, the Review storage, and its editing float. The Frontend imports the Backend; the Backend never imports the Frontend.
 _Avoid_: client, ui
 
 ## Terminal
@@ -52,29 +52,34 @@ _Avoid_: client, ui
 The plugin's one display surface: a single `:terminal` per Neovim instance, opened on an attach command for a per-client View produced by the Backend. Its existence is the attachment's existence — the terminal's job is the attached client, so when the job exits the terminal closes and its View is destroyed, and hiding it keeps the attachment alive.
 _Avoid_: client, screen, window
 
+## Attachment
+
+The handle for one Terminal's client on its View: the Driver creates the View and starts the client, then hands back an Attachment whose `focus()` answers what that client displays and whose `retarget(agent)` re-points it. It carries identity only — every call answers from live state, never from a cached Agent, Group, or View — and the Terminal holds it for as long as its client lives.
+_Avoid_: client session, connection
+
 ## Focus
 
-The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Backend's `focus(pid)` read answers with the Agent, or with `nil` plus the reason (`no terminal`, `no client for this terminal`, `no focused agent`, or the multiplexer's own error). Prompt, gather, and review read it; each flow decides how to report a missing Focus.
+The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Terminal's Attachment answers it — `focus()` returns the Agent, or `nil` plus `no focused agent` or the multiplexer's own error. Prompt, gather, and review read it; each flow decides how to report a missing Focus.
 _Avoid_: current agent, active agent, last agent, focused agent
 
 ## Terminal action
 
-A named action available only from a keymap inside the Terminal: `toggle`, `switch`, `prompt`, `files`, or `buffers`. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
+A named action available only from a keymap inside the Terminal: `hide`, `switch`, `prompt`, `files`, or `buffers`. `hide` closes the Terminal's window and leaves its client attached; it is not the inverse of any action here, because showing the Terminal is a `:Vantage` command, not a key pressed inside it. The gather actions `files` and `buffers` pick entries through the Picker and type their file references into the focused Agent's input. Configured as the `rhs` string of a `cli.win.keys` entry; any other `rhs` value is installed as an ordinary keymap.
 _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
 
-The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick(spec, opts)`, `pick_multi(spec, opts)`, and `pick_plain(...)`; implementations declare exactly three capabilities, `preview`, `command`, and `multi`, and degrade optional capabilities explicitly — a picker without `multi` renders a multi-selection request as a single choice. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
+The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick_fancy(spec, opts)` — a streaming pick, whose `spec.items` emits entries as the flow produces them — and `pick_naive(...)`, the static plain-list form. Implementations declare one capability, `command` (they bind the flow's picker commands); a pick states its own `many` and `preview` requests, and an implementation that cannot confirm several entries or render a preview pane degrades instead of declaring it. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
 
 ## Picker command
 
-A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
+A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed, which restarts the pick's item stream. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
 ## Entry
 
-One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. The Picker reads only the text and previews only the highlighted Entry; it decides nothing about what choosing one means. Every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
+One selectable thing a pick offers: the text the Picker renders, plus whatever the flow that offered it carries. An Entry is plain data with no preview of its own — the Picker reads the text and calls the pick's own `preview` function for the highlighted Entry, and `Entries.preview` is the one standard preview, keyed by the Entry's kind. The Picker decides nothing about what choosing one means, and every kind of Entry is spelled in one shared vocabulary, so an Agent reads the same in the Agent list and in the kill list.
 _Avoid_: row
 
 ## Tool

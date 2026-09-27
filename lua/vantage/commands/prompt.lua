@@ -47,8 +47,8 @@ end
 --- about a configured template naming a placeholder no resolver knows
 --- (`Util.interpolate` would type it literally). The vocabulary is the
 --- resolvers' keys, and `health.lua` may not import this layer, so the check
---- runs here, on the applied config. A non-string template is not this check's
---- business; it fails when it is sent.
+--- runs here, on the applied config. `Config.apply` has already dropped
+--- non-string templates.
 function M.setup()
   visit_counter = 0
   vim.api.nvim_create_augroup("VantageWinVisit", { clear = true })
@@ -62,11 +62,9 @@ function M.setup()
 
   local unknown = {}
   for _, template in pairs(Config.options.prompts) do
-    if type(template) == "string" then
-      for token in template:gmatch("{([%w_]+)}") do
-        if not PLACEHOLDERS[token] then
-          unknown[token] = true
-        end
+    for token in template:gmatch("{([%w_]+)}") do
+      if not PLACEHOLDERS[token] then
+        unknown[token] = true
       end
     end
   end
@@ -129,7 +127,11 @@ end
 --- Agent's input (no auto-submit).
 ---@param name string
 local function send_prompt(name)
-  local focused, err = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local focused, err
+  if attachment then
+    focused, err = attachment:focus()
+  end
   if not focused then
     Util.warn(err or "no focused agent")
     return
@@ -163,7 +165,7 @@ function M.run()
     end
   end
   table.sort(names)
-  Picker.pick_plain(names, { prompt = "Prompt: " }, function(name)
+  Picker.pick_naive(names, { prompt = "Prompt: " }, function(name)
     if name then
       send_prompt(name)
     end

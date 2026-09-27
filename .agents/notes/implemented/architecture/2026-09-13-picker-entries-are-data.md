@@ -48,7 +48,7 @@ which makes `entries.lua` the first Frontend module to import the Backend — th
 direction the Frontend's own definition already describes.
 
 The flows keep what only they know: which entries to offer, what a choice means
-(`kind`), and their Picker commands. `select` / `delete` are gone; `on_choice`
+(`kind`), and their Picker commands. `select` / `delete` are gone; `on_choices`
 and a command's `rhs` read `entry.kind` and the payload the flow put there.
 `commands/review.lua`'s entry moved into the shared vocabulary with the rest,
 so no flow implements a preview.
@@ -118,7 +118,13 @@ neutral parameter name.
   contract by asserting the implementation leaves the entry alone.
 - The `Entry` term now lives in the [domain glossary](../../../../docs/glossary.md),
   with `row` retired as prose.
-- The Agent entry's text is unchanged and still one builder
-  ([agent-picker-entry-format](../feature/2026-09-04-agent-picker-entry-format.md));
-  the Picker's neutrality contract is unchanged
+- The Agent entry's text is unchanged and still one builder; the Picker's
+  neutrality contract is unchanged
   ([pluggable-picker-frontend](2026-08-31-pluggable-picker-frontend.md)).
+
+The preview half of this decision is superseded by
+[picker-two-interfaces](2026-09-18-picker-two-interfaces.md): an Entry carries no
+preview of its own, the flow hands the pick the one standard `Entries.preview`
+function, and a pick that hands none has no preview pane. Everything else — one
+vocabulary, plain data, no metatable, no writes from an implementation — is
+unchanged.

@@ -1,6 +1,6 @@
 --- Configuration and shared types for Vantage: the option table, its
 --- validation, and the reference spelling (`Config.tool_reference`). A seam's
---- contract types live with their seam — `vantage.Driver` in backend/driver,
+--- contract types live with their seam — `vantage.Driver` in backend/init.lua,
 --- the picker contract in frontend/picker.
 
 ---@alias vantage.ReferenceFormat fun(file: string, loc: string?): string? renders a path plus its optional `:L` suffix in a Tool's dialect
@@ -13,7 +13,18 @@
 ---@field layout string full | left | top | bottom | right | float
 ---@field float table relative-to-editor float window options (width/height/border)
 ---@field split table
----@field keys table[]
+---@field keys vantage.WinKey[]
+
+---@class vantage.WinKey A buffer-local Terminal keymap:
+--- `{ lhs, rhs, mode?, desc? }`. `rhs` is passed to `vim.keymap.set` verbatim,
+--- except a string naming a Terminal action. `mode` names one or more modes as
+--- a string (`"n"`, `"t"`, or `"nt"`) or a list of them; `sanitize_win`
+--- normalizes it to the single-mode list `vim.keymap.set` takes, defaulting to
+--- Normal mode.
+---@field [1] string lhs
+---@field [2] any rhs
+---@field mode? string|string[]
+---@field desc? string
 
 ---@class vantage.ReviewFloatConfig Note-float window options.
 ---@field style string "inherit" (default) | "minimal"
@@ -28,7 +39,7 @@
 
 ---@class vantage.Config
 ---@field backend string
----@field socket string
+---@field backend_opts { tmux: { socket: string } } per-Driver options, keyed by Driver name
 ---@field picker string
 ---@field prompts table<string, string> named prompt templates (name -> template)
 ---@field reviews vantage.ReviewConfig
@@ -56,8 +67,13 @@ end
 local defaults = {
   --- Pluggable backend driver name (currently only "tmux").
   backend = "tmux",
-  --- Private tmux socket name, isolating Vantage from the daily tmux server.
-  socket = "vantage",
+  --- Per-Driver options, keyed by the Driver name in `backend`. The shared
+  --- option table names no multiplexer concept; each Driver owns and
+  --- interprets its own entry.
+  backend_opts = {
+    --- Private tmux socket name, isolating Vantage from the daily tmux server.
+    tmux = { socket = "vantage" },
+  },
   --- Pluggable picker (frontend) implementation: "native" | "fzf-lua" | "snacks".
   picker = "native",
   --- Named prompt templates (name -> template string) offered by the `prompt`
@@ -120,23 +136,31 @@ local defaults = {
       split = { width = 80, height = 20 },
       --- Buffer-local keymaps for the terminal buffer (filetype
       --- `vantage_terminal`). Empty by default — add your own. Each entry is a
-      --- 4-tuple { lhs, rhs, mode = "n", desc }; `rhs` is passed verbatim to
-      --- vim.keymap.set, except a string naming a built-in terminal action —
-      --- "switch", "prompt", or "toggle" — which resolves to that action.
+      --- 4-tuple { lhs, rhs, mode = "n", desc }; `mode` names one mode ("n",
+      --- "t") or several ("nt"), and `rhs` is passed verbatim to vim.keymap.set,
+      --- except a string naming a built-in terminal action — "hide", "switch",
+      --- "prompt", "files", or "buffers" — which resolves to that action.
       keys = {},
     },
   },
+}
+
+--- The Terminal layouts `cli.win.layout` may name.
+local LAYOUTS = {
+  float = true,
+  full = true,
+  left = true,
+  right = true,
+  top = true,
+  bottom = true,
 }
 
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
 --- Why a Focus read came back empty, for the flows that warn about it. The
---- Backend answers "no terminal" itself and the Driver answers the client and
---- window reasons; callers only report them, so the shapes are messages rather
---- than a cause vocabulary nobody branches on.
-M.FOCUS_NO_TERMINAL = "no terminal"
-M.FOCUS_NO_CLIENT = "no client for this terminal"
+--- Driver answers it and callers only report it, so it is a message rather than
+--- a cause vocabulary nobody branches on.
 M.FOCUS_NO_FOCUS = "no focused agent"
 
 --- Invalid cli.tools entries dropped by the last Config.apply() run (name -> reason),
@@ -147,9 +171,9 @@ M.dropped_tools = {}
 --- Validate a cli.tools table in place: drop invalid entries, recording each
 --- in `dropped`. An entry is valid when its name is non-empty and its value
 --- is a table with a non-empty `cmd` array whose first element is executable
---- on PATH.
+--- on PATH, and an optional `format` that is a function.
 ---@param tools table<string, vantage.Tool>
----@param dropped? table<string, string> records name -> reason for each dropped entry
+---@param dropped table<string, string> records name -> reason for each dropped entry
 ---@return table<string, vantage.Tool> the same table, invalid entries removed
 function M.sanitize_tools(tools, dropped)
   for name, tool in pairs(tools) do
@@ -162,15 +186,90 @@ function M.sanitize_tools(tools, dropped)
       reason = "cmd is missing or empty"
     elseif vim.fn.executable(tool.cmd[1]) ~= 1 then
       reason = ("command '%s' not found"):format(tool.cmd[1])
+    elseif tool.format ~= nil and type(tool.format) ~= "function" then
+      reason = "format is not a function"
     end
     if reason then
-      if dropped then
-        dropped[name] = reason
-      end
+      dropped[name] = reason
       tools[name] = nil
     end
   end
   return tools
+end
+
+--- Drop prompt templates that are not strings. `Prompt.setup` may then trust
+--- every template is a string instead of guarding at pick time.
+---@param prompts table<string, string>
+---@return table<string, string> the same table, invalid entries removed
+function M.sanitize_prompts(prompts)
+  for name, template in pairs(prompts) do
+    if type(template) ~= "string" then
+      Util.warn(("dropping prompts entry '%s' (template is not a string)"):format(tostring(name)))
+      prompts[name] = nil
+    end
+  end
+  return prompts
+end
+
+--- The single-mode list `vim.keymap.set` takes, for one entry's `mode`
+--- spelling: a string like "nt" splits into its short-names, a list is joined
+--- first so each element may name several modes, and a missing mode is the
+--- documented Normal-mode default. nil means the spelling cannot name modes.
+---@param mode any
+---@return string[]?
+local function entry_modes(mode)
+  if mode == nil then
+    return { "n" }
+  elseif type(mode) == "table" then
+    for _, name in ipairs(mode) do
+      if type(name) ~= "string" then
+        return nil
+      end
+    end
+    mode = table.concat(mode)
+  elseif type(mode) ~= "string" then
+    return nil
+  end
+  return vim.split(mode, "", { plain = true })
+end
+
+--- Validate cli.win in place: an unknown layout or a non-numeric size falls
+--- back to its default, `float.border = false` becomes the "none" Neovim
+--- spells, malformed cli.win.keys entries are dropped, and each survivor's
+--- `mode` becomes the single-mode list `vim.keymap.set` takes. The Terminal
+--- can then install the survivors verbatim.
+---@param win vantage.Win
+---@return vantage.Win the same table, normalized
+function M.sanitize_win(win)
+  if not LAYOUTS[win.layout] then
+    Util.warn(("cli.win.layout '%s' is not a layout; using '%s'"):format(tostring(win.layout), defaults.cli.win.layout))
+    win.layout = defaults.cli.win.layout
+  end
+  for _, field in ipairs({ "width", "height" }) do
+    if type(win.float[field]) ~= "number" then
+      Util.warn(("cli.win.float.%s must be a number; using %s"):format(field, defaults.cli.win.float[field]))
+      win.float[field] = defaults.cli.win.float[field]
+    end
+    if type(win.split[field]) ~= "number" then
+      Util.warn(("cli.win.split.%s must be a number; using %s"):format(field, defaults.cli.win.split[field]))
+      win.split[field] = defaults.cli.win.split[field]
+    end
+  end
+  if win.float.border == false then
+    win.float.border = "none"
+  end
+  local keys = {}
+  for index, keymap in ipairs(win.keys) do
+    local modes = type(keymap) == "table" and entry_modes(keymap.mode)
+    if type(keymap) ~= "table" or type(keymap[1]) ~= "string" or keymap[1] == "" or keymap[2] == nil or not modes then
+      Util.warn(("dropping malformed cli.win.keys entry %d: expected { lhs, rhs, mode?, desc? }"):format(index))
+    else
+      keymap.mode = modes
+      keys[#keys + 1] = keymap
+    end
+  end
+  win.keys = keys
+  return win
 end
 
 --- The reference for one location, spelled by the Tool's `format` hook: the
@@ -212,10 +311,16 @@ function M.apply(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   local dropped = {}
   M.sanitize_tools(M.options.cli.tools, dropped)
+  M.sanitize_prompts(M.options.prompts)
+  M.sanitize_win(M.options.cli.win)
+  if type(M.options.reviews.item) ~= "string" then
+    Util.warn("reviews.item must be a string; using the default")
+    M.options.reviews.item = defaults.reviews.item
+  end
   -- Every surviving Tool gets a reference spelling, so no caller has to carry
   -- the "user configured no hook" case.
   for _, tool in pairs(M.options.cli.tools) do
-    if type(tool.format) ~= "function" then
+    if tool.format == nil then
       tool.format = reference
     end
   end

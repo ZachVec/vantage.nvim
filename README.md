@@ -26,7 +26,8 @@ reference.
 ## Usage
 
 ```vim
-:Vantage toggle          " hide/show the terminal; picks an Agent if none is open
+:Vantage show            " show the terminal; picks an Agent if none is open
+:Vantage hide            " hide the terminal window; the client stays attached
 :Vantage detach          " close the terminal; Agents keep running
 :Vantage review          " add a review over the current selection/line
 :Vantage review list     " open reviews
@@ -36,7 +37,7 @@ reference.
 ```
 
 Create an Agent from the Agent picker: use the `switch` terminal key, or run
-`:Vantage toggle` when no terminal is open. Pick a Tool, then choose or create
+`:Vantage show` when no terminal is open. Pick a Tool, then choose or create
 a Group. Multiple Neovim instances can show different Agents in the same Group.
 
 ## Configuration
@@ -44,7 +45,9 @@ a Group. Multiple Neovim instances can show different Agents in the same Group.
 ```lua
 require("vantage").setup({
   backend = "tmux",          -- only "tmux" today
-  socket = "vantage",        -- private tmux socket
+  backend_opts = {           -- options for the chosen backend
+    tmux = { socket = "vantage" }, -- private tmux socket
+  },
   picker = "native",         -- native | fzf-lua | snacks
 
   prompts = {                -- add or override prompt templates
@@ -136,14 +139,20 @@ cli = {
 }
 ```
 
-`files` lists files under the focused Agent's working directory: `fd` when
-available, then `ripgrep`, then a built-in walk that skips `.git`. `buffers`
-lists listed buffers whose file exists on disk, most recently used first; a
-modified buffer is marked `[+]` because the Agent reads the on-disk version.
-Each chosen entry is typed as its path relative to the Agent's cwd, spelled by
-the tool's `format` hook (a gathered entry has no position, so `loc` is nil) —
-no `@` unless you add one — then `gather.join` decides the separator (default
-one per line), and a trailing space follows the last reference.
+`files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
+tree you are browsing, wherever the Agent was started: `fd` when available,
+then `ripgrep`, then `find` — all three skip `.git`. With `fzf-lua` or `snacks`
+the list appears as the lister prints it, so cancelling the pick stops a long
+listing instead of waiting it out (`snacks`' prompt starts in insert mode, so
+`Esc` cancels on its second press; `<C-c>` cancels at once); `native` waits
+for the whole listing before it opens. `buffers` lists listed
+buffers whose file exists on disk, most recently used first; a modified buffer
+is marked `[+]` because the Agent reads the on-disk version. Each chosen entry
+is typed as its path relative to the Agent's cwd (absolute when the file lies
+outside it), spelled by the tool's `format` hook (a gathered entry has no
+position, so `loc` is nil) — no `@` unless you add one — then `gather.join`
+decides the separator (default one per line), and a trailing space follows the
+last reference.
 
 ```lua
 tools = {
@@ -204,13 +213,20 @@ file/buffer lists:
 
 With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
 ignores the pinned `(focused)` entry and Tool entries. `"native"` binds no keys.
-The `files` and `buffers` keys gather several entries at once under `fzf-lua`
-and `snacks`, one entry at a time under `native`.
+Marking several entries (`<Tab>`) selects several: the kill list kills every
+marked Agent or Group, the `files` and `buffers` keys gather every marked
+reference, and the Agent and Review lists act on the entry under the cursor.
+`native` acts on one entry at a time.
 
 ### Terminal keymaps
 
 The terminal buffer has filetype `vantage_terminal`. No keymaps are added by
 default.
+
+Entering the terminal window always resumes terminal mode, so a pick closing
+over it, `:Vantage show`, or simply moving focus back leaves you typing into
+the Agent. A `<C-q>` into terminal-normal mode therefore lasts only while you
+stay in the window: leaving and returning re-enters terminal mode.
 
 Use `cli.win.keys` for Terminal actions or plain keymaps:
 
@@ -218,8 +234,7 @@ Use `cli.win.keys` for Terminal actions or plain keymaps:
 cli = {
   win = {
     keys = {
-      { "<c-q>", "toggle", mode = "t", desc = "hide/show terminal" },
-      { "q", "toggle", mode = "n", desc = "hide/show terminal" },
+      { "<c-q>", "hide", mode = "t", desc = "hide terminal" },
       { "s", "switch", mode = "n", desc = "switch Agent" },
       { "p", "prompt", mode = "n", desc = "send prompt" },
       { "<c-f>", "files", mode = "t", desc = "send file references" },
@@ -229,8 +244,16 @@ cli = {
 }
 ```
 
-`rhs` may be a Terminal action (`"switch"`, `"prompt"`, `"toggle"`, `"files"`,
-`"buffers"`) or any value accepted by `vim.keymap.set`.
+`rhs` may be a Terminal action (`"hide"`, `"switch"`, `"prompt"`, `"files"`,
+`"buffers"`) or any value accepted by `vim.keymap.set`. Those keys live on the
+terminal buffer; showing the terminal again is `:Vantage show`, which you bind
+in an ordinary window:
+
+```lua
+vim.keymap.set("n", "<c-q>", "<cmd>Vantage show<CR>", {
+  desc = "show terminal",
+})
+```
 
 You can also use a normal `FileType` autocmd on `vantage_terminal` for full
 control with `vim.keymap.set`.

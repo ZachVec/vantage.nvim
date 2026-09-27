@@ -33,13 +33,8 @@ describe("vantage.commands.kill", function()
 
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = {
-      pick = function(spec, opts)
-        captured_spec = spec
-        captured_opts = opts
-        -- Answer the way an implementation does: the opening read carries the
-        -- reason when the list could not be read.
-        local items, err = spec.items_provider()
-        return #items == 0, err
+      pick_fancy = function(spec, opts)
+        captured_spec, captured_opts = spec, opts
       end,
     }
     Kill = require("vantage.commands.kill")
@@ -53,7 +48,7 @@ describe("vantage.commands.kill", function()
     captured_spec = nil
     Kill.run()
     assert.is_not_nil(captured_spec)
-    local items = captured_spec.items_provider()
+    local items = Helpers.entries(captured_spec)
 
     assert.are.equal(4, #items)
     assert.are.same(
@@ -68,14 +63,12 @@ describe("vantage.commands.kill", function()
         return entry.group
       end, { items[3], items[4] })
     )
-    for _, entry in ipairs(items) do
-      captured_opts.on_choice(entry)
-    end
+    captured_opts.on_choices(items)
     assert.are.same({ "@1", "@4" }, backend.killed_agents)
     assert.are.same({ "a", "b" }, backend.killed_groups)
   end)
 
-  it("warns the read's reason instead of the empty list message", function()
+  it("warns the read's reason from its own source", function()
     local notified = {}
     local original_notify = vim.notify
     vim.notify = function(msg)
@@ -86,8 +79,10 @@ describe("vantage.commands.kill", function()
     end
 
     Kill.run()
+    local items = Helpers.entries(captured_spec)
     vim.notify = original_notify
 
+    assert.are.same({}, items)
     assert.are.same({ "vantage: no server running" }, notified)
   end)
 end)

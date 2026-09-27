@@ -8,12 +8,20 @@
 --- range and a `number_hl_group` tint; when the number column is off there is
 --- nothing to tint, so nothing renders (the review stays reachable via
 --- `list`).
+---
+--- This module also owns the Review's editing float: `edit` and `create` open
+--- a scratch buffer in a centered float whose `<Esc>` commits, and the Review
+--- policy (save on exit, empty deletes) lives here, not in the command layer.
+--- The float mechanics are a private helper, not a contract.
 local Config = require("vantage.config")
 local Util = require("vantage.util")
 
 local M = {}
 
 local NS = vim.api.nvim_create_namespace("vantage_review")
+
+--- The fields a Review's `item` template may name.
+local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
 
 --- registry[buf][extmark_id] = vantage.Review
 ---@type table<integer, table<integer, vantage.Review>>
@@ -46,6 +54,20 @@ function M.setup()
   end
   link("VantageReview", "Special")
   link("VantageReviewActive", "WarningMsg")
+
+  local unknown = {}
+  for token in Config.options.reviews.item:gmatch("{([%w_]+)}") do
+    if not FIELDS[token] then
+      unknown[token] = true
+    end
+  end
+  local names = vim.tbl_map(function(token)
+    return "{" .. token .. "}"
+  end, vim.tbl_keys(unknown))
+  if #names > 0 then
+    table.sort(names)
+    Util.warn(("reviews.item: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -57,7 +79,7 @@ end
 ---@param start_row integer
 ---@param end_row integer
 ---@param note string
----@return vantage.Review?
+---@return vantage.Review
 function M.add(buf, start_row, end_row, note)
   local last = vim.api.nvim_buf_line_count(buf)
   start_row = math.max(1, start_row)
@@ -70,9 +92,6 @@ function M.add(buf, start_row, end_row, note)
     number_hl_group = "VantageReview",
     strict = false,
   })
-  if id == 0 then
-    return nil
-  end
   local review = { buf = buf, id = id, start_row = start_row, end_row = end_row, note = note }
   registry[buf] = registry[buf] or {}
   registry[buf][id] = review
@@ -91,7 +110,7 @@ end
 ---@param buf integer
 ---@param id integer
 ---@param note string
-function M.edit(buf, id, note)
+function M.set_note(buf, id, note)
   local review = M.get(buf, id)
   if review then
     review.note = note
@@ -139,8 +158,8 @@ function M.collect()
     end
   end
   table.sort(out, function(a, b)
-    local na = vim.api.nvim_buf_get_name(a.buf) or ""
-    local nb = vim.api.nvim_buf_get_name(b.buf) or ""
+    local na = vim.api.nvim_buf_get_name(a.buf)
+    local nb = vim.api.nvim_buf_get_name(b.buf)
     if na ~= nb then
       return na < nb
     end
@@ -157,7 +176,7 @@ end
 ---@param buf integer
 ---@param id integer
 ---@param active boolean
-function M.set_active(buf, id, active)
+local function set_active(buf, id, active)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
@@ -172,10 +191,143 @@ function M.set_active(buf, id, active)
 end
 
 -- ---------------------------------------------------------------------------
--- Rendering ({reviews} placeholder)
+-- Editing (float)
 -- ---------------------------------------------------------------------------
 
-local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
+--- The raw `nvim_open_win` style for the editing float, translated from the
+--- review config's user-facing "inherit" | "minimal".
+---@return string?
+local function float_style()
+  return Config.options.reviews.float.style == "minimal" and "minimal" or nil
+end
+
+--- Jump to the review's start line (first non-blank column).
+---@param review vantage.Review
+---@return boolean
+local function jump_to_review(review)
+  if not vim.api.nvim_buf_is_valid(review.buf) then
+    return false
+  end
+  local win = vim.fn.bufwinid(review.buf)
+  if win ~= -1 then
+    vim.api.nvim_set_current_win(win)
+  else
+    vim.api.nvim_win_set_buf(0, review.buf)
+  end
+  local line = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.start_row, false)[1]
+  local _, first = line:find("%S")
+  vim.api.nvim_win_set_cursor(0, { review.start_row, first and (first - 1) or 0 })
+  return true
+end
+
+--- Open an editable scratch float. `<Esc>` reads the buffer, closes the window,
+--- and commits the text; every policy decision belongs to the caller.
+---@param opts { text: string, title: string, footer: string, insert?: boolean, on_commit: fun(note: string), on_close?: fun() }
+local function open_float(opts)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(opts.text, "\n", { plain = true }))
+  vim.bo[buf].bufhidden = "wipe"
+
+  local width = math.max(40, math.min(80, math.floor(vim.o.columns * 0.5)))
+  local height = math.max(8, math.min(20, math.floor(vim.o.lines * 0.5)))
+  local win_config = {
+    relative = "editor",
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    width = width,
+    height = height,
+    border = "rounded",
+    title = opts.title,
+    footer = opts.footer,
+  }
+  local style = float_style()
+  if style then
+    win_config.style = style
+  end
+  local win = vim.api.nvim_open_win(buf, true, win_config)
+  if opts.insert then
+    vim.cmd("startinsert")
+  end
+
+  local function commit()
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    while #lines > 0 and lines[#lines]:find("^%s*$") do
+      table.remove(lines)
+    end
+    local note = table.concat(lines, "\n")
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+    opts.on_commit(note)
+  end
+
+  vim.keymap.set("n", "<Esc>", commit, { buffer = buf, nowait = true, desc = "commit note" })
+
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      if opts.on_close then
+        opts.on_close()
+      end
+    end,
+  })
+end
+
+--- Edit one Review: jump to its range, mark it active, and open its float. An
+--- empty commit deletes it after confirmation. The title names no reference:
+--- the jump and the active range already say where you are.
+---@param buf integer
+---@param id integer
+function M.edit(buf, id)
+  local review = M.get(buf, id)
+  if not review or not jump_to_review(review) then
+    return
+  end
+  set_active(review.buf, review.id, true)
+  open_float({
+    text = review.note,
+    title = "Review",
+    footer = "<Esc> save · empty deletes",
+    on_commit = function(note)
+      if note == "" then
+        -- Empty note = delete, after confirmation.
+        if vim.fn.confirm("Delete review?", "&Yes\n&No", 2) == 1 then
+          M.delete(review.buf, review.id)
+        end
+      else
+        M.set_note(review.buf, review.id, note)
+      end
+    end,
+    on_close = function()
+      set_active(review.buf, review.id, false)
+    end,
+  })
+end
+
+--- Ask for a new Review over lines `start_row..end_row` (1-based inclusive):
+--- open an empty float in insert mode and add the Review on commit. An empty
+--- commit discards it.
+---@param buf integer
+---@param start_row integer
+---@param end_row integer
+function M.create(buf, start_row, end_row)
+  open_float({
+    text = "",
+    title = "New Review",
+    footer = "<Esc> save",
+    insert = true,
+    on_commit = function(note)
+      if note ~= "" then
+        M.add(buf, start_row, end_row, note)
+      end
+    end,
+  })
+end
+
+-- ---------------------------------------------------------------------------
+-- Rendering ({reviews} placeholder)
+-- ---------------------------------------------------------------------------
 
 --- The review's selected lines, with leading/trailing blank lines dropped.
 ---@param review vantage.Review
@@ -197,7 +349,7 @@ end
 ---@param tool? string the focused Tool's reference dialect; nil spells the default
 ---@return string? nil when the location has no reference
 local function field(review, name, cwd, tool)
-  local path = vim.api.nvim_buf_get_name(review.buf) or ""
+  local path = vim.api.nvim_buf_get_name(review.buf)
   if name == "note" then
     return review.note
   elseif name == "lines" then

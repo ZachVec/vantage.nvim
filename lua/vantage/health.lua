@@ -33,13 +33,13 @@ function M.check()
     return
   end
 
-  local driver_ok, driver = pcall(require("vantage.backend.driver").get)
-  if not driver_ok then
-    err(tostring(driver))
+  local checked, checks = pcall(require("vantage.backend").health)
+  if not checked then
+    err(tostring(checks))
     return
   end
 
-  for _, check in ipairs(driver.health()) do
+  for _, check in ipairs(checks) do
     if check.status == "ok" then
       ok(check.message)
     elseif check.status == "warn" then
@@ -58,13 +58,7 @@ function M.check()
     err(tostring(capabilities))
     return
   end
-  ok(
-    ("picker: %s (preview=%s, command=%s)"):format(
-      picker,
-      capabilities.preview and "yes" or "no",
-      capabilities.command and "yes" or "no"
-    )
-  )
+  ok(("picker: %s (command=%s)"):format(picker, capabilities.command and "yes" or "no"))
 
   check_tools()
 end

@@ -23,23 +23,28 @@ is fixed by construction, that probe has nothing left to decide.
 
 ## Decision
 
-- `:Vantage` dispatches only `toggle`, `detach`, `review` (`list`/`clear`)
-  and `status`. `switch`, `kill` and `prompt` are removed from `run`,
-  completion, and the `usage()` help.
+- `:Vantage` dispatches `show`, `hide`, `detach`, `review` (`list`/`clear`),
+  `kill`, and `status`. `switch` and `prompt` are removed from `run`,
+  completion, and the `usage()` help; `kill` was removed here and restored as
+  `:Vantage kill` by the
+  [layered refactor](../architecture/2026-09-09-layered-frontend-backend-refactor.md).
 - Terminal actions are first-class: a `cli.win.keys` `rhs` string naming
-  `switch`, `kill`, `prompt`, or `toggle` resolves to the built-in action
-  (`commands/actions.lua` owns the token map and installs the mappings); any
-  other `rhs` — a key sequence, a `<cmd>`
-  string, or a Lua function — is bound verbatim as before. No default keymaps
+  `hide`, `switch`, `prompt`, `files`, or `buffers` resolves to the built-in action
+  (`commands/init.lua` owns the token map; the Terminal installs the
+  mappings on its own buffer — see
+  [terminal-installs-its-keymaps](../architecture/2026-09-20-terminal-installs-its-keymaps.md));
+  any other `rhs` — a key sequence, a `<cmd>` string, or a Lua function — is
+  bound verbatim as before. No default keymaps
   are shipped (the
   [single-terminal-frontend](../architecture/2026-08-31-single-terminal-frontend.md)
-  "no default keymaps" decision stands); the four actions are opt-in.
+  "no default keymaps" decision stands); the actions are opt-in.
 - The `invoked_from_terminal()` probe was deleted at the time of this note.
   The later layered refactor removed the caller-declared `from_terminal` field
   too: the snacks renderer detects the Terminal by buffer filetype at pick
-  open time, and the focused entry comes from the live `Backend.focus(pid)` read.
-- `switch` warns when there is no Terminal; `Backend.retarget` reports a
-  missing client through the Driver result contract.
+  open time, and the focused entry comes from the live Attachment `focus()`
+  read.
+- `switch` warns when there is no Terminal; the Attachment's `retarget`
+  reports a missing client through the Driver result contract.
 
 ## Alternatives considered
 
@@ -74,19 +79,22 @@ terminal and remain `:Vantage` commands, not terminal actions.
 
 ## Consequences
 
-- `switch`, `kill` and `prompt` have no `:Vantage` entry point; they run only
-  through a `cli.win.keys` token. `toggle` remains both a command and a token.
-- `from_terminal` no longer exists in `PickSpec`/`PlainSelectOpts`; the snacks
+- `switch` and `prompt` have no `:Vantage` entry point; they run only through a
+  `cli.win.keys` token. `kill` was restored as `:Vantage kill` by the
+  [layered refactor](../architecture/2026-09-09-layered-frontend-backend-refactor.md).
+  The one name that was both a command and a token, `toggle`, is gone:
+  presence is `:Vantage show` plus the `hide` token — see the [show/hide
+  split](../architecture/2026-09-24-show-and-hide-split-presence.md).
+- `from_terminal` no longer exists in `PickSpec`/`NaiveOpts`; the snacks
   renderer detects the Terminal by filetype. Native and fzf-lua never needed
   the field.
 - `switch` and `kill` take no target argument; they always run their
   interactive picker.
 - README and `doc/vantage.nvim.txt` document the trimmed command list and the
-  token-or-verbatim `cli.win.keys` form, with `switch`/`kill`/`prompt` marked
+  token-or-verbatim `cli.win.keys` form, with `switch`/`prompt` marked
   terminal-only.
 - Facts updated in place: `from_terminal` is gone in
   [picker-pure-renderers](../architecture/2026-09-05-picker-pure-renderers.md),
   [agent-picker-order](../feature/2026-09-04-agent-picker-order.md),
   [float-terminal-switch-loses-focus](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md),
-  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md),
-  and [agent-picker-group-scope](../feature/2026-09-05-agent-picker-group-scope.md).
+  and [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).

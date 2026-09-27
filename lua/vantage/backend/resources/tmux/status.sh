@@ -12,14 +12,18 @@
 # changing this validation, the sibling counts.sh, and the Agent Note — keep
 # the set in exactly these two scripts.
 #
-# Usage: status.sh [-L <socket>] <window-id> <state>
+# Usage: status.sh -L <socket> <window-id> <state>
+#
+# The socket is always passed explicitly: the plugin's configured socket has
+# one owner (the tmux Driver's `backend_opts.tmux.socket`), and this script
+# never guesses a default that could disagree with it.
 #
 # This is a manual trigger (and the skeleton the future per-Agent lifecycle
 # scripts will call); it never talks to the plugin.
 
 set -eu
 
-socket_name=vantage
+socket_name=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -L)
@@ -32,8 +36,13 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+if [ -z "$socket_name" ]; then
+  echo "usage: status.sh -L <socket> <window-id> <state>" >&2
+  exit 2
+fi
+
 if [ "$#" -ne 2 ]; then
-  echo "usage: status.sh [-L <socket>] <window-id> <state>" >&2
+  echo "usage: status.sh -L <socket> <window-id> <state>" >&2
   exit 2
 fi
 window_id=$1

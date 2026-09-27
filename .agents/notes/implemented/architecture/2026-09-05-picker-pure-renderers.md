@@ -28,9 +28,10 @@ A picker declares exactly three capabilities:
 `PickOpts` carries `on_choice` and optional `commands`. A command is a
 keymap-shaped descriptor `{ lhs, rhs, desc? }`; `rhs(ctx)` receives the
 neutral `{ item, items }` context and returns `true` when the item list may
-have changed. Commands are globally bound, duplicate `lhs` values fail fast,
-and a renderer without `command` drops them. Group scoping is an ordinary
-command owned by the flow, not a Picker field.
+have changed. Commands are globally bound; a renderer without `command` drops
+them, and the flow conformance spec enforces well-formed descriptors and
+unique `lhs` values. Group scoping is an ordinary command owned by the flow,
+not a Picker field.
 
 The empty-list policy stays single-sourced: `Picker.pick` returns `boolean
 empty`; the caller emits its flow-specific warning. Preview content is
@@ -71,10 +72,18 @@ site. The callback result channel keeps each engine's native async shape.
   `commands/review.lua` assemble their own entries and call `Picker.pick`.
 - `frontend/entries.lua` owns the entry vocabulary (the Agent text and the
   pane preview included); `frontend/review.lua` owns Review rendering.
-- The snacks terminal-mode restore applies to every snacks pick: the
-  preview-capable path via `on_close`, and `pick_plain` via its wrapped
-  `on_choice`, preserving the terminal-window re-entry described in
-  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
-- The capability set above is this note's; the commands contract and the
-  facade's failure semantics are current as of
-  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
+- The snacks terminal-mode handling applies to every snacks pick: the
+  preview-capable path hands the terminal back from its own close, and
+  `pick_naive` from its wrapped `on_choice`, preserving the terminal-window
+  re-entry described in
+  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)
+  and [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
+- The capability set above is this note's; the picker's current interface and
+  the facade's failure semantics are current as of
+  [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).
+
+The method, spec, and capability shapes above are superseded by
+[picker-two-interfaces](2026-09-18-picker-two-interfaces.md): implementations
+are still pure renderers over a flow-owned spec, but a pick now carries a
+streaming item source plus the flow's `many` and `preview` requests, and the
+only declared capability is `command`.

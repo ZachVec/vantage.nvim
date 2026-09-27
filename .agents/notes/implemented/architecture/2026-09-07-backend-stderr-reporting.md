@@ -10,9 +10,9 @@ command failure from a successful empty result.
 
 ## Decision
 
-`backend/driver/tmux.lua` routes commands through an internal
-`exec_result()` returning `{ code, stdout, stderr }`. `fail_message(prefix,
-result)` appends trimmed stderr when tmux supplied it.
+`backend/tmux.lua` routes commands through an internal `exec()`
+returning `{ code, stdout, stderr }`. `fail_message(prefix, result)` appends
+trimmed stderr when tmux supplied it.
 
 The Driver exposes that detail through the result contract owned by
 [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md):
@@ -30,7 +30,7 @@ message and continuation.
 ### Why not expose only exit codes?
 
 Exit codes alone cannot distinguish tmux's reasons. Stderr is already captured
-by `exec_result`; including it in the returned error costs no extra process.
+by `exec`; including it in the returned error costs no extra process.
 
 ## Consequences
 

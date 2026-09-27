@@ -10,16 +10,18 @@ The copy could drift after an external tmux change or a retarget.
 
 ## Decision
 
-`Backend.focus(pid)` returns the Agent currently shown by the client whose
-terminal job has `pid`, or `nil` plus the reason. The Focus is derived on every
-read from the client's live window and the live inventory; the Frontend stores
-no domain focus state. The shape of that read is owned by
-[focus-is-its-own-read](2026-09-13-focus-is-its-own-read.md).
+The Terminal's Attachment answers the Focus: `focus()` returns the Agent its
+client is currently showing, or `nil` plus the reason. The Focus is derived on
+every read from the View's live window; the Frontend stores no domain focus
+state (the Attachment it holds is identity, not a focus copy). The shape of
+that read is owned by
+[focus-is-its-own-read](2026-09-13-focus-is-its-own-read.md) and
+[backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md).
 
-`commands/attach.lua` reads `Backend.inventory()` plus `Backend.focus(pid)` for
-the pinned Focus entry and the group-scope command; `commands/prompt.lua`,
-`commands/gather.lua`, and `commands/review.lua` resolve their target through
-`Backend.focus(pid)`.
+`commands/attach.lua` reads `Backend.inventory()` plus the Attachment's
+`focus()` for the pinned Focus entry and the group-scope command;
+`commands/prompt.lua`, `commands/gather.lua`, and `commands/review.lua` resolve
+their target the same way.
 
 ## Alternatives considered
 
@@ -36,11 +38,13 @@ records why the read stopped sharing a return value with the inventory.
 
 ## Consequences
 
-- `frontend/terminal.lua` stores only terminal job/buffer/window state, never
-  the Focus.
+- `frontend/terminal.lua` stores only terminal job/buffer/window state plus the
+  Attachment handle, never the Focus.
 - A stale Frontend-side focus copy is impossible; external tmux changes are
   reflected on the next read.
 - Driver integration tests derive the Focus before and after
   retarget.
-- The current Driver/Picker result contract is owned by
-  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
+- The current Driver result contract is owned by
+  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md),
+  and the Picker interface by
+  [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

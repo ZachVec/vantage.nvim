@@ -27,8 +27,8 @@ never mixes renderer families:
 
 - `PickerImpl` gains one generic `pick_plain(items, { prompt, format_item },
   on_choice)` mirroring the `vim.ui.select` contract (cancel calls back with
-  nil). It backs the Agent-creation wizard's Tool and Group steps and
-  `:Vantage prompt`.
+  nil). It backs the Agent-creation Group step and the `prompt` terminal
+  action.
 - **snacks** implements `pick_plain` with snacks' own select (its compact
   select layout: preview hidden, non-terminal).
 - **fzf-lua** implements `pick_plain` with fzf-lua's own ui_select shim.
@@ -95,3 +95,6 @@ This supersedes the
 the teardown window remains the reference for the residual boundary), both
 archived; the Picker seam itself is [the
 pluggable-picker note](2026-08-31-pluggable-picker-frontend.md).
+
+The method it introduces is now `pick_naive`; its `vim.ui.select` shape is
+unchanged. See [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

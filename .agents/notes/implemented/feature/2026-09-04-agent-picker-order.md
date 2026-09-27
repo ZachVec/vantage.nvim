@@ -19,9 +19,9 @@ explicit ordering and a pinned, inert current-Agent entry.
 every engine renders as given (engines only reorder by fuzzy relevance while
 a query is typed):
 
-- **Focused-Agent pin.** When the caller supplies the Terminal's job pid
-  (`switch`, which is terminal-only), the Agent that terminal shows
-  (`Backend.focus(pid)`) is pinned first,
+- **Focused-Agent pin.** When the Terminal has an Attachment (`switch`, which
+  is terminal-only), the Agent that terminal shows (`attachment:focus()`) is
+  pinned first,
   exempt from the ordering.
   Its entry text gains a ` (focused)` suffix. Confirming it does nothing:
   `commands/attach.lua` filters on the item's `focused` field and
@@ -34,28 +34,26 @@ a query is typed):
   swallow it — see
   [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
   No engine-specific disabled-entry machinery is used (see Alternatives).
-  Declared not-from-terminal (`toggle`'s open-path fallback), there is no
+  Declared not-from-terminal (`show`'s open-path fallback), there is no
   focused Agent and no pin.
 - **Agent ordering.** Remaining Agent entries sort ascending by group, absolute
-  cwd, and tool name (`agent.tool`, the `cli.tools` key; `agent.cmd` as the
-  nil fallback — the same key the entry text shows); exact ties break by
-  driver-neutral `seq` (creation order). Sorting compares stored fields,
-  never the display string, so `~` folding never leaks into order.
+  cwd, and tool name (`agent.tool`, the `cli.tools` key the entry text shows);
+  exact ties break by driver-neutral `seq` (creation order). Sorting compares
+  stored fields, never the display string, so `~` folding never leaks into
+  order.
 - **Tool entries replace the sentinel.** The `+ new agent` sentinel is gone.
   The list ends with one entry per configured `cli.tools` key, `table.sort`ed.
   Agent entries lead with `nf-fa-toggle_on` (`\uf205`, Nerd Fonts) — a running
   Agent is "on"; Tool entries lead with `nf-fa-toggle_off` (`\uf204`). Confirming
-  a Tool entry calls `commands/attach.lua`'s
-  `create_with_tool`, which asks only for a Group (or a new Group's name), then
-  creates the Agent in the current buffer's cwd and runs the caller's tail
-  action. Tools are never
+  a Tool entry asks only for a Group (or a new Group's name) through
+  `commands/attach.lua`'s `ask_group`, then creates the Agent in Neovim's
+  global cwd and runs the caller's tail action. Tools are never
   deduplicated against running Agents — parallel Agents of one Tool stay
   possible.
-- **Empty is the flow's problem.** `items_provider` always returns the list
-  (possibly empty) and does not warn; the `attach` pick flow warns
-  `no agents and no tools configured (cli.tools)` and returns when the list
-  is empty (no Agents running and no Tools configured). Zero Agents with
-  Tools configured opens the picker listing only Tool entries.
+- **Empty is the flow's problem.** The item stream emits the list (possibly
+  empty) and does not warn; an empty pick opens and stays open until the user
+  cancels it. Zero Agents with Tools configured opens the picker listing only
+  Tool entries.
 - **Scope.** The kill list keeps its own order — Agent entries in creation
   order, Group entries by name — and its plain entries (no glyphs, no
   `(focused)` marker). Its Groups are sorted by the flow because the Backend
@@ -65,8 +63,7 @@ a query is typed):
   `commands/attach.lua`
   ([picker entries are data](../architecture/2026-09-13-picker-entries-are-data.md)).
 
-The Agent entry text itself is the
-[entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
+The Agent entry text is the shared
 Agent text, updated in this change from the bracketed `[group] tool · cwd`
 layout to `tool · group · cwd` — unbracketed group moved between the tool name
 and the `~`-folded cwd, a single ` · ` between the three segments.
@@ -102,13 +99,12 @@ Engines render plain text entries; only the shared `text` string is guaranteed
 portable. Parenthesized suffix matches the entry grammar (`… · ~/cwd
 (focused)`) and cannot collide with group brackets.
 
-### Why keep `agent_items()` empty (list-shaped) rather than `nil` + internal warning?
+### Why keep the builder list-shaped rather than `nil` + internal warning?
 
 The builder no longer owns the distinction between "no Agents" and "no
 Agents and no Tools" — with Tool entries, zero Agents is a legitimate,
-openable list. The caller-facing warning moves to where the empty case is
-handled (`Picker.pick`), keeping the builder a pure projection
-of state.
+openable list. An empty pick opens and waits for a cancel, so the builder stays
+a pure projection of state.
 
 ### Why break ties by window id and not by name?
 
@@ -128,12 +124,12 @@ creation, unique, and already the storage key.
   channels; the entry-format note's consequences are corrected in place for
   the glyph-prefixed Agent entries (the kill list keeps the plain shared
   string).
-- `Picker.pick` callbacks receive the flow's entry objects; `attach`
+- `Picker.pick_fancy` callbacks receive the flow's entry objects; `attach`
   handles Tool entries and the focused no-op entry.
-- The empty-list handling later moved out of the engines into the caller,
-  keyed on the picker's boolean `empty` return — see [the
-  picker-pure-renderers note](../architecture/2026-09-05-picker-pure-renderers.md).
-- The toggle/switch command boundary later split presence from target: toggle
-  opens/hides the terminal (picking when there is none), switch only re-points
-  an existing one and warns with none — see the [toggle/switch boundary
+- Empty picks later stopped closing themselves: the pick opens empty and stays
+  open until cancel — see
+  [picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md).
+- The presence/target command boundary later split the two: `show` opens the
+  terminal (picking when there is none) and `hide` closes it, while switch only
+  re-points an existing one and warns with none — see the [show/switch boundary
   note](../architecture/2026-09-05-toggle-switch-command-boundary.md).

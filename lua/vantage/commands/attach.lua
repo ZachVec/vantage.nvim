@@ -1,9 +1,8 @@
 --- The Terminal attachment flows and the shared Agent picker they use.
 ---
---- `toggle` owns Terminal presence; `switch` owns the attached client's
+--- `show` owns Terminal presence; `switch` owns the attached client's
 --- target. The Agent/Tool entries, Group choice, and creation handoff are
 --- local to this module because both flows are their only consumers.
-local Actions = require("vantage.commands.actions")
 local Backend = require("vantage.backend")
 local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
@@ -43,7 +42,7 @@ local function ask_group(after)
     return
   end
   names[#names + 1] = NEW_GROUP
-  Picker.pick_plain(names, { prompt = "Group: " }, function(group)
+  Picker.pick_naive(names, { prompt = "Group: " }, function(group)
     if not group then
       return
     end
@@ -96,24 +95,28 @@ end
 
 --- The Agent-list selection spec. The live group scope is read from `state`
 --- by the flow-owned `<c-g>` command.
----@param pid? integer the terminal job's pid
+---@param attachment? vantage.Attachment this Terminal's attachment, when it has one
 ---@param state? vantage.AgentPickerState
 ---@return vantage.PickSpec
-local function spec(pid, state)
+local function spec(attachment, state)
   state = state or { group_on = false }
   return {
     prompt = PROMPT,
-    items_provider = function()
+    many = false,
+    preview = Entries.preview,
+    items = function(emit, done)
       local inventory, err = Backend.inventory()
       if inventory == nil then
-        return {}, err
+        Util.warn(err or "failed to read agents")
+        return done()
       end
-      -- The Focus is a second read: the inventory never carries it.
-      local focused, _ = Backend.focus(pid)
+      -- The Focus is a second read: the inventory never carries it, and only
+      -- the Terminal's own attachment can answer it.
+      local focused = attachment and attachment:focus() or nil
       state.focused = focused
       local items = build_items(inventory.agents, focused)
       if state.group_on and focused then
-        return vim
+        items = vim
           .iter(items)
           :filter(function(entry)
             if entry.kind == "tool" then
@@ -124,7 +127,8 @@ local function spec(pid, state)
           end)
           :totable()
       end
-      return items
+      emit(items)
+      done()
     end,
   }
 end
@@ -151,11 +155,12 @@ end
 --- Pick an Agent to act on, resolving the chosen entry (creating an Agent from
 --- a Tool entry when that is what was chosen).
 ---@param after fun(agent: vantage.Agent)
----@param pid? integer the terminal job's pid (nil = no focused Agent)
-local function pick(after, pid)
+---@param attachment? vantage.Attachment the Terminal's attachment, when it has one
+local function pick(after, attachment)
   local state = { group_on = Picker.capabilities().command }
-  local empty, err = Picker.pick(spec(pid, state), {
-    on_choice = function(entry)
+  Picker.pick_fancy(spec(attachment, state), {
+    on_choices = function(entries)
+      local entry = entries[1]
       if entry.kind == "focused" then
         return
       end
@@ -190,33 +195,28 @@ local function pick(after, pid)
       },
     },
   })
-  if err then
-    Util.warn(err)
-  elseif empty then
-    Util.warn("no agents and no tools configured (cli.tools)")
-  end
 end
 
---- Attach a new Terminal client to `agent` and install the terminal keymaps.
---- The View the Backend created is removed again when the terminal cannot
---- start, so a failed open leaves no session behind.
+--- Attach a new Terminal client to `agent`. The Terminal installs its own
+--- keymaps from the resolver the composition root installed. The Backend rolls
+--- its View back when the client cannot start, so a failed open leaves no
+--- session behind.
 ---@param agent vantage.Agent
 local function open_on(agent)
-  local attachment, err = Backend.attach(agent)
+  local attachment, err = Backend.attach(agent, function(argv)
+    return Terminal.open(argv)
+  end)
   if not attachment then
-    Util.warn(err or "failed to create terminal attachment")
+    Util.warn(err or "failed to attach the terminal")
     return
   end
-  if Terminal.open(attachment.argv) then
-    Actions.apply(Terminal.buffer)
-  else
-    Backend.kill_view(attachment.view)
-  end
+  Terminal.hold(attachment)
 end
 
---- Toggle Terminal presence; with no Terminal, pick an Agent and open it.
-function M.toggle()
-  if Terminal.toggle() then
+--- Show the Terminal: focus it when it is up, re-open it when it is hidden, and
+--- with no Terminal pick an Agent and open one on it.
+function M.show()
+  if Terminal.show() then
     return
   end
   pick(open_on)
@@ -224,18 +224,16 @@ end
 
 --- Re-point the live Terminal to another Agent.
 function M.switch()
-  local pid = Terminal.pid()
-  if not pid then
-    Util.warn("no terminal — use :Vantage toggle first")
-    return
-  end
+  -- `switch` is installed only on the Terminal's own buffer, so its client
+  -- exists by construction.
+  local attachment = assert(Terminal.attachment, "vantage: switch needs an attached terminal")
 
   pick(function(agent)
-    local ok, err = Backend.retarget(pid, agent)
+    local ok, err = attachment:retarget(agent)
     if not ok then
       Util.warn(err or "failed to switch agent")
     end
-  end, pid)
+  end, attachment)
 end
 
 return M

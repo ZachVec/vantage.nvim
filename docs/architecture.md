@@ -2,7 +2,7 @@
 
 A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
 
-Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
+Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together. It carries the *what* — the current structure and the invariants a change produced; an [Agent Note](../.agents/notes/README.md#what-a-note-owns) keeps the *why* and the alternatives.
 
 ## Composition root and one-way dependencies
 
@@ -11,9 +11,9 @@ lua/vantage/
 ├── init.lua            composition root: apply config, resolve, install
 ├── config.lua / util.lua   shared configuration + helpers
 ├── health.lua          diagnostics adapter
-├── backend/            init.lua + driver/ (registry, tmux, resources/tmux)
-├── frontend/           terminal, entries, note, review, picker/
-└── commands/           dispatch + flows (attach, gather, kill, prompt, review)
+├── backend/            init.lua (surface + Driver seam), tmux.lua, resources/tmux/
+├── frontend/           terminal, entries, review, picker/
+└── commands/           dispatch + Terminal actions + flows (attach, gather, kill, prompt, review)
 ```
 
 Six categories, each with a fixed set of things it may import. `make check`
@@ -36,8 +36,8 @@ graph; a module that imports against it fails the gate.
 
 - `composition` — `init.lua`. The only module that reaches every other
   category, and the only one nothing imports. `setup()` applies configuration,
-  resolves the configured Driver and Picker, then installs Prompt/Review hooks
-  and the `:Vantage` command.
+  resolves the configured Driver and Picker, then installs Prompt/Review hooks,
+  the Terminal's action resolver, and the `:Vantage` command.
 - `commands` — orchestrates flows and imports `frontend/`, `backend/`, its own
   pieces, and shared modules.
 - `frontend` — imports `backend/` and its own pieces.
@@ -46,10 +46,9 @@ graph; a module that imports against it fails the gate.
   importing nothing but itself. It is a dependency-checking category, not a
   domain term: the [glossary](glossary.md) is where domain words live. The
   verifier files any module path it cannot classify here. A seam's contract
-  types live with their seam — `vantage.Driver` in `backend/driver/init.lua`,
-  the picker contract in `frontend/picker/init.lua`, `vantage.NoteOpts` in
-  `frontend/note.lua`; `config.lua` keeps the option types and the reference
-  spelling.
+  types live with their seam — `vantage.Driver` in `backend/init.lua`
+  and the picker contract in `frontend/picker/init.lua`; `config.lua` keeps the
+  option types and the reference spelling.
 - `health` — `health.lua`, the diagnostics adapter. It may inspect Backend and
   Frontend but never the command layer, and no module imports it: Neovim calls
   it through `:checkhealth`.
@@ -68,16 +67,19 @@ lifecycle belongs to the composition root.
 
 ## The multiplexer substrate
 
-The plugin drives a private socket (default `vantage`, configurable via
-`setup { socket = … }`) and keeps all domain state in multiplexer objects and
-window options (`@agent-group`, `@agent-cmd`, `@agent-cwd`, `@agent-tool`,
-`@agent-state`). Global server config — default terminal, history limit, focus
-events, no status line, a 1-second status interval, and a top pane border
-whose format shows `Group · Tool · cwd` plus per-Group State counts, and the
-`client-detached` View cleanup hook — is applied exactly once, when the first
-`new-session` starts the server. The counts are computed read-only per tick by
-the tmux Driver's `counts.sh` resource inside a `#()` substitution,
-deduplicated to one run per Group.
+The plugin drives a private socket — the tmux Driver's own option, default
+`vantage`, set under `setup { backend_opts = { tmux = { socket = … } } }`, so
+the shared option table names no multiplexer concept — and keeps all domain
+state in multiplexer objects and window options (`@agent-group`, `@agent-cmd`,
+`@agent-cwd`, `@agent-tool`, `@agent-state`). Global server config — default
+terminal, history limit, focus events, no status line, a 1-second status
+interval, and a top pane border whose format shows `Group · Tool · cwd` plus
+per-Group State counts, and the `client-detached` View cleanup hook — is
+applied exactly once, when the first `new-session` starts the server. The
+counts are computed read-only per tick by the tmux Driver's `counts.sh`
+resource inside a `#()` substitution, deduplicated to one run per Group; both
+Driver resources take the socket with `-L`, so the configured name has one
+owner.
 
 The server is started by the first Agent creation and never re-checked
 afterwards: operations assume it lives. A missing server reads as an empty
@@ -104,12 +106,15 @@ inventory; other operation failures return their real error.
   Driver.
 - The **attachment** is the Terminal's client pointed at a View. Opening the
   Terminal creates the View and starts the attach command; closing it (or the
-  client exiting) ends the attachment. The [Focus](glossary.md#focus) is
-  derived from the live state on every read, never stored Neovim-side.
+  client exiting) ends the attachment. The Driver hands back an Attachment
+  handle for it — the View the client sits on, with `focus` and `retarget`
+  answering from live state — and the Terminal holds that handle for as long as
+  its job lives. The [Focus](glossary.md#focus) is derived from the live state
+  on every read, never stored Neovim-side.
 
 ## Seams and contracts
 
-**Driver** (`backend/driver/init.lua` resolves the configured module from a
+**Driver** (`backend/init.lua` resolves the configured module from a
 whitelist):
 
 - `create({ group, cmd, cwd, tool })` → `Agent, nil` or `nil, err`; creating
@@ -117,20 +122,17 @@ whitelist):
   failures roll back the partial Agent.
 - `agents()` → `Agent[], nil` or `nil, err`: the live inventory in creation
   order. A missing server reads as an empty inventory, not as an error.
-- `focus(pid)` → `agent, nil`, `nil, FOCUS_NO_CLIENT`, `nil, FOCUS_NO_FOCUS`,
-  or `nil, err`: the [Focus](glossary.md#focus) — the Agent the client with
-  that pid displays. One multiplexer query reads the client's current window
-  and that window's Agent fields together, so the window id never needs
-  matching against a second inventory read. A pid with no live client and a
-  client whose window is not an Agent are normal answers (`FOCUS_NO_CLIENT`,
-  `FOCUS_NO_FOCUS`); a missing server is `nil` plus the reason, so "no Terminal
-  client" and "nothing is running" stay distinct.
-- `retarget(pid, agent)` → `true` or `false, err`; same-Group switching selects
-  a window in the client's own View, while cross-Group switching creates a
-  fresh View, moves the client, and destroys the old View.
-- `attach(agent)` → `{ view, argv }` or `nil, err`; creates a fresh View for
-  the Terminal and returns its attach argv.
-- `kill_view(view)` → `true` or `false, err`.
+- `attach(agent, launch)` → `Attachment, nil` or `nil, err`: creates a fresh
+  View, calls `launch(argv)` to put this Terminal's client on it, and destroys
+  the View again when the client cannot start, so a failed start leaves no
+  session behind. The View itself never leaves the Driver.
+- The returned `Attachment` is the handle for that client. `focus()` answers
+  the [Focus](glossary.md#focus) — the Agent the View's client displays, read
+  from the View's current window and that window's Agent fields in one query,
+  with a window that carries no Agent metadata answering `FOCUS_NO_FOCUS` — and
+  `retarget(agent)` re-points the client, selecting a window in the same View
+  or moving it into a fresh View of another Group and adopting that one. A
+  View that is gone answers the multiplexer's own reason.
 - `kill_agent(agent)` / `kill_group(group)` → `true` or `false, err`.
   `kill_group` destroys the Anchor and every View.
 - `send_keys(agent, text)` → `true` or `false, err`; temporary buffers are
@@ -142,26 +144,26 @@ whitelist):
 The Driver returns errors and never notifies the user. The Backend passes
 results through; command flows decide how to report them.
 
-`backend/init.lua` is the Frontend's only door to the Backend:
-`inventory()`, `focus(pid?)`, `create`, `retarget(pid, agent)`, `send(agent,
-text)`, `capture(agent)`, `attach(agent)`, `kill_view(view)`, `kill_agent`,
-`kill_group`, `status`. It holds no state and does no UI; the prompt flow
-resolves the Focus and renders templates, then hands the Backend the final text.
+`backend/init.lua` is the Frontend's only door to the Backend: `inventory()`,
+`create`, `send(agent, text)`, `capture(agent)`, `attach(agent, launch)`,
+`kill_agent`, `kill_group`, `status`, `health`. It holds no state and does no UI; the
+prompt flow renders templates against the Focus its Attachment answers, then
+hands the Backend the final text. Everything that needs a live Terminal client
+lives on that Attachment and everything else lives here: no verb above the seam
+takes a process pid.
 
 The two reads are separate because they answer different questions.
 `inventory()` returns the flat Agent list plus the Groups derived from it (each
 Group once, in the Agents' order) and never reads the clients, so a caller that
 does not care what the Terminal shows — the kill flow, the Group prompt — does
-not pay for the extra multiplexer query. `focus(pid)` is the [Focus](glossary.md#focus)
-read: the Driver answers it in one query — the client's current window and that
-window's Agent fields together — and the Backend adds only the "no Terminal at
-all" case before the Driver is consulted. It returns the Agent, or `nil` plus
-one of the reasons in `config.lua` (`FOCUS_NO_TERMINAL`, `FOCUS_NO_CLIENT`,
-`FOCUS_NO_FOCUS`) or the Driver's own error. Callers report that string as-is;
-nothing branches on which reason it is, so the reasons are messages rather than
-a cause vocabulary. The Backend never reaches for the Terminal's pid itself:
-the command layer passes it in, keeping the Backend from importing the
-Frontend.
+not pay for the extra multiplexer query. The [Focus](glossary.md#focus) is the
+other read, and only the Terminal's own Attachment answers it: one query reads
+the View's current window and that window's Agent fields together, and a window
+that carries no Agent metadata is `no focused agent` rather than an error.
+Callers report the reason string as-is; nothing branches on which reason it is,
+so the reasons are messages rather than a cause vocabulary. A Neovim instance
+with no Terminal has no Attachment at all — that fact stays in the Frontend,
+which is why the Backend never reaches for a pid.
 
 A Tool's reference spelling is configuration, not Backend state:
 `Config.apply()` gives every surviving `cli.tools` entry a `format` (defaulting
@@ -178,90 +180,117 @@ recorded in
 and
 [seam-types-live-with-their-seam](../.agents/notes/implemented/architecture/2026-09-13-seam-types-live-with-their-seam.md).
 
-**Terminal** (`frontend/terminal.lua`) is a dumb display surface: `open(argv)`
-starts the terminal job, `show`/`hide` manage the window without killing the
-job, `destroy` stops the job and deletes the buffer, and a `TermClose` autocmd
-does the same whenever the client exits. One Terminal per Neovim instance.
+**Terminal** (`frontend/terminal.lua`) is a dumb display surface:
+`setup(resolve)` installs the resolver that says what a `cli.win.keys` `rhs`
+string means and two lifecycle rules: entering the Terminal's window restores
+terminal mode (the Terminal has no Normal-mode state of its own), and closing
+its window out of band clears the Terminal's window handle while the hidden
+buffer keeps its client. `open(argv)` starts the terminal job and installs
+`cli.win.keys` on the buffer it just created; `hold(attachment)` keeps the
+Attachment its client sits on (identity, never domain state), `show`/`hide`
+manage the window without killing the job, `destroy` stops the job and deletes
+the buffer, and a `TermClose` autocmd does the same whenever the client exits.
+One Terminal per Neovim instance.
 
 **Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
-Commands call `Picker.pick(spec, opts)`, `Picker.pick_multi(spec, opts)`, or
-`Picker.pick_plain(...)`; `get()` is internal. A picker declares exactly three
-capabilities:
+Commands call `Picker.pick_fancy(spec, opts)` or `Picker.pick_naive(...)`;
+`get()` is internal. A picker declares one capability: `command` — it can bind
+the flow's picker commands. A pick beside its prompt states `many` (how many
+entries the flow acts on) and `preview` (the standard preview function, when it
+wants a preview pane); neither needs a capability declaration, because an
+implementation that cannot confirm several or render a pane simply degrades —
+`native` drains the stream and shows one choice, and shows no pane.
 
-- `preview` — it can render an Entry's `preview`.
-- `command` — it can bind the flow's picker commands.
-- `multi` — it can confirm several entries at once.
+`spec.items` is the pick's item stream, written by the flow: `emit(chunk)`
+appends entries as they are produced, `done()` ends the run, and the optional
+return stops a run the picker outlived. An implementation starts it once per
+engine run — the opening run, and a fresh run whenever a command reports that
+the list may have changed — so a pick can show entries while the flow is still
+producing them, while an engine with no stream surface waits for the run to end
+and picks from the final list.
 
 What a pick offers is a list of Entries — the shared type is
 `vantage.picker.Entry` in `frontend/picker/init.lua`, and the vocabulary that
 builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.group`,
 `.file`, `.buffer`, `.review`). An Entry carries `text` (the line the
-implementation renders), `kind` (the flow's own name for it), `preview`
-(computed only for the highlighted Entry), and whatever fields the flow put
-there. Each builder binds the preview for its kind — one module-level function
-per kind, so an Entry never allocates a closure. Implementations read `text`
-and call `preview`; they never write to an Entry, and the flow — not the Entry
-— decides what choosing one means.
+implementation renders), `kind` (the flow's own name for it), and whatever
+fields the flow put there — plain data with no preview of its own. A flow asks
+for a preview pane by handing `spec.preview` the one preview function the
+entries module owns (`Entries.preview`), which answers the highlighted Entry's
+lines by kind: nil for a kind with nothing to show, which keeps the pane and
+leaves it empty. Implementations read `text` and call `spec.preview`; they
+never write to an Entry, and the flow — not the Entry — decides what choosing
+one means.
 
-A picker without `multi` renders a multi-selection request as a single choice,
-so `on_choices` always receives a list. `PickOpts` carries `on_choice` and
-optional `commands`; `PickMultiOpts` carries `on_choices`. An implementation
-owns what its own close does: it leaves the window the pick was invoked from
-current, with that window's mode intact, and compensates for its own teardown
-whenever its engine loses either — so no flow restores a window or a mode, and
-no flow passes a close callback. `native` delegates that, like everything
-else, to the global `vim.ui.select` (`docs/gotchas.md` records the engine
-mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one side,
-fzf-lua's own `set_current_win(src_winid)` on the other).
+`on_choices` is the one selection callback and always receives at least one
+entry: a picker that cannot confirm several answers with a one-element list, so
+a flow that acts on a single entry reads `entries[1]`. An implementation owns
+what its own close does: it leaves the window the pick was invoked from
+current and compensates for its own teardown whenever its engine loses that
+window, and lets the window's own owner settle the mode (a Vantage Terminal
+restores terminal mode on window entry) — so no flow restores a window or a
+mode, and no flow passes a close callback. `native` delegates that, like
+everything else, to the global `vim.ui.select` (`docs/gotchas.md` records the
+engine mechanics: snacks' `stopinsert` and Neovim's float-close fallback on one
+side, fzf-lua's own `set_current_win(src_winid)` on the other).
 
-A pick answers with `empty, err`. `empty` says that no pick opened — the entry
-list held nothing, or its opening read failed — and `err` is that failure's
-reason, so a flow reports one of the two without a side channel.
-`items_provider` always answers with a list; on failure the list is empty and
-the reason rides the second value. Only the read that decides whether a pick
-opens carries that reason back to the flow: a re-read triggered by a Picker
-command answers with an empty list, which closes the picker.
+A pick that has nothing to show opens empty and stays open until the user
+cancels it: the "no agents" / "nothing to kill" warnings went with the design
+that read the list before opening. A read that fails is the flow's own to
+report, from inside its stream.
 
 `opts.commands` is a list of keymap-shaped descriptors
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
-`true` when the item list may have changed. A true result re-reads
-`items_provider` and refreshes (or closes on an empty result, a failed read
-included). Commands are
-global to the picker UI; the facade rejects duplicate `lhs` values and drops
-commands for a picker without the `command` capability. Group scoping is an
-ordinary command, not a Picker concept.
+`true` when the item list may have changed; a true result starts a fresh item
+stream and refreshes the picker. Commands are global to the picker UI; the
+facade drops commands for a picker without the `command` capability, and the
+descriptors' shape — non-empty string `lhs`, function `rhs`, unique `lhs`
+within one pick — is enforced by the flow conformance spec
+(`tests/commands/picker_commands_spec.lua`), not at runtime. Group scoping is
+an ordinary command, not a Picker concept.
 
 ## Flows and the command surface
 
-- `commands/attach.lua` owns `toggle`/`switch` plus their shared
+- `commands/attach.lua` owns `show`/`switch` plus their shared
   Agent/Tool entries, Group choice, creation handoff, and the `<c-g>` scope and
   `<c-x>` kill commands. An Entry is data: its `kind` (`focused`, `agent`,
   `tool`) says what choosing it means, and the flow — not the Entry — creates,
-  retargets, or opens the Terminal. `toggle` and `switch` each keep their own
-  tail; only the "attach and install the terminal keymaps" step is shared.
+  retargets, or opens the Terminal. `show` and `switch` each keep their own
+  tail; only the "attach a client and hold it" step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
-  lists candidates under the Focus's cwd (fd → ripgrep → a Lua walk), spells
-  every chosen `<relpath>` through the Tool's `format`, joins the results with
-  `setup { gather = { join = … } }`, and pastes them with a trailing space. One
-  reference dropped by the hook drops the whole send.
-- `commands/actions.lua` maps Terminal actions (`toggle`, `switch`, `prompt`,
-  `files`, `buffers`) to command functions and installs `cli.win.keys` into the
-  terminal buffer.
-- `:Vantage toggle` owns presence: hide/show; with no Terminal, pick an Agent
-  (Tool entries create one) and open the Terminal on it.
+  lists candidates under Neovim's global cwd — the tree the user browses,
+  which the Focus's cwd need not contain (fd → ripgrep → find, streamed as the
+  lister prints them), spells every chosen reference against the Focus's cwd
+  through the Tool's `format` (relative inside it, absolute outside), joins the
+  results with `setup { gather = { join = … } }`, and pastes them with a
+  trailing space. One reference dropped by the hook drops the whole send.
+- `commands/init.lua` owns the Terminal action tokens (`hide`, `switch`,
+  `prompt`, `files`, `buffers`) — the strings a `cli.win.keys` `rhs` may name —
+  and resolves each to the function that runs it, next to the `:Vantage`
+  dispatch. The Terminal installs `cli.win.keys` on its own buffer and resolves
+  each entry through that resolver, which the composition root installs at
+  setup, because the Frontend may not import the command layer.
+- `:Vantage show` owns presence: focus the Terminal when it is up, re-open the
+  same buffer when it is hidden, and with no Terminal pick an Agent (Tool
+  entries create one) and open the Terminal on it. The Frontend's `show`
+  answers false when there is no client, so "which Agent" stays a command-layer
+  decision.
+- `:Vantage hide` (and the `hide` token) closes the Terminal's window and keeps
+  the client attached. The key that hides never has to ask whether a Terminal
+  exists, and the token set has no `show` — a token is installed on the
+  Terminal's own buffer, where that window is open by construction.
 - `switch` (terminal token) owns target: `retarget` to the resolved Agent.
 - `:Vantage detach` destroys the Terminal; Agents and Groups survive.
 - `:Vantage status` shows the Driver's session/client summary.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
 - `:Vantage kill` picks an Agent or Group and kills it.
-- Terminal actions via `cli.win.keys`: `switch`, `prompt`, `toggle`, `files`,
+- Terminal actions via `cli.win.keys`: `hide`, `switch`, `prompt`, `files`,
   `buffers`.
 
 Creating an Agent from a Tool entry resolves the tool to its command, uses the
-global Neovim cwd, and always asks for a Group; `retarget` identifies the
-Terminal's client by the terminal job's pid, which the command layer reads from
-the Terminal and passes in.
+global Neovim cwd, and always asks for a Group; `switch` re-points the client
+through the Attachment the Terminal holds.
 
 `:Vantage` subcommands are dispatched from `commands/init.lua`; the prompt and
 gather flows resolve the Focus before acting and warn the reason string when
@@ -283,4 +312,7 @@ Every location reference — a Prompt's placeholders, each Review's `{lines}` /
 space), and `gather.join` decides how gathered references are joined. A Review
 reads the same in the list, in its preview, and in the `{reviews}` send — an
 entry is the `{lines}` reference plus the note's first line — and the note
-float's title names no reference of its own.
+float's title names no reference of its own. `frontend/review.lua` also owns
+that editing float (`Review.edit` / `Review.create`), including the jump, the
+active tint, and the empty-deletes policy; the command layer only wires the
+list and the add range.

@@ -7,10 +7,10 @@ Vantage is a Neovim plugin — a coding-agent manager over tmux. Read [docs/glos
 ```
 lua/vantage/       the plugin: Backend (Lua domain layer) + Frontend (UI)
   init.lua         composition root: apply config, resolve seams, install runtime
-  backend/         init.lua + pluggable Driver registry/tmux implementation
-    driver/resources/tmux/   tmux resources (counts.sh, status.sh)
+  backend/         init.lua (surface + Driver seam) + tmux.lua
+    resources/tmux/          tmux resources (counts.sh, status.sh)
   frontend/        terminal, entries, note, review, pluggable picker
-  commands/        dispatch + actions, attach, flows
+  commands/        init.lua (dispatch + Terminal actions), flows
   config.lua       defaults + shared LuaLS types
   health.lua       :checkhealth vantage
   util.lua         shared helpers
@@ -44,11 +44,12 @@ enforces the module dependency directions documented in
 
 - Lua 5.1 / LuaJIT only — Neovim's runtime; no features newer than 5.1.
 - Every module is `local M = {}` … `return M`; imports use `require("vantage.…")`.
-- Public functions carry LuaLS annotations (`---@param`, `---@return`, `---@class`). A seam's contract types live in that seam's `init.lua` (`vantage.Driver` in `backend/driver/init.lua`, the picker contract in `frontend/picker/init.lua`); `config.lua` holds the option and domain types and `vantage.ReferenceFormat`.
+- Public functions carry LuaLS annotations (`---@param`, `---@return`, `---@class`). A seam's contract types live in that seam's `init.lua` (`vantage.Driver` in `backend/init.lua`, the picker contract in `frontend/picker/init.lua`); `config.lua` holds the option and domain types and `vantage.ReferenceFormat`.
 - The [domain glossary](docs/glossary.md) is authoritative — use each term and honor each `_Avoid:` exactly; add or rename a term only there.
 - Keep the public docs current in the same change: if a change makes [README.md](./README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **User-facing docs say what, not why.** [README.md](./README.md) and [doc/vantage.nvim.txt](doc/vantage.nvim.txt) describe only what a user does or sees: commands, options, defaults, install, and any user-facing trade-off, compressed to what the user decides. Never implementation mechanics, Neovim/engine internals, or historical rationale in them — that belongs in the Agent Note, code comments, or [developer docs](docs/architecture.md).
 - **Non-trivial changes MUST include an Agent Note in the same change;** only mechanical/local edits are exempt ([when to write](.agents/notes/README.md#when-to-write-one)).
+- **Agent Notes hold the why.** The behavior a decision shipped — commands, defaults, contracts, vocabulary — lives in its own home: code, [architecture.md](docs/architecture.md), the [glossary](docs/glossary.md), or the user-facing docs. A note restates it but is never its only home ([rule](.agents/notes/README.md#what-a-note-owns)).
 
 ## External-tool gotchas
 

@@ -4,21 +4,22 @@ Status: implemented
 
 ## Problem
 
-The Agent picker behind `:Vantage switch` and `:Vantage toggle` stopped
+The Agent picker behind the `switch` terminal key and `:Vantage show` stopped
 binding `<c-x>`. The layered refactor moved in-flight picker actions from
 `PickSpec.on_delete` to flow-owned `opts.commands`, the attach flow registered
 only `<c-g>`, and the pre-refactor kill decision was archived instead of being
 carried forward. Its sibling, the
-[group-scope note](../feature/2026-09-05-agent-picker-group-scope.md), stayed
-active and was updated to the new contract, so only the kill lost its owner:
-pressing `<c-x>` did nothing while the Review list's `<c-x>` still deleted.
+group-scope decision stayed active and was updated to the new contract, so only
+the kill lost its owner: pressing `<c-x>` did nothing while the Review list's
+`<c-x>` still deleted.
 
 ## Decision
 
 `commands/attach.lua` carries `<c-x>` as a flow-owned picker command beside
 `<c-g>`: it kills the current entry's Agent through `Backend.kill_agent` and
-returns true, so the picker re-reads `items_provider` in place and closes when
-the list empties. Entry scope is the archived decision's: the pinned
+returns true, so the picker starts a fresh item stream in place
+([picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md)).
+Entry scope is the archived decision's: the pinned
 `(focused)` entry — the Agent the Terminal is attached to — and Tool entries are
 no-ops, and `:Vantage kill` remains the path that can kill the focused Agent.
 

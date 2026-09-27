@@ -6,6 +6,26 @@ describe("vantage.frontend.picker", function()
   local Config
   local Picker
 
+  --- Install a fake implementation under the `native` registry entry.
+  ---@param impl table
+  local function impl(impl)
+    package.loaded["vantage.frontend.picker.native"] = impl
+    Config.options.picker = "native"
+  end
+
+  --- A spec whose source finishes at once.
+  ---@param overrides? table
+  ---@return vantage.PickSpec
+  local function pick_spec(overrides)
+    return vim.tbl_extend("force", {
+      prompt = "pick",
+      many = false,
+      items = function(_, done)
+        done()
+      end,
+    }, overrides or {})
+  end
+
   setup(function()
     Helpers.reload_vantage()
     Config = require("vantage.config")
@@ -24,15 +44,12 @@ describe("vantage.frontend.picker", function()
   end)
 
   it("fails fast when the configured picker dependency is missing", function()
-    package.loaded["vantage.frontend.picker.native"] = {
+    impl({
       requires = "vantage-no-such-picker",
-      capabilities = { preview = true, command = true, multi = false },
-      pick = function()
-        return false
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+      capabilities = { command = true },
+      pick_fancy = function() end,
+      pick_naive = function() end,
+    })
     local ok, err = pcall(Picker.setup)
     assert.is_false(ok)
     assert.is_true(tostring(err):find("requires 'vantage-no-such-picker'", 1, true) ~= nil)
@@ -44,15 +61,12 @@ describe("vantage.frontend.picker", function()
       return { loaded = true }
     end
     package.loaded[dep] = nil
-    package.loaded["vantage.frontend.picker.native"] = {
+    impl({
       requires = dep,
-      capabilities = { preview = true, command = true, multi = false },
-      pick = function()
-        return false
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+      capabilities = { command = true },
+      pick_fancy = function() end,
+      pick_naive = function() end,
+    })
 
     assert.is_true(pcall(Picker.setup))
     package.preload[dep] = nil
@@ -60,63 +74,40 @@ describe("vantage.frontend.picker", function()
   end)
 
   it("fails fast when an implementation violates the PickerImpl contract", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = true, command = true, multi = false },
-      pick = function()
-        return false
-      end,
-    }
-    Config.options.picker = "native"
-    local ok, err = pcall(Picker.setup)
-    assert.is_false(ok)
-    assert.is_true(tostring(err):find("does not implement vantage.PickerImpl", 1, true) ~= nil)
-  end)
-
-  it("fails fast when a multi-capable implementation lacks pick_multi", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = true, command = true, multi = true },
-      pick = function()
-        return false
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+    impl({
+      capabilities = { command = true },
+      pick_fancy = function() end,
+    })
     local ok, err = pcall(Picker.setup)
     assert.is_false(ok)
     assert.is_true(tostring(err):find("does not implement vantage.PickerImpl", 1, true) ~= nil)
   end)
 
   it("returns capabilities and does not expose get()", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = false, command = false, multi = false },
-      pick = function()
-        return false
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+    impl({
+      capabilities = { command = false },
+      pick_fancy = function() end,
+      pick_naive = function() end,
+    })
     Picker.setup()
 
-    assert.are.same({ preview = false, command = false, multi = false }, Picker.capabilities())
+    assert.are.same({ command = false }, Picker.capabilities())
     assert.are.equal(nil, Picker.get)
   end)
 
   it("omits commands when the implementation has no command capability", function()
     local received
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = false, command = false, multi = false },
-      pick = function(_, opts)
+    impl({
+      capabilities = { command = false },
+      pick_fancy = function(_, opts)
         received = opts
-        return false
       end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+      pick_naive = function() end,
+    })
     Picker.setup()
 
-    local spec = { prompt = "pick", items_provider = function() end }
-    local empty = Picker.pick(spec, {
-      on_choice = function() end,
+    Picker.pick_fancy(pick_spec(), {
+      on_choices = function() end,
       commands = { {
         "<C-x>",
         function()
@@ -125,7 +116,6 @@ describe("vantage.frontend.picker", function()
       } },
     })
 
-    assert.is_false(empty)
     assert.are.equal(nil, received.commands)
   end)
 
@@ -138,153 +128,59 @@ describe("vantage.frontend.picker", function()
       end,
       desc = "delete",
     }
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = true, command = true, multi = false },
-      pick = function(_, opts)
+    impl({
+      capabilities = { command = true },
+      pick_fancy = function(_, opts)
         received = opts
-        return false
       end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
+      pick_naive = function() end,
+    })
     Picker.setup()
 
-    Picker.pick({ prompt = "pick", items_provider = function() end }, {
-      on_choice = function() end,
+    Picker.pick_fancy(pick_spec(), {
+      on_choices = function() end,
       commands = { command },
     })
 
     assert.are.same({ command }, received.commands)
-    -- The close belongs to the implementation: the facade passes no callback.
     assert.is_nil(received.on_close)
   end)
 
-  it("rejects duplicate command lhs values", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = true, command = true, multi = false },
-      pick = function()
-        return false
+  it("forwards a fancy pick unchanged and answers nothing of its own", function()
+    local received_spec, received_opts
+    impl({
+      capabilities = { command = false },
+      pick_fancy = function(spec, opts)
+        received_spec, received_opts = spec, opts
+        return "ignored"
       end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
-    Picker.setup()
-
-    local ok, err = pcall(Picker.pick, { prompt = "pick", items_provider = function() end }, {
-      on_choice = function() end,
-      commands = {
-        {
-          "<C-x>",
-          function()
-            return true
-          end,
-        },
-        {
-          "<C-x>",
-          function()
-            return true
-          end,
-        },
-      },
+      pick_naive = function() end,
     })
-    assert.is_false(ok)
-    assert.is_true(tostring(err):find("duplicate picker command", 1, true) ~= nil)
-  end)
-
-  it("requires on_choices for a multi pick", function()
-    Config.options.picker = "native"
     Picker.setup()
 
-    local ok, err = pcall(Picker.pick_multi, { prompt = "pick", items_provider = function() end }, {})
-    assert.is_false(ok)
-    assert.is_true(tostring(err):find("on_choices", 1, true) ~= nil)
+    local spec = pick_spec()
+    local on_choices = function() end
+    assert.is_nil(Picker.pick_fancy(spec, { on_choices = on_choices }))
+    assert.are.equal(spec, received_spec)
+    assert.are.equal(on_choices, received_opts.on_choices)
   end)
 
-  it("passes a multi pick to an implementation with the multi capability", function()
+  it("forwards a plain selection to the implementation", function()
     local received
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = true, command = true, multi = true },
-      pick = function()
-        return false
-      end,
-      pick_multi = function(_, opts)
-        received = opts
-        return false, "boom"
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
-    Picker.setup()
-
-    local empty, err = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
-      on_choices = function() end,
-    })
-
-    assert.is_false(empty)
-    assert.are.equal("boom", err)
-    assert.are.equal("function", type(received.on_choices))
-    assert.is_nil(received.on_close)
-  end)
-
-  it("degrades a multi pick to one choice without the multi capability", function()
-    local received
-    local chosen
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = false, command = false, multi = false },
-      pick = function(_, opts)
-        received = opts
-        return false
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
-    Picker.setup()
-
-    Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
-      on_choices = function(items)
-        chosen = items
+    impl({
+      capabilities = { command = false },
+      pick_fancy = function() end,
+      pick_naive = function(items, opts, on_choice)
+        received = { items = items, opts = opts, on_choice = on_choice }
       end,
     })
-    received.on_choice("row")
-
-    assert.are.same({ "row" }, chosen)
-  end)
-
-  it("hands an implementation's empty answer, and its reason, back", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = false, command = false, multi = false },
-      pick = function()
-        return true, "no server running"
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
     Picker.setup()
 
-    local empty, err = Picker.pick({ prompt = "pick", items_provider = function() end }, {
-      on_choice = function() end,
-    })
+    local on_choice = function() end
+    Picker.pick_naive({ "a" }, { prompt = "p" }, on_choice)
 
-    assert.is_true(empty)
-    assert.are.equal("no server running", err)
-  end)
-
-  it("hands the reason back from a degraded multi pick", function()
-    package.loaded["vantage.frontend.picker.native"] = {
-      capabilities = { preview = false, command = false, multi = false },
-      pick = function()
-        return true, "no server running"
-      end,
-      pick_plain = function() end,
-    }
-    Config.options.picker = "native"
-    Picker.setup()
-
-    local empty, err = Picker.pick_multi({ prompt = "pick", items_provider = function() end }, {
-      on_choices = function() end,
-    })
-
-    assert.is_true(empty)
-    assert.are.equal("no server running", err)
+    assert.are.same({ "a" }, received.items)
+    assert.are.equal("p", received.opts.prompt)
+    assert.are.equal(on_choice, received.on_choice)
   end)
 end)

@@ -2,6 +2,10 @@
 
 One kind of design doc lives here. An **Agent Note** records a decision or proposal that affects this codebase — the *why* and *what we gave up*, the parts code and docs can't carry. This file defines where Agent Notes live, when to write one, and [the in-file format](#the-file-format).
 
+## What a note owns
+
+An Agent Note holds the *why* — the motivation a decision answered, the alternatives it beat, the trade-offs it accepted. The *what* a decision shipped — current behavior, defaults, contracts, vocabulary, commands — lives in its own home: shipped code, [architecture.md](../../docs/architecture.md), the [glossary](../../docs/glossary.md), or the user-facing docs. A note may restate a current fact, and is kept current with it, but it must not be the only home of one: a fact that survives nowhere else pins the note in the active tree and blocks archival. When a fact lives only in a note, move it to its home first.
+
 ## Layout and naming
 
 Every Agent Note has two axes, both encoded in its **path** — `{lifecycle}/{class}/yyyy-mm-dd-topic-title.md`:
@@ -31,7 +35,7 @@ Each Agent Note belongs to one path-encoded class from the closed set in `script
 
 The `architecture` / `process` line: **architecture** is about the source we ship; **process** is the surrounding tooling and workflow. (`refactor` is deliberately absent — it overlaps `simplification`, whose discriminator, "does observable behavior change?", already covers it.)
 
-## Archiving
+## Archiving and deletion
 
 Archive an implemented Agent Note when the shipped decision is complete and its rationale is unlikely to guide future work. Keep it active when its alternatives, ownership boundary, negative guarantee, durable semantics, or reintroduction condition remains useful. Never archive a proposed note: reject an obsolete proposal. Keep a rejected note only while it prevents a plausible mistake; otherwise delete it.
 
@@ -39,13 +43,17 @@ The archive is path-encoded as `archived/{class}/yyyy-mm-dd-topic-title.md`; `im
 
 Once archived, a note is permanently frozen: do not edit, translate, reformat, update, move, or delete it, and do not treat it as authority for current behavior. Active prose may still link into an archived note when it intentionally cites history. `make notes` enforces the archive metadata; this repo intentionally omits the cryptographic archive manifest — the [bootstrap Agent Note](implemented/process/2026-08-31-agent-notes.md) owns that choice.
 
-The [`archive-agent-notes`](../skills/archive-agent-notes/SKILL.md) skill operationalizes the archive, reject, and delete steps above; the supersession rule in [AGENTS.md](AGENTS.md) invokes it.
+The [`archive-agent-notes`](../skills/archive-agent-notes/SKILL.md) skill operationalizes the archive, reject, delete, and consolidation rules in this file; the supersession rule in [AGENTS.md](AGENTS.md) invokes it.
 
 ## When to write one
 
 Every non-trivial change MUST add or update at least one Agent Note in the same change. A change is non-trivial when it alters behavior, architecture, a contract shared across files, process or tooling, testing strategy, an on-disk or configuration format, or another decision a maintainer may reasonably revisit. A proposal for substantial future work starts in `proposed/`; a decision already made starts in `implemented/`. Pick the class folder that matches the decision.
 
 Updating the Agent Note that already owns the decision satisfies the rule; do not create a duplicate. Only a purely mechanical or local edit with no change to behavior, contracts, structure, process, or rationale is exempt. An Agent Note is never edited into a *different decision*: supersede it with a new one, and keep both notes cross-linked unless the old note is later fully consolidated. Editing an `implemented/` Agent Note to track where its existing decision lives is required, not forbidden; see [implemented/AGENTS.md](implemented/AGENTS.md).
+
+An implemented Agent Note that is fully superseded may be consolidated into the current owning note and deleted. Before deletion, the owner must preserve every unique rationale, alternative, consequence, required verification, and named coverage gap; repair every inbound link; and delete the note in the same change. Partial supersession does not qualify: keep both notes cross-linked and update every fact that remains current. Consolidation must not rewrite the old file into its opposite or rely on git history as the only copy of rationale.
+
+A feature-addition note may be consolidated into the later removal note only when the feature is absent from production code, configuration, on-disk formats, migration, and compatibility behavior; no current documentation presents it as available; and no test exercises it as supported behavior. Removal rationale and tests that verify absence may remain. The removal owner preserves the original motivation, why it no longer justified the feature, alternatives to full removal, the capability given up, conditions for reintroduction, and verification of complete absence. Obsolete implementation inventories and tests that only verified the deleted behavior are not current verification evidence. Removing one transport, default, implementation, or presentation is partial supersession, as is any surviving durable data or compatibility handling.
 
 ## The file format
 

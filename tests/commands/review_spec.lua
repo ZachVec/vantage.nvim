@@ -7,6 +7,7 @@ describe("vantage.commands.review", function()
   local Review
   local ReviewCmd
   local Util
+  local attachment
   local backend
   local captured_spec
   local tmp
@@ -26,7 +27,7 @@ describe("vantage.commands.review", function()
     captured_spec = nil
     ReviewCmd.run("list", 1, 1)
     assert.is_not_nil(captured_spec)
-    return captured_spec.items_provider()
+    return Helpers.entries(captured_spec)
   end
 
   setup(function()
@@ -37,29 +38,25 @@ describe("vantage.commands.review", function()
     Review.setup()
 
     backend = {}
-    function backend.focus(pid)
-      backend.focused_pid = pid
+    attachment = {}
+    function attachment.focus()
+      attachment.called = true
       return backend.focused, backend.focus_reason
     end
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = {
-      pick = function(spec)
+      pick_fancy = function(spec)
         captured_spec = spec
-        return false, nil
       end,
     }
-    package.loaded["vantage.frontend.terminal"] = {
-      pid = function()
-        return 4242
-      end,
-    }
+    package.loaded["vantage.frontend.terminal"] = { attachment = attachment }
     ReviewCmd = require("vantage.commands.review")
   end)
 
   before_each(function()
     backend.focused = nil
     backend.focus_reason = nil
-    backend.focused_pid = nil
+    attachment.called = false
     Config.options.reviews.item = "{lines} {note}"
     Config.options.cli.tools = {}
     tmp = vim.fn.tempname()
@@ -94,7 +91,7 @@ describe("vantage.commands.review", function()
 
     local items = rows()
 
-    assert.are.equal(4242, backend.focused_pid)
+    assert.is_true(attachment.called)
     assert.are.equal("@a.lua :L1-2  note", items[1].text)
   end)
 

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-19
+
 ## Problem
 
 The Review note editor (`open_note_float`, ~80 lines) lived in

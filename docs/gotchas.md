@@ -14,7 +14,7 @@ The tmux backend specs drive tmux over a private unix socket under
 operation fail with `error connecting to
 /tmp/tmux-<uid>/vantage-test-<pid> (Operation not permitted)`. The suite never
 reports that as a permission error: the specs fail deeper, with `attempt to
-index local 'agent' (a nil value)` in `tests/backend/driver_tmux_spec.lua` or
+index local 'agent' (a nil value)` in `tests/backend/tmux_spec.lua` or
 `no such group '<name>'`. In-sandbox results are not trustworthy in either
 direction — the same suite passed once and failed on the next run — so treat
 only an unsandboxed `make test` result as authoritative.
@@ -72,6 +72,19 @@ A function contents is invoked as `contents(on_write_nl, on_write, ...)`. The
 once per item, then call it with `nil` to signal end-of-input. Passing a whole
 table to the first callback renders `table: 0x…`.
 
+The write lands in a pipe that stays open until the `nil` call, so the callback
+may be invoked **after** the contents function returned (from a libuv callback,
+say): a pick can push entries as a process produces them. Vantage's adapter
+relies on that, and ends the input with `nil` when the flow's stream is done.
+
+### No preview function means no preview pane
+
+`fzf_exec` hides the pane when `opts.preview` is nil and no explicit `--preview`
+is set: it writes `--preview-window=hidden:right:0`, which also overrides a
+preview in `$FZF_DEFAULT_OPTS`. So omitting the option is how a pick has no
+preview pane, while a preview function that returns nothing keeps the pane
+empty.
+
 ### Native in-place refresh (reload)
 
 To update the list without close/reopen — close/reopen flickers because fzf is
@@ -124,7 +137,7 @@ Do not try to repair the mode inside the window (`stopinsert` is ineffective
 while the transfer is unsettled); the transient clears by itself once the
 teardown finishes. Vantage avoids the pattern structurally: every selection it
 makes — the Agent-creation Group step and `:Vantage prompt` included — renders
-through the configured Picker's own engine (`pick_plain`), so a flow is
+through the configured Picker's own engine (`pick_naive`), so a flow is
 homogeneous by construction and no pick step ever opens a second window inside
 another renderer's teardown. The residual boundary is a terminal-family
 renderer (the `fzf-lua` Picker, or `native` with a terminal-style
@@ -146,11 +159,11 @@ which fields an entry carries, so the shipped flows stay clear of the name.
 
 The snacks picker input is a **prompt buffer, not a terminal window**, and on
 close it deliberately leaves insert mode (`stopinsert`), returning you to
-Normal. If the picker was opened over a terminal window that was in terminal
-mode, that terminal does *not* get terminal mode back: it ends in Normal.
-(fzf-lua floats do the opposite — the underlying terminal is left in terminal
-mode via the term-to-term transfer.) Terminal mode is exclusive to the focused
-window, so the terminal drops out of it for the whole time the picker is open.
+Normal. A terminal window the picker was opened over does *not* get terminal
+mode back on its own: it ends in Normal, because terminal mode is exclusive to
+the focused window and the terminal drops out of it for the whole time the
+picker is open. (fzf-lua floats do the opposite — the underlying terminal is
+left in terminal mode via the term-to-term transfer.)
 
 Consequence: a chain that mixes snacks then fzf-lua feeds the fzf float a
 terminal-in-normal-mode context — exactly the context in which fzf-lua's close
@@ -158,37 +171,106 @@ leaves the racy transient described in the fzf-lua section. Homogeneous chains
 (snacks-only, or fzf-lua floats opened from genuine terminal mode) never hit
 it.
 
-Vantage's snacks Picker compensates on its own: every snacks pick re-enters
-terminal mode (`startinsert`, scheduled for the next tick — `close()` has
-already returned focus synchronously and its teardown only destroys the
-picker's own windows, never touching the mode) whenever the picker closes back
-onto the vantage terminal in terminal-normal mode (`nt`) — one path covers
-both an Esc cancel and the no-op confirm of the pinned `(focused)` entry. The
-same scheduled close handler also re-asserts the terminal window itself:
-Neovim's float-close fallback returns to `prevwin`, or to the first *tiled*
-window when that float is already gone, so closing the picker floats from a
-floating Terminal lands the focus on the editor behind it — the handler
-re-focuses the window the pick was invoked from (captured at pick start) and
-the terminal mode re-entry follows. The engine hooks its own close on both
-paths, and no flow takes part in it: the preview-capable `Picker.pick` passes
-the handler as `on_close`, while `Picker.pick_plain` (the Agent-creation Group
-step and `:Vantage prompt`) wraps its `on_choice` *before* the flow's choice
-handler runs, because the plain select call hands the implementation no close
-hook of its own — and because the new-Group name prompt (a cmdline `input()`
-scheduled from inside the choice handler) keeps the scheduler alive while its
-`c` mode is active: a re-entry check queued after the handler would see `c`,
-skip, and strand the terminal in Normal once the prompt closes. Queued first,
-the `startinsert` stays pending across the cmdline and lands when it closes
-(verified on nvim 0.12.3). A Tool-entry creation through `:Vantage toggle`
-ends in terminal mode via the toggle tail's `Terminal.open` (`startinsert`)
-and skips the re-entry; a `switch` re-points without showing (`retarget`), so
-it depends on the implementation's close handler above.
+Vantage's snacks Picker takes the terminal out of terminal mode while the pick
+is up, and hands it back in terminal mode on the way out. A pick that opens
+from the vantage terminal leaves terminal mode first (`stopinsert`, before
+snacks' windows take focus): the input window's insert is dropped when a float
+is focused *out* of terminal mode from a callback, which is exactly what a
+source that streams does — its first batch arrives from the lister's job a
+tick after the keymap that started the pick, so `files` would sit in Normal
+with a dead prompt while `buffers`, shown inside the keymap, inserts (see the
+entry below).
+
+The mode itself is the Terminal's, not the pick's. `Terminal.setup` installs
+one unconditional `WinEnter` rule (`vantage_terminal_mode`) that enters
+terminal mode whenever the Terminal's own buffer becomes the current window,
+and it stays installed for the Terminal's lifetime — the accepted cost is that
+a deliberate `<C-q>` into Terminal-Normal is undone by leaving and re-entering
+the window. A pick's close therefore only decides *when* that window is
+entered. `pick_fancy`'s `confirm` leaves insert mode, captures the choice, and
+defers the close one tick: the tick puts the mode change in an earlier event
+than the focus switch, so the Terminal's window-entry rule enters a *settled*
+window; and inside it the pick names the window it opened from as the pick's
+main window before closing, which is what makes snacks' own close focus that
+window — `Picker:close()` consumes `main` in the same pass, and Neovim's
+float-close fallback would otherwise return to `prevwin` or the first *tiled*
+window, landing the focus on the editor behind a floating Terminal. Closing
+*synchronously*, or letting snacks' own main-window fallback enter the
+terminal, runs the entry while the picker is still tearing down, where the
+insert is dropped and the client stays in `nt`. A cancel needs none of that:
+snacks' own cancel names the invoking window as its main and closes from
+Normal mode. One path covers an Esc cancel, a confirm, and the no-op confirm
+of the pinned `(focused)` entry, split or floated (verified on nvim 0.12.3).
+
+`pick_naive` (the Agent-creation Group step and `:Vantage prompt`) hands
+terminal mode back from inside snacks' own post-close callback, the one
+deferral point the plain select gives the implementation: its wrapped
+`on_choice` issues `startinsert` *before* the flow's choice handler runs, so
+the insert is pending while the handler runs. The ordering is load-bearing:
+the new-Group name prompt (a cmdline `input()` scheduled from inside the
+handler) keeps the scheduler alive while its `c` mode is active, so an insert
+issued after the handler would see `c` and be dropped, stranding the terminal
+in Normal once the prompt closes (verified on nvim 0.12.3). A Tool-entry
+creation through `:Vantage show` ends in terminal mode via the show tail's
+`Terminal.open` (`startinsert`) and skips the re-entry; a `switch` re-points
+without showing (`retarget`), so it depends on the wrapped callback above.
+
+### A pick's insert mode is dropped when the terminal-mode leave is unsettled
+
+snacks enters insert mode from the pick input window's `BufEnter`
+(`startinsert!`, scheduled a tick later when the mode it sees is `t`). Neovim
+drops that insert whenever the float takes focus while a terminal-mode leave is
+still in flight — the state a callback-driven focus change lands in. Measured
+on nvim 0.12.3 with real snacks: a `t`-mode keymap over a synchronous source
+ends in insert, the same keymap over a streaming source (`files`) ends in
+Normal, and the same streaming source from `nt` or from a plain window ends in
+insert. A minimal float without snacks reproduces it: focused inside the
+keymap, a scheduled `startinsert` sticks; focused from a callback, both a
+direct and a next-tick `startinsert` are dropped until the transfer settles
+(tens of ms). The fix is the leave, not the insert: Vantage runs `stopinsert`
+before handing a terminal-origin pick to snacks, so no transfer is in flight
+when the float takes focus.
+
+### The mini.test harness cannot observe modes
+
+`make test` runs `nvim --headless -l`, where `startinsert` never takes effect:
+`nvim_get_mode()` stays `n`, in the suite itself and from a deferred callback
+(verified on 0.12.3). Mode-level assertions therefore cannot be specs; the
+specs cover the wiring instead (the pick arming no restore of its own, its
+close naming the invoked-from window as the pick's main window, `pick_naive`
+issuing its `startinsert` before the choice handler, and the Terminal
+installing its window-entry rule once) and the modes are verified by hand with
+a script that reads
+`nvim_get_mode()` from `vim.defer_fn` callbacks:
+
+```sh
+nvim --headless -u NONE -c 'luafile <script>'
+```
+
+A `-c`-driven script runs on the main loop and reports real modes (`i`, `t`,
+`nt`); an `nvim -l` script does not. In such a script a `:terminal` window
+reaches terminal mode through a deferred `startinsert`, and a float can stand
+in for the client.
 
 ### Finder signature is `fun(opts, ctx): result`
 
 The finder is `fun(opts, ctx)` returning either an `Item[]` table or an async
 `fun(cb)`; it is **not** `fun(cb)` directly. The simplest form just returns the
 items table.
+
+The async form runs inside snacks' own task, and its `cb` drives that task's
+coroutine, so it must not be called straight from a libuv callback. Queue what
+arrives, resume the task, and call `cb` from inside the task's own loop — the
+shape `snacks.picker.source.proc` uses. Vantage's adapter does exactly that for
+a flow's stream that outlives the finder call; a stream that ended within the
+call is returned as the static items table.
+
+### No preview function means an empty pane, not no pane
+
+snacks' layout carries a preview window whether or not a `preview` function is
+given, and a nil one leaves it empty. To have no pane at all, pass
+`layout = { preview = false }`, which snacks moves into `layout.hidden`.
+Vantage's adapter does that when the flow did not ask for a preview.
 
 ### Native in-place refresh
 
@@ -208,7 +290,61 @@ A `confirm`/action callback that jumps, opens a float, or otherwise changes the
 UI must be wrapped in `vim.schedule`, so it runs only after the picker window
 has closed.
 
+## Gather · file listers
+
+### The three listers do not agree on exit codes
+
+Measured with fd 10.2.0 and ripgrep 15.2.0: `fd` exits 0 whenever it ran (empty
+result included) and 1 on error; **`rg --files` exits 1 when it found no
+files** and 2 on error; `find` exits 0 whenever it ran and 1 on error. So a
+chain that treats every non-zero code as a failure would fall through on rg's
+legitimate empty answer — and land on `find`, which reads no ignore files and
+would list exactly the files the project ignores. Vantage's chain reads rg's 1
+as an answer and only falls through on a real failure.
+
+### fd and rg respect ignore files; find does not
+
+`fd` and `rg --files` honour `.gitignore` and friends, `find` honours nothing
+but the arguments it is given. That is why find is the last resort: on a
+machine with neither fd nor rg, the listing is whatever find sees.
+
+### None of the three sorts
+
+fd, rg, and find each print in their own walk order, and the file list is
+rendered in that order — the listing is not sorted, by design. `find` prints
+paths with a leading `./`, which the flow normalizes away.
+
+### `find`'s `-o` grouping decides whether an exclusion applies
+
+`find . -type f -o -type l -not -path "*/.git/*"` parses as
+`(-type f) OR ((-type l) AND (not .git below))` because find's implicit `-a`
+binds tighter than `-o`: the `.git` files are regular files, so they leak
+through the first branch. Grouping — `\( -type f -o -type l \) -not -path …` —
+is what makes one exclusion cover both. (Through `vim.system` the parentheses
+are plain arguments, no shell escaping.)
+
+### `vim.system` reports a signalled process as exit code 0
+
+A process killed by a signal comes back with `code = 0` and `signal = N`, not
+as a failure. Treat `signal ~= 0` as a failure (the shell's `128 + N`) or a
+truncated run looks like a finished one.
+
+### A shell script that traps TERM must wait interruptibly
+
+`trap … TERM; sleep 30` runs the trap only after `sleep` returns (the shell
+defers it), so a test lister that is supposed to notice a cancel needs
+`sleep 30 & wait` — `wait` is interrupted by the signal.
+
 ## Neovim
+
+### `vim.notify` raises inside a fast event context
+
+The default `vim.notify` handler calls `nvim_echo`, which is main-loop only:
+from a libuv callback (a `vim.system` exit callback, a timer) it raises
+`E5560: nvim_echo must not be called in a fast event context`. The raise also
+unwinds the callback, so any statement after the notify — a `done()` that ends
+a stream, say — does not run and the stream never ends. Route the notification
+through `vim.schedule` instead (`vantage.util`'s `notify` already does).
 
 ### `<cmd>` mappings keep Visual mode active
 

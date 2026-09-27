@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 Agent-list entries were formatted `cmd  ~cwd  [group]` — the launch command
@@ -48,7 +50,7 @@ Folding in `commands/attach.lua`/`Util.cwd()` and letting the backend store
 (verified empirically — `new-session -c '~/vantage'` resolves the literal
 path relative to the client cwd, silently falling back to `$HOME` on
 failure), and the driver passes the cwd straight into `-c`
-(`backend/driver/tmux.lua` new-window/new-session). Keeping launch correct would
+(`backend/tmux.lua` new-window/new-session). Keeping launch correct would
 force `create()` to split an absolute launch-cwd from a folded stored-cwd —
 the fold would live in the backend storage layer, and every later consumer
 of `@agent-cwd` would see whichever form was stored. Stored state instead

@@ -11,77 +11,89 @@ local Util = require("vantage.util")
 
 local M = {}
 
---- External file listers tried in order; the Lua walk covers installs with
---- neither. All of them skip `.git`; ignore semantics come from the tool.
+--- External file listers tried in order. All three skip `.git`, and each one's
+--- output is the listing: it is not sorted, so the order is the tool's. `find`
+--- is the last resort and the crudest — unlike fd and rg it reads no ignore
+--- files, so a find-only machine lists what find sees.
 local LISTERS = {
   { "fd", "--type", "f", "--type", "l", "--color", "never", "-E", ".git" },
   { "rg", "--files", "--no-messages", "--color", "never", "-g", "!.git" },
+  { "find", ".", "-type", "f", "-not", "-path", "*/.git/*" },
 }
 
---- Collect every readable file under `root` (absolute paths, `.git` skipped).
----@param root string
----@param out string[]
-local function walk(root, out)
-  local ok, entries = pcall(vim.fs.dir, root)
-  if not ok or not entries then
-    return
-  end
-  for name, kind in entries do
-    if name ~= ".git" then
-      local path = vim.fs.joinpath(root, name)
-      if kind == "directory" then
-        walk(path, out)
-      elseif kind == "file" then
-        out[#out + 1] = path
-      elseif kind == "link" then
-        local stat = (vim.uv or vim.loop).fs_stat(path)
-        if stat and stat.type == "file" then
-          out[#out + 1] = path
-        end
-      end
-    end
-  end
+--- Whether a lister's exit code is an answer rather than a failure. `rg --files`
+--- exits 1 when it found no files, which is a legitimate empty listing — a
+--- project whose files are all ignored must not fall through to find, which
+--- would list them. Every other non-zero code is a failure (fd reports errors
+--- as 1, find as 1).
+---@param name string
+---@param code integer
+---@return boolean
+local function answered(name, code)
+  return code == 0 or (name == "rg" and code == 1)
 end
 
---- File candidates under `cwd` as absolute paths, sorted. The first available
---- lister wins; an empty success is a real answer, not a reason to fall
---- through.
+--- Stream the file candidates under `cwd`, the listing root and display base:
+--- Neovim's global cwd, the tree the user is browsing rather than the Agent's.
+--- One batch per chunk of a lister's output. The chain is asynchronous — a
+--- lister's failure is only known when it exits — so a failed attempt gives way
+--- from its own callback, and a lister that already produced lines keeps them.
 ---@param cwd string
----@return string[]
-local function list_files(cwd)
-  for _, cmd in ipairs(LISTERS) do
-    if vim.fn.executable(cmd[1]) == 1 then
-      local ok, code, stdout = pcall(Util.run, cmd, { cwd = cwd })
-      if ok and code == 0 then
-        local paths = {}
-        for _, line in ipairs(vim.split(stdout or "", "\n", { plain = true })) do
-          if line ~= "" then
-            paths[#paths + 1] = vim.fs.normalize(vim.fs.joinpath(cwd, line))
-          end
-        end
-        table.sort(paths)
-        return paths
+---@param emit fun(entries: vantage.picker.Entry[])
+---@param done fun()
+---@return fun() cancel
+local function stream_files(cwd, emit, done)
+  local cancel ---@type fun()?
+  local stopped = false
+  local attempted = false
+
+  ---@param index integer
+  local function try(index)
+    local lister = LISTERS[index]
+    if not lister then
+      Util.warn(attempted and "file listing failed" or "no file lister (fd, rg, or find)")
+      done()
+      return
+    end
+    if vim.fn.executable(lister[1]) ~= 1 then
+      try(index + 1)
+      return
+    end
+    attempted = true
+    local emitted = false
+    cancel = Util.run_lines(lister, { cwd = cwd }, function(lines)
+      local entries = {}
+      for _, line in ipairs(lines) do
+        entries[#entries + 1] = Entries.file(vim.fs.normalize(vim.fs.joinpath(cwd, line)), cwd)
       end
+      emitted = true
+      emit(entries)
+    end, function(code)
+      if stopped then
+        return
+      end
+      if emitted or answered(lister[1], code) then
+        done()
+        return
+      end
+      try(index + 1)
+    end)
+  end
+
+  try(1)
+
+  return function()
+    stopped = true
+    if cancel then
+      cancel()
+      cancel = nil
     end
   end
-  local paths = {}
-  walk(cwd, paths)
-  table.sort(paths)
-  return paths
-end
-
----@param cwd string
----@return vantage.picker.Entry[]
-local function file_items(cwd)
-  local items = {}
-  for _, path in ipairs(list_files(cwd)) do
-    items[#items + 1] = Entries.file(path, cwd)
-  end
-  return items
 end
 
 --- Buffer candidates: listed, normal-buftype, named, readable-on-disk
---- buffers, most recently used first (path order breaks ties).
+--- buffers, most recently used first (path order breaks ties), each displayed
+--- relative to `cwd` (Neovim's global cwd).
 ---@param cwd string
 ---@return vantage.picker.Entry[]
 local function buffer_items(cwd)
@@ -108,26 +120,45 @@ local function buffer_items(cwd)
   return items
 end
 
----@type table<string, { prompt: string, items: fun(cwd: string): vantage.picker.Entry[] }>
+--- The two sources' streams: `files` runs the lister chain (live), and
+--- `buffers` reads the in-memory list in one batch.
+---@type table<string, { prompt: string, stream: fun(cwd: string, emit: fun(entries: vantage.picker.Entry[]), done: fun()): (fun()?) }>
 local SOURCES = {
-  files = { prompt = "Files: ", items = file_items },
-  buffers = { prompt = "Buffers: ", items = buffer_items },
+  files = { prompt = "Files: ", stream = stream_files },
+  buffers = {
+    prompt = "Buffers: ",
+    ---@param cwd string
+    ---@param emit fun(entries: vantage.picker.Entry[])
+    ---@param done fun()
+    stream = function(cwd, emit, done)
+      emit(buffer_items(cwd))
+      done()
+    end,
+  },
 }
 
 --- Pick several entries from `source` and type their references into the
 --- focused Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local agent, err = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local agent, err
+  if attachment then
+    agent, err = attachment:focus()
+  end
   if not agent then
     Util.warn(err or "no focused agent")
     return
   end
-  local items = SOURCES[source].items(agent.cwd)
-  local empty = Picker.pick_multi({
+  Picker.pick_fancy({
     prompt = SOURCES[source].prompt,
-    items_provider = function()
-      return items
+    many = true,
+    preview = Entries.preview,
+    items = function(emit, done)
+      -- Candidates come from the tree the user is browsing; the chosen
+      -- references are still spelled against the Agent's cwd below (relative
+      -- inside it, absolute outside), so the two bases are deliberately split.
+      return SOURCES[source].stream(Util.cwd(), emit, done)
     end,
   }, {
     on_choices = function(chosen)
@@ -152,9 +183,6 @@ local function run(source)
       end
     end,
   })
-  if empty then
-    Util.warn(("no %s"):format(source))
-  end
 end
 
 --- Choose files and send their references to the focused Agent.

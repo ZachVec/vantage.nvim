@@ -20,6 +20,7 @@ describe("vantage.config", function()
       no_cmd = { format = function() end },
       empty_cmd = { cmd = {} },
       missing_cmd = { cmd = { "vantage-no-such-tool-xyz" } },
+      bad_format = { cmd = { "codex" }, format = "not a function" },
       not_table = "codex",
     }
     tools[""] = { cmd = { "codex" } }
@@ -32,6 +33,58 @@ describe("vantage.config", function()
     assert.are.equal("cmd is missing or empty", dropped.no_cmd)
     assert.are.equal("cmd is missing or empty", dropped.empty_cmd)
     assert.are.equal("command 'vantage-no-such-tool-xyz' not found", dropped.missing_cmd)
+    assert.are.equal("format is not a function", dropped.bad_format)
+  end)
+
+  it("sanitize_prompts drops non-string templates", function()
+    local util = require("vantage.util")
+    local original_warn = util.warn
+    local warned = {}
+    util.warn = function(msg)
+      warned[#warned + 1] = msg
+    end
+    local prompts = { good = "{file}", bad = 42 }
+    Config.sanitize_prompts(prompts)
+    util.warn = original_warn
+
+    assert.are.same({ "good" }, vim.tbl_keys(prompts))
+    assert.is_true(warned[1]:find("bad", 1, true) ~= nil)
+  end)
+
+  it("sanitize_win normalizes the layout, sizes, border, and key entries", function()
+    local util = require("vantage.util")
+    local original_warn = util.warn
+    local warned = {}
+    util.warn = function(msg)
+      warned[#warned + 1] = msg
+    end
+    local win = {
+      layout = "botom",
+      float = { width = "wide", height = 0.5, border = false },
+      split = { width = 10, height = "tall" },
+      keys = {
+        { "<c-x>" },
+        { "<c-y>", "yy", mode = { "n", "t" } },
+        { "<c-z>", "zz", mode = "nt" },
+        { "<c-w>", "ww" },
+        { "<c-v>", "vv", mode = 42 },
+      },
+    }
+    Config.sanitize_win(win)
+    util.warn = original_warn
+
+    assert.are.equal("float", win.layout)
+    assert.are.equal(1.0, win.float.width)
+    assert.are.equal(0.5, win.float.height)
+    assert.are.equal(10, win.split.width)
+    assert.are.equal(20, win.split.height)
+    assert.are.equal("none", win.float.border)
+    assert.are.same({
+      { "<c-y>", "yy", mode = { "n", "t" } },
+      { "<c-z>", "zz", mode = { "n", "t" } },
+      { "<c-w>", "ww", mode = { "n" } },
+    }, win.keys)
+    assert.are.equal(5, #warned)
   end)
 
   it("apply applies defaults with no options", function()
@@ -42,7 +95,7 @@ describe("vantage.config", function()
     util.warn = original_warn
 
     assert.are.equal("tmux", Config.options.backend)
-    assert.are.equal("vantage", Config.options.socket)
+    assert.are.equal("vantage", Config.options.backend_opts.tmux.socket)
     assert.are.equal("native", Config.options.picker)
     local prompt_names = vim.tbl_keys(Config.options.prompts)
     table.sort(prompt_names)
@@ -57,7 +110,7 @@ describe("vantage.config", function()
     util.warn = function() end
     Config.apply({
       picker = "snacks",
-      socket = "custom",
+      backend_opts = { tmux = { socket = "custom" } },
       prompts = { review = "Review {file}" },
       reviews = { item = "{lines} {note} custom" },
       cli = {
@@ -70,7 +123,7 @@ describe("vantage.config", function()
     util.warn = original_warn
 
     assert.are.equal("snacks", Config.options.picker)
-    assert.are.equal("custom", Config.options.socket)
+    assert.are.equal("custom", Config.options.backend_opts.tmux.socket)
     assert.are.equal("Review {file}", Config.options.prompts.review)
     assert.are.equal("{file}", Config.options.prompts["{file}"])
     assert.are.same({ "good" }, vim.tbl_keys(Config.options.cli.tools))

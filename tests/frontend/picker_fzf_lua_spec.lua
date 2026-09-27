@@ -7,25 +7,45 @@ describe("vantage.frontend.picker.fzf_lua", function()
   local captured
   local items
 
+  --- A source that emits its list at once.
+  ---@param list vantage.picker.Entry[]
+  ---@return vantage.picker.Source
+  local function source(list)
+    return function(emit, done)
+      emit(list)
+      done()
+    end
+  end
+
+  --- The lines the captured contents function writes, with the end of input as
+  --- a visible marker, plus how many pipe writes they arrived in.
+  ---@return string[] lines
+  ---@return integer writes
+  local function written()
+    local lines, writes = {}, 0
+    captured.contents(function(line)
+      if line == nil then
+        lines[#lines + 1] = "<end>"
+      else
+        writes = writes + 1
+        lines[#lines + 1] = line
+      end
+    end, function(batch)
+      writes = writes + 1
+      vim.list_extend(lines, batch)
+    end)
+    return lines, writes
+  end
+
   setup(function()
     Helpers.reload_vantage()
     items = {
-      {
-        text = "first",
-        preview = function()
-          return { "one" }
-        end,
-      },
-      {
-        text = "second",
-        preview = function()
-          return { "two" }
-        end,
-      },
+      { text = "first" },
+      { text = "second" },
     }
     package.loaded["fzf-lua"] = {
-      fzf_exec = function(_, opts)
-        captured = opts
+      fzf_exec = function(contents, opts)
+        captured = { contents = contents, opts = opts }
       end,
     }
     Fzf = require("vantage.frontend.picker.fzf_lua")
@@ -35,24 +55,43 @@ describe("vantage.frontend.picker.fzf_lua", function()
     Helpers.reload_vantage()
   end)
 
-  it("maps every returned entry back to its item for a multi pick", function()
-    local chosen
-    Fzf.pick_multi({
+  it("writes one prefixed line per entry and ends the input", function()
+    Fzf.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+
+    local lines, writes = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
+    assert.are.equal(1, writes)
+    assert.are.equal("2..", captured.opts.fzf_opts["--with-nth"])
+    assert.is_nil(captured.opts.fzf_opts["--nth"])
+  end)
+
+  it("writes each emitted batch in one pipe write", function()
+    Fzf.pick_fancy({
       prompt = "pick",
-      items_provider = function()
-        return items
+      many = false,
+      items = function(emit, done)
+        emit({ items[1] })
+        emit({ items[2] })
+        done()
       end,
-    }, {
+    }, { on_choices = function() end })
+
+    local lines, writes = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
+    assert.are.equal(2, writes)
+  end)
+
+  it("maps returned lines back to their entries and answers with every choice", function()
+    local chosen
+    Fzf.pick_fancy({ prompt = "pick", many = true, items = source(items) }, {
       on_choices = function(rows)
         chosen = rows
       end,
     })
+    written()
 
-    assert.is_true(captured.fzf_opts["--multi"])
-    assert.are.equal("2..", captured.fzf_opts["--with-nth"])
-    assert.is_nil(captured.fzf_opts["--nth"])
-    assert.is_nil(captured.winopts)
-    captured.actions.default({ "2. second", "1. first" })
+    assert.is_true(captured.opts.fzf_opts["--multi"])
+    captured.opts.actions.default({ "2. second", "1. first" })
     vim.wait(500, function()
       return chosen ~= nil
     end)
@@ -62,56 +101,89 @@ describe("vantage.frontend.picker.fzf_lua", function()
     assert.are.equal("first", chosen[2].text)
   end)
 
-  it("previews the entry under the cursor", function()
-    Fzf.pick_multi({
+  it("asks for no marking when the flow acts on one entry", function()
+    Fzf.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+
+    assert.is_nil(captured.opts.fzf_opts["--multi"])
+  end)
+
+  it("previews the highlighted entry only when the flow asked for a preview", function()
+    Fzf.pick_fancy({
       prompt = "pick",
-      items_provider = function()
-        return items
+      many = false,
+      preview = function(entry)
+        return entry.text == "second" and { "two" } or nil
+      end,
+      items = source(items),
+    }, { on_choices = function() end })
+    written()
+
+    assert.are.equal("two", captured.opts.preview({ "2. second" }))
+    -- A nil answer keeps the pane, empty.
+    assert.are.equal("", captured.opts.preview({ "1. first" }))
+  end)
+
+  it("shows no preview pane without a preview function", function()
+    Fzf.pick_fancy({ prompt = "pick", many = false, items = source(items) }, { on_choices = function() end })
+
+    assert.is_nil(captured.opts.preview)
+  end)
+
+  it("starts a fresh run after a command that changed the list, and re-emits otherwise", function()
+    local runs = 0
+    Fzf.pick_fancy({
+      prompt = "pick",
+      many = false,
+      items = function(emit, done)
+        runs = runs + 1
+        emit(items)
+        done()
       end,
     }, {
       on_choices = function() end,
+      commands = {
+        {
+          "<C-x>",
+          function()
+            return true
+          end,
+        },
+        {
+          "<C-y>",
+          function()
+            return false
+          end,
+        },
+      },
     })
+    written()
+    assert.are.equal(1, runs)
 
-    assert.are.equal("two", captured.preview({ "2. second" }))
+    captured.opts.actions["ctrl-x"].fn({ "1. first" })
+    written()
+    assert.are.equal(2, runs)
+
+    captured.opts.actions["ctrl-y"].fn({ "1. first" })
+    local lines = written()
+    assert.are.same({ "1. first", "2. second", "<end>" }, lines)
+    assert.are.equal(2, runs)
   end)
 
-  it("hides the index prefix on a single pick and maps the entry back", function()
-    local chosen
-    Fzf.pick({
+  it("stops a running source when the picker closes", function()
+    local cancelled = false
+    Fzf.pick_fancy({
       prompt = "pick",
-      items_provider = function()
-        return items
+      many = false,
+      items = function(emit)
+        emit(items)
+        return function()
+          cancelled = true
+        end
       end,
-    }, {
-      on_choice = function(item)
-        chosen = item
-      end,
-    })
+    }, { on_choices = function() end })
 
-    assert.are.equal("2..", captured.fzf_opts["--with-nth"])
-    assert.is_nil(captured.fzf_opts["--nth"])
-    captured.actions.default({ "2. second" })
-    vim.wait(500, function()
-      return chosen ~= nil
-    end)
-
-    assert.are.equal("second", chosen.text)
-  end)
-
-  it("answers empty, with the read's reason, without opening", function()
-    captured = nil
-
-    local empty, err = Fzf.pick({
-      prompt = "pick",
-      items_provider = function()
-        return {}, "no server running"
-      end,
-    }, {
-      on_choice = function() end,
-    })
-
-    assert.is_true(empty)
-    assert.are.equal("no server running", err)
-    assert.is_nil(captured)
+    written()
+    captured.opts.winopts.on_close()
+    assert.is_true(cancelled)
   end)
 end)

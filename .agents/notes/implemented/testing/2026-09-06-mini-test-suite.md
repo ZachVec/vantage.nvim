@@ -24,11 +24,11 @@ Adopt a snacks.nvim-style headless suite:
   per Frontend module under `tests/frontend/`, and the two Backend specs. Unit
   specs exercise real buffers where the behavior is buffer-bound and fake
   Backend/Picker/Driver modules where a flow only needs the seam's contract.
-- `backend_tmux_spec` runs against a per-process private socket
+- `tests/backend/tmux_spec.lua` runs against a per-process private socket
   (`vantage-test-<pid>`), kills stale state before each case, and kills the
   server in teardown. It never touches the user's default `vantage` socket.
-  It covers create/list/groups/status/health/attach/same-Group retarget/
-  no-client cross-Group failure/capture/send_keys/kill.
+  It covers create/agents/groups/status/health/attach/same-Group retarget/
+  cross-Group relocation/no-client failure/capture/send_keys/kill.
 - `make test` is standalone: it is not wired into `make check`, and no CI
   workflow is added in this change.
 - One edge bug found while writing the suite is fixed in the same change:
@@ -72,5 +72,5 @@ decision that should not ride along with the first test-suite change.
 - The first `make test` run creates `.tests/` (gitignored) and needs network
   access; later runs reuse the installed dependencies.
 - `Util.tilde` no longer errors when `HOME` is unset.
-- The full cross-Group client relocation path and picker/terminal UI remain
-  uncovered until the follow-up UI test round.
+- Cross-Group client relocation is covered by `tests/backend/tmux_spec.lua`;
+  the real-UI picker/terminal behavior remains outside the suite.

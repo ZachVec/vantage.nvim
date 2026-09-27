@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The note float (the editable scratch window behind `:Vantage review` and the
@@ -35,7 +37,7 @@ normal split, unless the user opts out:
   to users.
 
 Geometry (centered `rounded` border, `width`/`height` formulas) and the
-title/footer text stay in the note editor (`vantage.frontend.note`); only the
+title/footer text stay in the note editor (`frontend/review.lua`); only the
 window-option behavior changed. Scope stays at `reviews.float` so later
 window-option keys have a home.
 
@@ -85,8 +87,8 @@ if geometry follows.
 - New public config key `reviews.float.style` ("inherit" default |
   "minimal"); defaults, LuaLS classes, README, and `doc/vantage.nvim.txt` are
   updated in this change.
-- Only `frontend/note.lua` (`Note.open`), `commands/review.lua`, and `config.lua`
-  change in code; the
+- Only the note editor (`frontend/review.lua`), `commands/review.lua`, and
+  `config.lua` change in code; the
   picker previews and the range tint in the source window are unaffected.
 - The float is a fresh scratch buffer, so buffer-local look (filetype
   formatting, `tabstop`, …) still does not follow the reviewed file — only

@@ -1,9 +1,7 @@
 --- The `:Vantage review` command and its sub-actions (add / list / clear):
 --- notes anchored to line ranges, batched through {reviews}.
 local Backend = require("vantage.backend")
-local Config = require("vantage.config")
 local Entries = require("vantage.frontend.entries")
-local Note = require("vantage.frontend.note")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
 local Terminal = require("vantage.frontend.terminal")
@@ -20,67 +18,12 @@ local PROMPT = Util.picker_prompt
 ---@return string cwd
 ---@return string? tool
 local function list_context()
-  local agent = Backend.focus(Terminal.pid())
+  local attachment = Terminal.attachment
+  local agent = attachment and attachment:focus() or nil
   if agent then
     return agent.cwd, agent.tool
   end
   return Util.cwd(), nil
-end
-
---- Jump to the review's start line (first non-blank column).
----@param review vantage.Review
----@return boolean
-local function jump_to_review(review)
-  if not vim.api.nvim_buf_is_valid(review.buf) then
-    return false
-  end
-  local win = vim.fn.bufwinid(review.buf)
-  if win ~= -1 then
-    vim.api.nvim_set_current_win(win)
-  else
-    vim.api.nvim_win_set_buf(0, review.buf)
-  end
-  local line = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.start_row, false)[1] or ""
-  local _, first = line:find("%S")
-  vim.api.nvim_win_set_cursor(0, { review.start_row, first and (first - 1) or 0 })
-  return true
-end
-
---- The raw `nvim_open_win` style for the note float, translated from the
---- review config's user-facing "inherit" | "minimal".
----@return string?
-local function note_style()
-  return Config.options.reviews.float.style == "minimal" and "minimal" or nil
-end
-
---- Open a review's note float: jump to its range, mark it active, and edit
---- its note (an empty commit deletes it). The title carries no reference: the
---- jump and the active range already say where you are.
----@param review vantage.Review
-local function open_note(review)
-  if not jump_to_review(review) then
-    return
-  end
-  Review.set_active(review.buf, review.id, true)
-  Note.open({
-    text = review.note,
-    title = "Review",
-    footer = "<Esc> save · empty deletes",
-    style = note_style(),
-    on_commit = function(note)
-      if note == "" then
-        -- Empty note = delete, after confirmation; the note UI owns no policy.
-        if vim.fn.confirm("Delete review?", "&Yes\n&No", 2) == 1 then
-          Review.delete(review.buf, review.id)
-        end
-      else
-        Review.edit(review.buf, review.id, note)
-      end
-    end,
-    on_close = function()
-      Review.set_active(review.buf, review.id, false)
-    end,
-  })
 end
 
 --- Reviews, sorted by (buffer name, start row). May be empty.
@@ -88,13 +31,16 @@ end
 local function spec()
   return {
     prompt = PROMPT,
-    items_provider = function()
+    many = false,
+    preview = Entries.preview,
+    items = function(emit, done)
       local cwd, tool = list_context()
       local items = {}
       for _, review in ipairs(Review.collect()) do
         items[#items + 1] = Entries.review(review, cwd, tool)
       end
-      return items
+      emit(items)
+      done()
     end,
   }
 end
@@ -109,12 +55,13 @@ local function delete_review(entry)
   return true
 end
 
---- Open the review picker; selecting a review opens its note float.
+--- Open the review picker; selecting a review opens its editing float.
 local function review_list()
-  local empty = Picker.pick(spec(), {
-    on_choice = function(entry)
+  Picker.pick_fancy(spec(), {
+    on_choices = function(entries)
+      local entry = entries[1]
       ---@cast entry vantage.picker.ReviewEntry
-      open_note(entry.review)
+      Review.edit(entry.review.buf, entry.review.id)
     end,
     commands = {
       {
@@ -126,9 +73,6 @@ local function review_list()
       },
     },
   })
-  if empty then
-    Util.warn("no reviews — add one with :Vantage review")
-  end
 end
 
 --- Add a review over the command's range (a visual selection, else the
@@ -152,18 +96,7 @@ local function review_add(line1, line2)
       line1, line2 = line2, line1
     end
   end
-  Note.open({
-    text = "",
-    title = "New Review",
-    footer = "<Esc> save",
-    style = note_style(),
-    insert = true,
-    on_commit = function(note)
-      if note ~= "" then
-        Review.add(buf, line1, line2, note)
-      end
-    end,
-  })
+  Review.create(buf, line1, line2)
 end
 
 --- Clear all reviews after a confirmation (built-in dialog, default No).

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 [Prompts](2026-08-31-prompts.md) shipped with `prompts = {}` — "nothing built
