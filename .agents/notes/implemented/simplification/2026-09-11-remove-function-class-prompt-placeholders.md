@@ -56,8 +56,8 @@ thing to keep current as parsers change.
 - Vantage's requirements drop to Neovim and tmux: no prompt needs an optional
   plugin.
 - Removing the placeholders is user-visible. A template that used them types
-  the literal token instead of failing the prompt, and `:checkhealth vantage`
-  reports the token as unknown until the template is edited.
+  the literal token instead of failing the prompt, and `Prompt.setup()` warns
+  about the unknown placeholder at setup until the template is edited.
 - No reference carries a `:C<col>` suffix anymore: a Tool's `format(file, loc)`
   hook sees `:L<row>` (Prompts) or `:L<start>-<end>` (Reviews), or nil for a
   whole file.

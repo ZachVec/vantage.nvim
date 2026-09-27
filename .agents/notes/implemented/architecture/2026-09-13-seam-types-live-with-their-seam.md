@@ -20,14 +20,15 @@ A seam's contract types live with the seam, and `AGENTS.md` now says so:
 - `vantage.Driver`, `vantage.Attachment`, and `vantage.Agent` live in
   `backend/init.lua`, next to the registry and the `REQUIRED` list: the
   Driver emits those records, so its file carries their shape.
-- The picker contract — `vantage.PickSpec`, `vantage.PickerCommand`,
-  `vantage.PickerCommandCtx`, `vantage.PickOpts`, `vantage.PickMultiOpts`,
-  `vantage.PlainSelectOpts`, `vantage.PickerCapabilities`, `vantage.PickerImpl`
-  — lives in `frontend/picker/init.lua`, the facade that validates capabilities
-  and commands.
+- The picker contract — `vantage.picker.Entry`, `vantage.picker.Source`,
+  `vantage.PickSpec`, `vantage.PickerCommand`, `vantage.PickerCommandCtx`,
+  `vantage.PickOpts`, `vantage.NaiveOpts`, `vantage.PickerCapabilities`,
+  `vantage.PickerImpl` — lives in `frontend/picker/init.lua`, the facade that
+  enforces capabilities.
 - `config.lua` keeps the option types (`vantage.Config`, `vantage.Tool`,
-  `vantage.Win`, `vantage.ReviewConfig`, `vantage.ReviewFloatConfig`,
-  `vantage.GatherConfig`) and `vantage.ReferenceFormat`.
+  `vantage.Win`, `vantage.WinKey`, `vantage.ReviewConfig`,
+  `vantage.ReviewFloatConfig`, `vantage.GatherConfig`) and
+  `vantage.ReferenceFormat`.
 
 `---@class` needs no `require` — LuaLS resolves the annotation across the
 workspace — so no module gained a runtime dependency, and

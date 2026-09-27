@@ -89,7 +89,8 @@ Frontend:
 Commands:
 
 - `:Vantage` subcommands: `show`, `hide`, `detach`, `status`, `review`, `kill`.
-- Terminal tokens via `cli.win.keys` (resolved in `commands/attach.lua`):
+- Terminal tokens via `cli.win.keys` (resolved in `commands/init.lua`, installed
+  by the Terminal on its own buffer):
   `hide`, `switch`, `prompt`, `files`, `buffers`. These exist only inside the
   terminal; `kill` moved out to a command.
 - Presence and target are separate commands: `show` owns presence (focus,
@@ -155,10 +156,12 @@ caller-declared parameter and the restore-mode branching that followed it.
   the Review list's `<c-x>` deletion is the same shape — a flow-owned picker
   command, not an entry method.
 - Each nvim instance has at most one terminal, whose client is identified by
-  the terminal job's pid. The later
+  the Attachment's View. The later
   [restore-per-client-views](2026-09-10-restore-per-client-views.md) note
   restores a View session per client so several instances can attach to one
-  Group and show different Agents independently.
+  Group and show different Agents independently, and
+  [backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md)
+  moves that identity off the terminal job's pid and onto the View.
 - `:Vantage kill` is a new user command; `switch`/`prompt` remain
   terminal-only, and there is no `:Vantage switch`/`:Vantage prompt`.
 - Tests mirror the layers (`tests/backend`, `tests/frontend`, `tests/commands`).

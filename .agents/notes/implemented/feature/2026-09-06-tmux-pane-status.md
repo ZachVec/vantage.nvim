@@ -31,14 +31,14 @@ without a long-lived process and without shared mutable counters to corrupt.
   explicit window option the Backend writes at `create()` time, so neither the
   border nor the data path derives the Group from tmux session topology (the
   `#{?#{session_group},…}` conditional is gone from window-scoped logic;
-  session-level enumeration in `group_views()`/`retarget()` keeps the
+  session-level enumeration in `group_sessions()`/`retarget()` keeps the
   fallback, because it queries sessions, where a window option cannot apply).
   Tool is `#{@agent-tool}` and cwd shows
   `#{@agent-cwd-tilde}`, and both are required create-time fields, so the
-  format carries no conditional at all: `create()` validates Tool non-empty
-  (its only write site; the sole caller always passes a `cli.tools` key, so
-  the only theoretical source was a pathological empty-string config key),
-  and Cwd goes through `Util.cwd()` — even when `getcwd(0)` yields an empty
+  format carries no conditional at all: `Config.apply` drops a `cli.tools`
+  entry with an empty name or a missing executable (the sole caller passes a
+  sanitized `cli.tools` key, so `@agent-tool` is never empty), and Cwd goes
+  through `Util.cwd()` — even when `getcwd(0)` yields an empty
   string (a deleted `:lcd` directory), `fnamemodify("", ":p")` falls back to
   the process cwd, so the option is never empty. The cwd option itself is
   written once at `create()` time (`Util.tilde`, the spawn directory with the
@@ -184,9 +184,9 @@ writer trivial and the display self-healing.
   README.md and doc/vantage.nvim.txt; the `State` glossary entry now records
   the surfaced vocabulary.
 - The border and the Agent data path treat Group as explicit window data:
-  `@agent-group` is written at `create()` like Tool and Cwd, and `list()`
+  `@agent-group` is written at `create()` like Tool and Cwd, and `agents()`
   reads it directly — the `#{?#{session_group},…}` conditional survives only
-  in session-level queries (`group_views()`, `retarget()`), where it is
+  in session-level queries (`group_sessions()`, `retarget()`), where it is
   inherent to tmux session groups.
 - Config-time validation: `setup()` drops invalid `cli.tools` entries (empty
   name, or a value without a non-empty `cmd` array) with a warning, keeping

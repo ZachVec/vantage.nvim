@@ -88,8 +88,8 @@ one expression inside `tool_reference`. The accessor existed for the call sites
 - A Review reads the same in the list, in its preview, and in the `{reviews}`
   send: one spelling, one base (the Focus's Cwd, or Neovim's cwd without a
   Focus). `frontend/entries.lua` spells no path of its own any more — the
-  hand-built `Util.tilde` + `:L` entry is gone, so `Util.tilde` now serves the
-  Agent entry alone.
+  hand-built `Util.tilde` + `:L` entry is gone, leaving `Util.tilde` two
+  callers: the Agent entry and the tmux Driver's `@agent-cwd-tilde`.
 - The note float is titled `Review`, and `New Review` when adding, instead of
   naming the Review's reference in the title.
 - "" no longer survives as an empty fragment in a Prompt or a Review: like nil,

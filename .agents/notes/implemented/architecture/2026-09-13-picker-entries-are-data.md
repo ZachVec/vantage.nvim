@@ -48,7 +48,7 @@ which makes `entries.lua` the first Frontend module to import the Backend — th
 direction the Frontend's own definition already describes.
 
 The flows keep what only they know: which entries to offer, what a choice means
-(`kind`), and their Picker commands. `select` / `delete` are gone; `on_choice`
+(`kind`), and their Picker commands. `select` / `delete` are gone; `on_choices`
 and a command's `rhs` read `entry.kind` and the payload the flow put there.
 `commands/review.lua`'s entry moved into the shared vocabulary with the rest,
 so no flow implements a preview.

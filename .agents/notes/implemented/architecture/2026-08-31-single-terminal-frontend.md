@@ -30,7 +30,7 @@ Tool binaries and keybindings are user-specific and non-portable; empty defaults
 
 - Free-text prompts (a new Group name) use `input()` directly, which is insert-mode by default.
 - The terminal is created lazily on first focus and re-targeted thereafter; closing it detaches the client and destroys only its View.
-- How that one window is presented (`cli.win.layout`, default `full` in a dedicated tab) is decided in the [full-terminal-layout note](../feature/2026-09-03-full-terminal-layout.md); its `<tool> · <cwd>` buffer title was removed in the [tmux pane border note](../feature/2026-09-06-tmux-pane-status.md).
+- How that one window is presented (`cli.win.layout`, default `float` — a full-editor-size borderless float; `full` is the dedicated-tab opt-out) is decided in the [float-terminal-layout-default note](../feature/2026-09-05-float-terminal-layout-default.md); its `<tool> · <cwd>` buffer title was removed in the [tmux pane border note](../feature/2026-09-06-tmux-pane-status.md).
 
 The attachment lifecycle (terminal exists ⇔ its client is attached) is owned by
 [the layered refactor note](2026-09-09-layered-frontend-backend-refactor.md).

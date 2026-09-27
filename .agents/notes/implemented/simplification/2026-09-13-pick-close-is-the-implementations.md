@@ -44,8 +44,9 @@ implementations. The snacks implementation still owns its own close — its
 `confirm` names the invoked-from window as the pick's main window, and the
 Terminal's window-entry rule restores the mode
 ([the Terminal-owns-its-mode note](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md))
-— and no longer wraps a flow callback; fzf-lua no longer sets
-`winopts.on_close`; `native` no longer calls one. `gather` and `prompt` are back
+— and no longer wraps a flow callback; fzf-lua sets no flow-restore callback
+(its current `winopts.on_close` only cancels the pick's item stream);
+`native` no longer calls one. `gather` and `prompt` are back
 to what a flow knows: which entries to offer and what a choice means.
 
 ## Alternatives considered

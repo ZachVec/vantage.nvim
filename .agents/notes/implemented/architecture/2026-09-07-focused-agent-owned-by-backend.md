@@ -44,5 +44,7 @@ records why the read stopped sharing a return value with the inventory.
   reflected on the next read.
 - Driver integration tests derive the Focus before and after
   retarget.
-- The current Driver/Picker result contract is owned by
-  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
+- The current Driver result contract is owned by
+  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md),
+  and the Picker interface by
+  [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

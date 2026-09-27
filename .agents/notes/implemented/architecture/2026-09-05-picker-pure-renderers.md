@@ -78,9 +78,9 @@ site. The callback result channel keeps each engine's native async shape.
   re-entry described in
   [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)
   and [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
-- The capability set above is this note's; the commands contract and the
-  facade's failure semantics are current as of
-  [composition-root-and-neutral-seams](2026-09-10-composition-root-and-neutral-seams.md).
+- The capability set above is this note's; the picker's current interface and
+  the facade's failure semantics are current as of
+  [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).
 
 The method, spec, and capability shapes above are superseded by
 [picker-two-interfaces](2026-09-18-picker-two-interfaces.md): implementations

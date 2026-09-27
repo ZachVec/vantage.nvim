@@ -27,8 +27,8 @@ never mixes renderer families:
 
 - `PickerImpl` gains one generic `pick_plain(items, { prompt, format_item },
   on_choice)` mirroring the `vim.ui.select` contract (cancel calls back with
-  nil). It backs the Agent-creation wizard's Tool and Group steps and
-  `:Vantage prompt`.
+  nil). It backs the Agent-creation Group step and the `prompt` terminal
+  action.
 - **snacks** implements `pick_plain` with snacks' own select (its compact
   select layout: preview hidden, non-terminal).
 - **fzf-lua** implements `pick_plain` with fzf-lua's own ui_select shim.

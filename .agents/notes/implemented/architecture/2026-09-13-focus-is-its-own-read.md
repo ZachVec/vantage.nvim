@@ -38,8 +38,9 @@ View that is gone is `nil` plus the reason).
   that string as-is; nothing branches on which reason it is, so the reasons
   stay messages rather than a cause vocabulary.
 
-The command layer passes the pid in (`Terminal.pid()`); the Backend never
-reaches for it, which keeps `frontend → backend` one-way.
+The command layer reads the Focus through the Attachment the Terminal holds
+(`Attachment:focus()`); the Backend never reaches for a process pid, which
+keeps `frontend → backend` one-way.
 
 **Reference spelling is configuration.** `Config.apply()` gives every surviving
 `cli.tools` entry a `format` (defaulting to config's own `reference`), and
@@ -70,9 +71,9 @@ is a dependency-checking category rather than a domain term.
 Choosing an Agent-list entry used to run flow code from inside the entry
 (`target(done)`), which made a Tool entry start a second picker and create the
 Agent itself, and made a cancelled Group choice end the whole flow silently.
-Entries are now data: `select()` returns `{ kind = "focused" | "agent" | "new" }`,
-and the flow — which owns creation, `retarget`, and opening the Terminal —
-applies it. This is the shape
+Entries are now data: the Agent list's entries carry
+`kind` = `"focused" | "agent" | "tool"`, and the flow — which owns creation,
+`retarget`, and opening the Terminal — applies it. This is the shape
 [layered-frontend-backend-refactor](2026-09-09-layered-frontend-backend-refactor.md)
 already called for ("no callback is injected into entries"); the code had
 drifted back.
@@ -104,9 +105,8 @@ change can promote the reasons to a typed shape.
 
 The fact being read — which tmux window a client displays — is multiplexer
 state, and the Backend already owns every other read of it. A Frontend module
-composing `Terminal.pid()` with the multiplexer's client read would move the
-matching rule out of the Backend and give the Frontend a reason to know about
-window ids.
+reading the client's live multiplexer state would move the matching rule out of
+the Backend and give the Frontend a reason to know about window ids.
 
 ### Why not give `Config.apply` a `formatter` concept instead of defaulting `format`?
 

@@ -25,20 +25,21 @@ after the last one, and no trailing newline.
 
 - **Enumeration belongs to the flow.** `files` runs `fd --type f --type l
   --color never -E .git`, then `rg --files --no-messages --color never -g
-  '!.git'`, then a pure-Lua walk that always skips `.git` (no ignore
-  semantics — the documented cost of a minimal install). An empty successful
-  listing is an answer, not a reason to fall through. `buffers` lists buffers
+  '!.git'`, then `find . -type f -not -path '*/.git/*'` (no ignore semantics —
+  the documented cost of the crudest fallback). An empty successful listing is
+  an answer, not a reason to fall through. `buffers` lists buffers
   that are `buflisted`, of buftype `""`, named, and readable on disk, most
   recently used first; a modified buffer is displayed with a `[+]` marker
   because the Agent reads the on-disk content, while the sent reference stays
   a bare `<path>`.
-- **The Picker gained a third capability, `multi`.** `Picker.pick_multi(spec,
-  opts)` returns every confirmed entry through `on_choices`: snacks confirms
+- **A pick gained the flow's `many` request.** `Picker.pick_fancy(spec, opts)`
+  returns every confirmed entry through `on_choices`: snacks confirms
   `picker:selected({ fallback = true })`, fzf-lua runs `fzf_exec` with
   `fzf_opts = { ["--multi"] = true }` and maps every returned entry back
   through the numeric-prefix round-trip, and native — which has no
   multi-select — degrades to a single choice, so `on_choices` always receives
-  a list.
+  a list
+  ([picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md)).
 - **The pick's close belongs to the implementation**, not to the flow: gather
   passes no close callback, because the snacks Picker's own close handler
   already returns focus to the terminal the pick was invoked from (see
@@ -98,12 +99,13 @@ unsaved edits are not on disk. Where content is genuinely wanted, Reviews'
 
 ## Consequences
 
-- `files`/`buffers` work on a minimal install (the Lua walk is the fallback)
-  and inherit the Picker's capability degradation: several entries under
+- `files`/`buffers` work on a minimal install (the `find` fallback) and
+  inherit the Picker's request degradation: several entries under
   `fzf-lua`/`snacks`, one entry at a time under `native`.
-- The Picker contract now declares three capabilities; glossary and
-  architecture describe `preview`/`command`/`multi` and the single-choice
-  degradation.
+- The pick states its own `many` and `preview` requests; `command` is the
+  Picker's one declared capability, and the single-choice degradation is
+  unchanged
+  ([picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md)).
 - Gathered references are bare paths; the Tool's `format` hook owns their
   dialect decoration and has to tell a rendered prompt from a lone reference.
 - Gathered references are joined and pasted by `commands/gather.lua` itself;

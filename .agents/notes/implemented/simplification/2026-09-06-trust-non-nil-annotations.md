@@ -29,7 +29,7 @@ Shipped removals:
 - `frontend/review.lua` `M.set_active` drops its `M.get()` re-check (keeps the
   `nvim_buf_is_valid` seam check).
 - `backend/tmux.lua` `M.create` drops the `opts.tool == nil or == ""` guard;
-  `M.attach` drops the `target and target ~= ""` guard; `M.list` drops the
+  `M.attach` drops the `target and target ~= ""` guard; `M.agents` drops the
   `tool ~= ""` empty-check — `tool` is always a non-empty `cli.tools` key.
 - `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `commands/attach.lua`
   drops the `agent.tool or agent.cmd` display fallback and `commands/prompt.lua`
@@ -43,7 +43,10 @@ Shipped removals:
 - `commands/prompt.lua` `send_prompt` drops `if template == nil`; the name comes
   from `pairs(Config.options.prompts)`.
 - `frontend/picker/fzf_lua.lua` and `frontend/picker/snacks.lua` trust their resolved options;
-  the current Picker facade validates command descriptors before dispatch.
+  the Picker facade does no runtime validation of command descriptors —
+  `tests/commands/picker_commands_spec.lua` enforces their shape and
+  uniqueness
+  ([owners-and-annotations](2026-09-26-owners-and-annotations-replace-runtime-guards.md)).
 
 Kept, deliberately:
 
