@@ -55,8 +55,10 @@ internal. A renderer declares the capabilities the
 `opts.commands` is a list of
 keymap-shaped `{ lhs, rhs, desc? }` descriptors; `rhs(ctx)` receives
 `{ item, items }` and returns `true` when the list may have changed. Commands
-are globally bound, duplicate `lhs` values fail fast, and a renderer without
-`command` drops them. `spec.group`, the `dynamic` option, and semantic
+are globally bound; a renderer without `command` drops them, and the flow
+conformance spec enforces well-formed descriptors and unique `lhs` values
+([owners-and-annotations](../simplification/2026-09-26-owners-and-annotations-replace-runtime-guards.md)).
+`spec.group`, the `dynamic` option, and semantic
 `pick_agent`/`pick_kill`/`pick_review` methods are gone; group scoping is a
 flow-owned ordinary command.
 

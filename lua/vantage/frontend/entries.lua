@@ -117,7 +117,7 @@ local PREVIEW = {
 ---@param entry vantage.picker.Entry
 ---@return string[]?
 function M.preview(entry)
-  return (PREVIEW[entry.kind] or none)(entry)
+  return PREVIEW[entry.kind](entry)
 end
 
 --- An Agent entry. The pinned Focus entry carries `kind = "focused"`.
@@ -189,7 +189,7 @@ function M.review(review, cwd, tool)
     -- honest answer a send would give.
     lines = Review.location(review, cwd, nil)
   end
-  local first = (vim.split(review.note, "\n", { plain = true })[1] or ""):gsub("%s+", " ")
+  local first = vim.split(review.note, "\n", { plain = true })[1]:gsub("%s+", " ")
   return {
     kind = "review",
     text = lines .. (first ~= "" and ("  " .. first) or ""),

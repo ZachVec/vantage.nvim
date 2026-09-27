@@ -61,12 +61,6 @@ describe("vantage.backend", function()
     assert.are.equal("'sh'", driver.created[1].cmd)
   end)
 
-  it("returns an error for an unknown tool", function()
-    local agent, err = Backend.create({ group = "g", tool = "missing", cwd = "/tmp" })
-    assert.are.equal(nil, agent)
-    assert.are.equal("unknown tool 'missing'", err)
-  end)
-
   it("derives groups once each, in the agents' order", function()
     driver.agent_list = {
       { id = "@1", group = "z" },

@@ -180,12 +180,14 @@ function M.pick_fancy(spec, opts)
     },
   }
   if spec.preview then
+    ---@type fun(entry: vantage.picker.Entry): string[]?
+    local preview = spec.preview
     pick_opts.preview = function(selected)
       local entry = chosen_of(selected)[1]
-      if not entry or not spec.preview then
+      if not entry then
         return ""
       end
-      local lines = spec.preview(entry)
+      local lines = preview(entry)
       if not lines then
         return ""
       end

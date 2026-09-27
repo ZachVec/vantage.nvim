@@ -20,6 +20,9 @@ local M = {}
 
 local NS = vim.api.nvim_create_namespace("vantage_review")
 
+--- The fields a Review's `item` template may name.
+local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
+
 --- registry[buf][extmark_id] = vantage.Review
 ---@type table<integer, table<integer, vantage.Review>>
 local registry = {}
@@ -51,6 +54,20 @@ function M.setup()
   end
   link("VantageReview", "Special")
   link("VantageReviewActive", "WarningMsg")
+
+  local unknown = {}
+  for token in Config.options.reviews.item:gmatch("{([%w_]+)}") do
+    if not FIELDS[token] then
+      unknown[token] = true
+    end
+  end
+  local names = vim.tbl_map(function(token)
+    return "{" .. token .. "}"
+  end, vim.tbl_keys(unknown))
+  if #names > 0 then
+    table.sort(names)
+    Util.warn(("reviews.item: unknown placeholder(s) %s"):format(table.concat(names, ", ")))
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -62,7 +79,7 @@ end
 ---@param start_row integer
 ---@param end_row integer
 ---@param note string
----@return vantage.Review?
+---@return vantage.Review
 function M.add(buf, start_row, end_row, note)
   local last = vim.api.nvim_buf_line_count(buf)
   start_row = math.max(1, start_row)
@@ -75,9 +92,6 @@ function M.add(buf, start_row, end_row, note)
     number_hl_group = "VantageReview",
     strict = false,
   })
-  if id == 0 then
-    return nil
-  end
   local review = { buf = buf, id = id, start_row = start_row, end_row = end_row, note = note }
   registry[buf] = registry[buf] or {}
   registry[buf][id] = review
@@ -144,8 +158,8 @@ function M.collect()
     end
   end
   table.sort(out, function(a, b)
-    local na = vim.api.nvim_buf_get_name(a.buf) or ""
-    local nb = vim.api.nvim_buf_get_name(b.buf) or ""
+    local na = vim.api.nvim_buf_get_name(a.buf)
+    local nb = vim.api.nvim_buf_get_name(b.buf)
     if na ~= nb then
       return na < nb
     end
@@ -200,7 +214,7 @@ local function jump_to_review(review)
   else
     vim.api.nvim_win_set_buf(0, review.buf)
   end
-  local line = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.start_row, false)[1] or ""
+  local line = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.start_row, false)[1]
   local _, first = line:find("%S")
   vim.api.nvim_win_set_cursor(0, { review.start_row, first and (first - 1) or 0 })
   return true
@@ -211,7 +225,7 @@ end
 ---@param opts { text: string, title: string, footer: string, insert?: boolean, on_commit: fun(note: string), on_close?: fun() }
 local function open_float(opts)
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(opts.text or "", "\n", { plain = true }))
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(opts.text, "\n", { plain = true }))
   vim.bo[buf].bufhidden = "wipe"
 
   local width = math.max(40, math.min(80, math.floor(vim.o.columns * 0.5)))
@@ -315,8 +329,6 @@ end
 -- Rendering ({reviews} placeholder)
 -- ---------------------------------------------------------------------------
 
-local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
-
 --- The review's selected lines, with leading/trailing blank lines dropped.
 ---@param review vantage.Review
 ---@return string
@@ -337,7 +349,7 @@ end
 ---@param tool? string the focused Tool's reference dialect; nil spells the default
 ---@return string? nil when the location has no reference
 local function field(review, name, cwd, tool)
-  local path = vim.api.nvim_buf_get_name(review.buf) or ""
+  local path = vim.api.nvim_buf_get_name(review.buf)
   if name == "note" then
     return review.note
   elseif name == "lines" then

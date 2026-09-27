@@ -111,6 +111,19 @@ describe("vantage.frontend.terminal", function()
     assert.is_nil(Terminal.window)
   end)
 
+  it("reopens the hidden buffer after the window is closed out of band", function()
+    Config.options.cli.win.layout = "float"
+    assert.is_true(open())
+    local buffer = Terminal.buffer
+
+    vim.api.nvim_win_close(Terminal.window, true)
+
+    assert.is_nil(Terminal.window) -- the WinClosed owner cleared it
+    assert.is_true(Terminal.show())
+    assert.are.equal(buffer, vim.api.nvim_win_get_buf(Terminal.window))
+    Terminal.destroy()
+  end)
+
   it("owns the mode with one window-entry rule, installed once", function()
     Terminal.setup(function(rhs)
       return rhs
@@ -147,45 +160,40 @@ describe("vantage.frontend.terminal", function()
     Terminal.destroy()
   end)
 
-  it("binds a token verbatim when no resolver was installed", function()
-    -- Reload so this runs against a Terminal that no spec has called
-    -- `setup` on — the identity default is the state under test.
+  it("refuses to open before setup installed the resolver", function()
     Helpers.reload_vantage()
     local Fresh = require("vantage.frontend.terminal")
-    local FreshConfig = require("vantage.config")
-    FreshConfig.options.cli.win.keys = { { "<c-s>", "switch" } }
+    require("vantage.config").options.cli.win.keys = { { "<c-s>", "switch" } }
 
     local jobstart = vim.fn.jobstart
     vim.fn.jobstart = function()
       return 4242
     end
-    local ok, opened = pcall(Fresh.open, { "attach" })
+    local ok, err = pcall(Fresh.open, { "attach" })
     vim.fn.jobstart = jobstart
-    assert(ok, opened)
-    assert.is_true(opened)
 
-    assert.are.equal("switch", mapped(Fresh.buffer, "<c-s>").rhs)
+    assert.is_false(ok)
+    assert.is_true(tostring(err):find("Terminal.setup", 1, true) ~= nil)
     Fresh.destroy()
   end)
 
-  it("warns on a malformed entry and keeps installing the rest", function()
+  it("drops a malformed keymap entry at setup and installs the rest", function()
     local notified = {}
     local notify = vim.notify
     vim.notify = function(msg, level)
       notified[#notified + 1] = { msg, level }
     end
-    Config.options.cli.win.keys = { { "<c-x>" }, { "<c-y>", "yy" } }
+    Config.apply({ cli = { win = { keys = { { "<c-x>" }, { "<c-y>", "yy" } } } } })
 
-    local ok, opened = pcall(open)
     vim.notify = notify
 
-    assert(ok, opened)
-    assert.is_true(opened)
     assert.are.equal(
-      "vantage: keymap entry must be a 4-tuple { lhs, rhs, mode?, desc? }",
+      "vantage: dropping malformed cli.win.keys entry 1: expected { lhs, rhs, mode?, desc? }",
       notified[1] and notified[1][1]
     )
     assert.are.equal(vim.log.levels.WARN, notified[1] and notified[1][2])
+
+    assert.is_true(open())
     assert.is_nil(mapped(Terminal.buffer, "<c-x>"))
     assert.are.equal("yy", mapped(Terminal.buffer, "<c-y>").rhs)
     Terminal.destroy()

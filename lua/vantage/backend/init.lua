@@ -122,15 +122,14 @@ function M.inventory()
 end
 
 --- Create an Agent from a Tool entry: resolve the tool to its command, then
---- delegate. The Group is created implicitly when it does not exist.
+--- delegate. `opts.tool` is a `cli.tools` key — `Config.apply` has already
+--- dropped invalid entries — so the lookup cannot miss. The Group is created
+--- implicitly when it does not exist.
 ---@param opts { group: string, tool: string, cwd: string }
 ---@return vantage.Agent?
 ---@return string?
 function M.create(opts)
   local tool = Config.options.cli.tools[opts.tool]
-  if not tool then
-    return nil, ("unknown tool '%s'"):format(opts.tool)
-  end
   local cmd = Util.shell_join(tool.cmd)
   return M.get().create({ group = opts.group, cmd = cmd, cwd = opts.cwd, tool = opts.tool })
 end

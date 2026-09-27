@@ -146,48 +146,6 @@ describe("vantage.frontend.picker", function()
     assert.is_nil(received.on_close)
   end)
 
-  it("rejects duplicate command lhs values", function()
-    impl({
-      capabilities = { command = true },
-      pick_fancy = function() end,
-      pick_naive = function() end,
-    })
-    Picker.setup()
-
-    local ok, err = pcall(Picker.pick_fancy, pick_spec(), {
-      on_choices = function() end,
-      commands = {
-        {
-          "<C-x>",
-          function()
-            return true
-          end,
-        },
-        {
-          "<C-x>",
-          function()
-            return true
-          end,
-        },
-      },
-    })
-    assert.is_false(ok)
-    assert.is_true(tostring(err):find("duplicate picker command", 1, true) ~= nil)
-  end)
-
-  it("requires on_choices for a fancy pick", function()
-    impl({
-      capabilities = { command = false },
-      pick_fancy = function() end,
-      pick_naive = function() end,
-    })
-    Picker.setup()
-
-    local ok, err = pcall(Picker.pick_fancy, pick_spec(), {})
-    assert.is_false(ok)
-    assert.is_true(tostring(err):find("on_choices", 1, true) ~= nil)
-  end)
-
   it("forwards a fancy pick unchanged and answers nothing of its own", function()
     local received_spec, received_opts
     impl({

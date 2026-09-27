@@ -41,6 +41,9 @@
 ---@class vantage.PickerCommand A keymap-shaped picker command:
 --- `{ lhs, rhs, desc? }`. `rhs` receives the neutral context and returns true
 --- when the item list may have changed, which restarts the pick's item stream.
+--- The facade does not validate these at runtime; the flow conformance spec
+--- (`tests/commands/picker_commands_spec.lua`) enforces a non-empty string
+--- `lhs`, a function `rhs`, and unique `lhs` values within one pick.
 ---@field [1] string lhs
 ---@field [2] fun(ctx: vantage.PickerCommandCtx): boolean
 ---@field desc? string
@@ -147,42 +150,12 @@ function M.capabilities()
   return get().capabilities
 end
 
---- Validate and normalize flow commands before handing them to a renderer.
----@param commands? vantage.PickerCommand[]
----@return vantage.PickerCommand[]?
-local function normalize_commands(commands)
-  if not commands or #commands == 0 then
-    return nil
-  end
-  local seen = {}
-  for index, command in ipairs(commands) do
-    local lhs, rhs = command[1], command[2]
-    if type(lhs) ~= "string" or lhs == "" then
-      error(("vantage: picker command %d has no lhs"):format(index), 0)
-    end
-    if type(rhs) ~= "function" then
-      error(("vantage: picker command '%s' rhs must be a function"):format(lhs), 0)
-    end
-    if seen[lhs] then
-      error(("vantage: duplicate picker command lhs '%s'"):format(lhs), 0)
-    end
-    seen[lhs] = true
-  end
-  return commands
-end
-
 --- Render a streaming pick through the configured implementation.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 function M.pick_fancy(spec, opts)
   local impl = get()
-  if type(opts.on_choices) ~= "function" then
-    error("vantage: picker opts.on_choices must be a function", 0)
-  end
-  local commands = normalize_commands(opts.commands)
-  if commands and not impl.capabilities.command then
-    commands = nil
-  end
+  local commands = impl.capabilities.command and opts.commands or nil
   impl.pick_fancy(spec, {
     on_choices = opts.on_choices,
     commands = commands,

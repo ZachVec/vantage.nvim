@@ -34,16 +34,16 @@ local M = {
 }
 
 --- The resolver `open` applies to every cli.win.keys `rhs`, installed once by
---- the composition root. It stays identity until then, so a Terminal opened
---- without setup still binds a plain `rhs` verbatim.
----@type vantage.TerminalActionResolver
-local resolver = function(rhs)
-  return rhs
-end
+--- the composition root. Opening before setup is a programming error, so the
+--- install asserts it instead of binding raw `rhs` strings.
+---@type vantage.TerminalActionResolver?
+local resolver
 
 --- Install the resolver that answers what a cli.win.keys `rhs` string means,
---- and the rule that owns the Terminal's mode: entering the Terminal's window
---- puts its client back in terminal mode.
+--- the rule that owns the Terminal's mode — entering the Terminal's window
+--- puts its client back in terminal mode — and the rule that owns the
+--- Terminal's window handle: a window the user closes out of band clears
+--- `M.window`, leaving the hidden buffer and its client alive.
 ---
 --- The Terminal has no Normal-mode state of its own. A Picker opened over it
 --- leaves it in Normal for as long as the pick is up — the picker's input is a
@@ -57,11 +57,11 @@ end
 ---@param resolve vantage.TerminalActionResolver
 function M.setup(resolve)
   resolver = resolve
-  local group = vim.api.nvim_create_augroup("vantage_terminal_mode", { clear = true })
+  local mode_group = vim.api.nvim_create_augroup("vantage_terminal_mode", { clear = true })
   vim.api.nvim_create_autocmd("WinEnter", {
-    group = group,
+    group = mode_group,
     callback = function()
-      if not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
+      if not M.buffer then
         return
       end
       if vim.api.nvim_win_get_buf(vim.api.nvim_get_current_win()) ~= M.buffer then
@@ -70,16 +70,26 @@ function M.setup(resolve)
       vim.cmd("startinsert")
     end,
   })
+  local lifecycle_group = vim.api.nvim_create_augroup("vantage_terminal", { clear = true })
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = lifecycle_group,
+    callback = function(args)
+      if M.window and tonumber(args.match) == M.window then
+        M.window = nil
+      end
+    end,
+  })
 end
 
 local function reset()
   M.job, M.buffer, M.window, M.attachment = nil, nil, nil, nil
 end
 
---- True if the terminal window is currently open.
+--- True if the terminal window is currently open. The `WinClosed` rule keeps
+--- `M.window` from outliving the window, so a non-nil window is a live one.
 ---@return boolean
 local function is_open()
-  return M.window ~= nil and vim.api.nvim_win_is_valid(M.window)
+  return M.window ~= nil
 end
 
 --- Take custody of the Attachment this terminal's client sits on. It is the
@@ -98,22 +108,14 @@ local function configure_window()
   vim.wo[M.window].cursorline = false
 end
 
---- Apply one cli.win.keys entry to `buffer`, resolving its rhs first.
+--- Apply one validated cli.win.keys entry to `buffer`, resolving its rhs first.
 ---@param buffer integer
 ---@param keymap table
-local function apply_key(buffer, keymap)
+---@param resolve vantage.TerminalActionResolver
+local function apply_key(buffer, keymap, resolve)
   local lhs, rhs = keymap[1], keymap[2]
-  if not lhs or rhs == nil then
-    Util.warn("keymap entry must be a 4-tuple { lhs, rhs, mode?, desc? }")
-    return
-  end
-  rhs = resolver(rhs)
-  local mode = keymap.mode or "n"
-  if type(mode) == "table" then
-    mode = table.concat(mode, "")
-  end
-  local modes = vim.split(mode, "", { plain = true })
-  local ok, err = pcall(vim.keymap.set, modes, lhs, rhs, {
+  rhs = resolve(rhs)
+  local ok, err = pcall(vim.keymap.set, keymap.mode or "n", lhs, rhs, {
     buffer = buffer,
     desc = keymap.desc,
     silent = true,
@@ -129,8 +131,9 @@ end
 --- goes through the resolver `setup` installed.
 ---@param buffer integer
 local function install_keys(buffer)
-  for _, keymap in ipairs(Config.options.cli.win.keys or {}) do
-    apply_key(buffer, keymap)
+  local resolve = assert(resolver, "vantage: Terminal.setup() must run before Terminal.open()")
+  for _, keymap in ipairs(Config.options.cli.win.keys) do
+    apply_key(buffer, keymap, resolve)
   end
 end
 
@@ -145,16 +148,12 @@ local function open_win(buffer)
     -- window's statusline row cannot be removed per window while 'laststatus'
     -- >= 2. The float's per-frame terminal-cursor redraw can flicker on some
     -- Agent-TUI repaints; `full` (a dedicated tab) is the opt-out.
-    local width = math.floor(vim.o.columns * (cfg.float.width or 0.9))
-    local height = math.floor(vim.o.lines * (cfg.float.height or 0.9))
+    local width = math.floor(vim.o.columns * cfg.float.width)
+    local height = math.floor(vim.o.lines * cfg.float.height)
     width = math.max(width, 40)
     height = math.max(height, 10)
     local col = math.floor((vim.o.columns - width) / 2)
     local row = math.floor((vim.o.lines - height) / 2)
-    local border = cfg.float.border
-    if border == false then
-      border = "none"
-    end
     return vim.api.nvim_open_win(buffer, true, {
       relative = "editor",
       width = width,
@@ -162,7 +161,7 @@ local function open_win(buffer)
       row = row,
       col = col,
       style = "minimal",
-      border = border,
+      border = cfg.float.border,
     })
   end
 
@@ -184,14 +183,12 @@ local function open_win(buffer)
   end
   vim.api.nvim_win_set_buf(0, buffer)
   if layout == "left" or layout == "right" then
-    local width = cfg.split.width or 0
-    if width > 0 then
-      vim.api.nvim_win_set_width(0, width)
+    if cfg.split.width > 0 then
+      vim.api.nvim_win_set_width(0, cfg.split.width)
     end
   else
-    local height = cfg.split.height or 0
-    if height > 0 then
-      vim.api.nvim_win_set_height(0, height)
+    if cfg.split.height > 0 then
+      vim.api.nvim_win_set_height(0, cfg.split.height)
     end
   end
   return vim.api.nvim_get_current_win()
@@ -222,7 +219,7 @@ end
 ---@return boolean
 function M.show()
   if not is_open() then
-    if not M.buffer or not vim.api.nvim_buf_is_valid(M.buffer) then
+    if not M.buffer then
       return false
     end
     M.window = open_win(M.buffer)
@@ -236,14 +233,14 @@ end
 --- Destroy the terminal: close the window, stop the job (detaching the
 --- client; Agents keep running), delete the buffer, and reset state.
 function M.destroy()
-  if M.window and vim.api.nvim_win_is_valid(M.window) then
+  if M.window then
     pcall(vim.api.nvim_win_close, M.window, true)
   end
   if M.job and M.job > 0 then
     pcall(vim.fn.jobstop, M.job)
     M.job = nil
   end
-  if M.buffer and vim.api.nvim_buf_is_valid(M.buffer) then
+  if M.buffer then
     pcall(vim.api.nvim_buf_delete, M.buffer, { force = true })
   end
   reset()
@@ -253,6 +250,7 @@ end
 --- install cli.win.keys on its buffer.
 ---@param argv string[]
 ---@return boolean
+---@return string? failure reason, when false
 function M.open(argv)
   M.destroy()
 
@@ -268,9 +266,8 @@ function M.open(argv)
 
   local job = vim.fn.jobstart(argv, { term = true })
   if job <= 0 then
-    Util.notify("failed to start the terminal")
     M.destroy()
-    return false
+    return false, "failed to start the terminal"
   end
   M.job = job
 
@@ -283,9 +280,7 @@ function M.open(argv)
         if M.buffer ~= buffer then
           return -- superseded by a newer terminal
         end
-        if vim.api.nvim_buf_is_valid(buffer) then
-          pcall(vim.api.nvim_buf_delete, buffer, { force = true })
-        end
+        pcall(vim.api.nvim_buf_delete, buffer, { force = true })
         reset()
       end)
     end,

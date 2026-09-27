@@ -21,8 +21,10 @@ unload — are the boundary: validated once at the seam, trusted after.
 
 Shipped removals:
 
-- `frontend/review.lua` `field()` returns `string` (its unknown-name fallthrough now
-  returns `""`); `render_item` and `M.location` drop the dead `or ""`.
+- `frontend/review.lua` `field()`'s unknown-name fallthrough returns `""`.
+  `render_item` and `M.location` keep their `or ""` tails: a `lines`/`file`
+  field is still nil when the Tool's hook declines a reference, and the empty
+  string is that field's no-reference rendering.
 - `frontend/review.lua` `M.get` drops a dead `or nil` tail (keeps `and by_id`).
 - `frontend/review.lua` `M.set_active` drops its `M.get()` re-check (keeps the
   `nvim_buf_is_valid` seam check).
@@ -32,8 +34,10 @@ Shipped removals:
 - `config.lua` `vantage.Agent.tool` tightens from `tool?` to `tool`; `commands/attach.lua`
   drops the `agent.tool or agent.cmd` display fallback and `commands/prompt.lua`
   drops the `agent.tool and` guard — `tool` is never nil for a created Agent.
-- `frontend/terminal.lua` `open_win` drops the `width and` / `height and` re-checks (the
-  `or 0` default already made them non-nil).
+- `frontend/terminal.lua` `open_win` drops the `width and` / `height and` re-checks.
+  The `or 0` defaults they read were later removed when `Config.apply` took
+  over `cli.win` validation
+  ([setup-validates-config](2026-09-26-setup-validates-config-runtime-trusts-it.md)).
 - `commands/attach.lua` creation drops `if not tool`; the name is a
   `sanitize_tools`-validated `cli.tools` key.
 - `commands/prompt.lua` `send_prompt` drops `if template == nil`; the name comes

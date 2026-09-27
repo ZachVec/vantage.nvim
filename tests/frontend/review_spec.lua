@@ -227,4 +227,18 @@ describe("vantage.frontend.review", function()
     Review.clear()
     assert.are.equal(nil, Review.render("/tmp"))
   end)
+
+  it("warns at setup about a reviews.item template naming an unknown placeholder", function()
+    local notified = {}
+    local original_notify = vim.notify
+    vim.notify = function(msg)
+      notified[#notified + 1] = msg
+    end
+    Config.options.reviews.item = "{linse} {note}"
+
+    Review.setup()
+    vim.notify = original_notify
+
+    assert.is_true(notified[1]:find("{linse}", 1, true) ~= nil)
+  end)
 end)

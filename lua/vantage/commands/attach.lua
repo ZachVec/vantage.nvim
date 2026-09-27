@@ -224,11 +224,9 @@ end
 
 --- Re-point the live Terminal to another Agent.
 function M.switch()
-  local attachment = Terminal.attachment
-  if not attachment then
-    Util.warn("no terminal — use :Vantage show first")
-    return
-  end
+  -- `switch` is installed only on the Terminal's own buffer, so its client
+  -- exists by construction.
+  local attachment = assert(Terminal.attachment, "vantage: switch needs an attached terminal")
 
   pick(function(agent)
     local ok, err = attachment:retarget(agent)

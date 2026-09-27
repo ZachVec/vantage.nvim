@@ -28,9 +28,10 @@ A picker declares exactly three capabilities:
 `PickOpts` carries `on_choice` and optional `commands`. A command is a
 keymap-shaped descriptor `{ lhs, rhs, desc? }`; `rhs(ctx)` receives the
 neutral `{ item, items }` context and returns `true` when the item list may
-have changed. Commands are globally bound, duplicate `lhs` values fail fast,
-and a renderer without `command` drops them. Group scoping is an ordinary
-command owned by the flow, not a Picker field.
+have changed. Commands are globally bound; a renderer without `command` drops
+them, and the flow conformance spec enforces well-formed descriptors and
+unique `lhs` values. Group scoping is an ordinary command owned by the flow,
+not a Picker field.
 
 The empty-list policy stays single-sourced: `Picker.pick` returns `boolean
 empty`; the caller emits its flow-specific warning. Preview content is

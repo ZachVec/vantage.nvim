@@ -122,7 +122,7 @@ local function names_of(entries)
 end
 
 function M.run(args)
-  local fargs = args.fargs or {}
+  local fargs = args.fargs
   local subcommand = fargs[1]
   if subcommand == nil then
     usage()

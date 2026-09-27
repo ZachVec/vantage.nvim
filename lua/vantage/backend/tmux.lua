@@ -315,7 +315,8 @@ function M.create(opts)
   if created_session then
     local config_ok, config_err = apply_global_config()
     if not config_ok then
-      return nil, create_error(config_err or "failed to apply tmux settings", true, opts.group, "")
+      local reason = assert(config_err, "vantage: apply_global_config failed without a reason")
+      return nil, create_error(reason, true, opts.group, "")
     end
     result = exec("display", "-p", "-t", opts.group, "#{window_id}")
     if result.code ~= 0 then
@@ -453,7 +454,7 @@ function M.attach(agent, launch)
   local started, launch_err = launch(tmux_argv("attach-session", "-t", view))
   if not started then
     local cleanup_ok, cleanup_err = close_view(view)
-    local reason = launch_err or "failed to start the terminal"
+    local reason = assert(launch_err, "vantage: attach launch failed without a reason")
     if not cleanup_ok then
       return nil, reason .. "; " .. (cleanup_err or "rollback failed")
     end

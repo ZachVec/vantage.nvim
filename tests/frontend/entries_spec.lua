@@ -103,7 +103,6 @@ describe("vantage.frontend.entries", function()
   it("previews through the one kind-keyed preview function", function()
     assert.is_nil(Entries.preview(Entries.tool("codex")))
     assert.is_nil(Entries.preview(Entries.group("work")))
-    assert.is_nil(Entries.preview({ kind = "unknown", text = "?" }))
   end)
 
   it("spells an Agent entry with its Tool, Group, and cwd, pinning the Focus", function()

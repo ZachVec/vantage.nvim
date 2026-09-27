@@ -182,9 +182,10 @@ and
 
 **Terminal** (`frontend/terminal.lua`) is a dumb display surface:
 `setup(resolve)` installs the resolver that says what a `cli.win.keys` `rhs`
-string means and the window-entry rule that owns the Terminal's mode (entering
-its window restores terminal mode, since the Terminal has no Normal-mode state
-of its own), and `open(argv)` starts the terminal job and installs
+string means and two lifecycle rules: entering the Terminal's window restores
+terminal mode (the Terminal has no Normal-mode state of its own), and closing
+its window out of band clears the Terminal's window handle while the hidden
+buffer keeps its client. `open(argv)` starts the terminal job and installs
 `cli.win.keys` on the buffer it just created; `hold(attachment)` keeps the
 Attachment its client sits on (identity, never domain state), `show`/`hide`
 manage the window without killing the job, `destroy` stops the job and deletes
@@ -242,9 +243,11 @@ report, from inside its stream.
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
 `true` when the item list may have changed; a true result starts a fresh item
 stream and refreshes the picker. Commands are global to the picker UI; the
-facade rejects duplicate `lhs` values and drops commands for a picker without
-the `command` capability. Group scoping is an ordinary command, not a Picker
-concept.
+facade drops commands for a picker without the `command` capability, and the
+descriptors' shape — non-empty string `lhs`, function `rhs`, unique `lhs`
+within one pick — is enforced by the flow conformance spec
+(`tests/commands/picker_commands_spec.lua`), not at runtime. Group scoping is
+an ordinary command, not a Picker concept.
 
 ## Flows and the command surface
 

@@ -134,6 +134,16 @@ local defaults = {
   },
 }
 
+--- The Terminal layouts `cli.win.layout` may name.
+local LAYOUTS = {
+  float = true,
+  full = true,
+  left = true,
+  right = true,
+  top = true,
+  bottom = true,
+}
+
 ---@type vantage.Config
 M.options = vim.deepcopy(defaults)
 
@@ -150,9 +160,9 @@ M.dropped_tools = {}
 --- Validate a cli.tools table in place: drop invalid entries, recording each
 --- in `dropped`. An entry is valid when its name is non-empty and its value
 --- is a table with a non-empty `cmd` array whose first element is executable
---- on PATH.
+--- on PATH, and an optional `format` that is a function.
 ---@param tools table<string, vantage.Tool>
----@param dropped? table<string, string> records name -> reason for each dropped entry
+---@param dropped table<string, string> records name -> reason for each dropped entry
 ---@return table<string, vantage.Tool> the same table, invalid entries removed
 function M.sanitize_tools(tools, dropped)
   for name, tool in pairs(tools) do
@@ -165,15 +175,65 @@ function M.sanitize_tools(tools, dropped)
       reason = "cmd is missing or empty"
     elseif vim.fn.executable(tool.cmd[1]) ~= 1 then
       reason = ("command '%s' not found"):format(tool.cmd[1])
+    elseif tool.format ~= nil and type(tool.format) ~= "function" then
+      reason = "format is not a function"
     end
     if reason then
-      if dropped then
-        dropped[name] = reason
-      end
+      dropped[name] = reason
       tools[name] = nil
     end
   end
   return tools
+end
+
+--- Drop prompt templates that are not strings. `Prompt.setup` may then trust
+--- every template is a string instead of guarding at pick time.
+---@param prompts table<string, string>
+---@return table<string, string> the same table, invalid entries removed
+function M.sanitize_prompts(prompts)
+  for name, template in pairs(prompts) do
+    if type(template) ~= "string" then
+      Util.warn(("dropping prompts entry '%s' (template is not a string)"):format(tostring(name)))
+      prompts[name] = nil
+    end
+  end
+  return prompts
+end
+
+--- Validate cli.win in place: an unknown layout or a non-numeric size falls
+--- back to its default, `float.border = false` becomes the "none" Neovim
+--- spells, and malformed cli.win.keys entries are dropped. The Terminal can
+--- then install the survivors verbatim.
+---@param win vantage.Win
+---@return vantage.Win the same table, normalized
+function M.sanitize_win(win)
+  if not LAYOUTS[win.layout] then
+    Util.warn(("cli.win.layout '%s' is not a layout; using '%s'"):format(tostring(win.layout), defaults.cli.win.layout))
+    win.layout = defaults.cli.win.layout
+  end
+  for _, field in ipairs({ "width", "height" }) do
+    if type(win.float[field]) ~= "number" then
+      Util.warn(("cli.win.float.%s must be a number; using %s"):format(field, defaults.cli.win.float[field]))
+      win.float[field] = defaults.cli.win.float[field]
+    end
+    if type(win.split[field]) ~= "number" then
+      Util.warn(("cli.win.split.%s must be a number; using %s"):format(field, defaults.cli.win.split[field]))
+      win.split[field] = defaults.cli.win.split[field]
+    end
+  end
+  if win.float.border == false then
+    win.float.border = "none"
+  end
+  local keys = {}
+  for index, keymap in ipairs(win.keys) do
+    if type(keymap) ~= "table" or type(keymap[1]) ~= "string" or keymap[1] == "" or keymap[2] == nil then
+      Util.warn(("dropping malformed cli.win.keys entry %d: expected { lhs, rhs, mode?, desc? }"):format(index))
+    else
+      keys[#keys + 1] = keymap
+    end
+  end
+  win.keys = keys
+  return win
 end
 
 --- The reference for one location, spelled by the Tool's `format` hook: the
@@ -215,10 +275,16 @@ function M.apply(opts)
   M.options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   local dropped = {}
   M.sanitize_tools(M.options.cli.tools, dropped)
+  M.sanitize_prompts(M.options.prompts)
+  M.sanitize_win(M.options.cli.win)
+  if type(M.options.reviews.item) ~= "string" then
+    Util.warn("reviews.item must be a string; using the default")
+    M.options.reviews.item = defaults.reviews.item
+  end
   -- Every surviving Tool gets a reference spelling, so no caller has to carry
   -- the "user configured no hook" case.
   for _, tool in pairs(M.options.cli.tools) do
-    if type(tool.format) ~= "function" then
+    if tool.format == nil then
       tool.format = reference
     end
   end
