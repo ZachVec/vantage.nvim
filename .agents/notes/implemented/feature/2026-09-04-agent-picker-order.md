@@ -65,8 +65,7 @@ a query is typed):
   `commands/attach.lua`
   ([picker entries are data](../architecture/2026-09-13-picker-entries-are-data.md)).
 
-The Agent entry text itself is the
-[entry-format note](2026-09-04-agent-picker-entry-format.md)'s shared
+The Agent entry text is the shared
 Agent text, updated in this change from the bracketed `[group] tool · cwd`
 layout to `tool · group · cwd` — unbracketed group moved between the tool name
 and the `~`-folded cwd, a single ` · ` between the three segments.

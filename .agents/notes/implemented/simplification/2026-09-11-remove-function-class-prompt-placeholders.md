@@ -62,7 +62,4 @@ thing to keep current as parsers change.
   hook sees `:L<row>` (Prompts) or `:L<start>-<end>` (Reviews), or nil for a
   whole file.
 - Partially supersedes the [prompts note](../feature/2026-08-31-prompts.md),
-  which introduced the pair, and the
-  [built-in defaults note](../feature/2026-09-01-prompts-built-in-defaults.md),
-  which explained why they were not built in; both notes stay active for their
-  other decisions.
+  which introduced the pair; that note stays active for its other decisions.

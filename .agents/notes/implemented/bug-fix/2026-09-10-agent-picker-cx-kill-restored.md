@@ -9,9 +9,9 @@ binding `<c-x>`. The layered refactor moved in-flight picker actions from
 `PickSpec.on_delete` to flow-owned `opts.commands`, the attach flow registered
 only `<c-g>`, and the pre-refactor kill decision was archived instead of being
 carried forward. Its sibling, the
-[group-scope note](../feature/2026-09-05-agent-picker-group-scope.md), stayed
-active and was updated to the new contract, so only the kill lost its owner:
-pressing `<c-x>` did nothing while the Review list's `<c-x>` still deleted.
+group-scope decision stayed active and was updated to the new contract, so only
+the kill lost its owner: pressing `<c-x>` did nothing while the Review list's
+`<c-x>` still deleted.
 
 ## Decision
 

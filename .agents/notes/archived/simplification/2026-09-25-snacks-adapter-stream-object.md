@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 `frontend/picker/snacks.lua`'s `pick_fancy` had grown into one ~168-line

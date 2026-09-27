@@ -49,6 +49,7 @@ enforces the module dependency directions documented in
 - Keep the public docs current in the same change: if a change makes [README.md](./README.md) or [doc/vantage.nvim.txt](doc/vantage.nvim.txt) stale — user-visible commands, help text, defaults, install, or described behavior — update the affected file in that change.
 - **User-facing docs say what, not why.** [README.md](./README.md) and [doc/vantage.nvim.txt](doc/vantage.nvim.txt) describe only what a user does or sees: commands, options, defaults, install, and any user-facing trade-off, compressed to what the user decides. Never implementation mechanics, Neovim/engine internals, or historical rationale in them — that belongs in the Agent Note, code comments, or [developer docs](docs/architecture.md).
 - **Non-trivial changes MUST include an Agent Note in the same change;** only mechanical/local edits are exempt ([when to write](.agents/notes/README.md#when-to-write-one)).
+- **Agent Notes hold the why.** The behavior a decision shipped — commands, defaults, contracts, vocabulary — lives in its own home: code, [architecture.md](docs/architecture.md), the [glossary](docs/glossary.md), or the user-facing docs. A note restates it but is never its only home ([rule](.agents/notes/README.md#what-a-note-owns)).
 
 ## External-tool gotchas
 

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 With `setup { picker = "snacks" }`, every preview-capable Vantage pick — the

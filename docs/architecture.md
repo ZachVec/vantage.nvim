@@ -2,7 +2,7 @@
 
 A coding-agent manager built as a Neovim plugin. The [Backend](glossary.md#backend) is a domain layer over a pluggable multiplexer [Driver](glossary.md#driver) (tmux today, room for zellij later); the [Frontend](glossary.md#frontend) is the plugin's own UI — a pluggable [Picker](glossary.md#picker) plus a single `:terminal` that is the [Terminal](glossary.md#terminal). tmux is the state store, multiplexer, renderer, and input layer; there is no custom TUI.
 
-Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together.
+Terminology lives in the [glossary](glossary.md); this file describes how the pieces relate and the invariants that hold them together. It carries the *what* — the current structure and the invariants a change produced; an [Agent Note](../.agents/notes/README.md#what-a-note-owns) keeps the *why* and the alternatives.
 
 ## Composition root and one-way dependencies
 

@@ -94,5 +94,4 @@ terminal and remain `:Vantage` commands, not terminal actions.
   [picker-pure-renderers](../architecture/2026-09-05-picker-pure-renderers.md),
   [agent-picker-order](../feature/2026-09-04-agent-picker-order.md),
   [float-terminal-switch-loses-focus](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md),
-  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md),
-  and [agent-picker-group-scope](../feature/2026-09-05-agent-picker-group-scope.md).
+  and [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).

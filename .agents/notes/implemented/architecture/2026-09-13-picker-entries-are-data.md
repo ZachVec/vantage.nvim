@@ -118,9 +118,8 @@ neutral parameter name.
   contract by asserting the implementation leaves the entry alone.
 - The `Entry` term now lives in the [domain glossary](../../../../docs/glossary.md),
   with `row` retired as prose.
-- The Agent entry's text is unchanged and still one builder
-  ([agent-picker-entry-format](../feature/2026-09-04-agent-picker-entry-format.md));
-  the Picker's neutrality contract is unchanged
+- The Agent entry's text is unchanged and still one builder; the Picker's
+  neutrality contract is unchanged
   ([pluggable-picker-frontend](2026-08-31-pluggable-picker-frontend.md)).
 
 The preview half of this decision is superseded by

@@ -120,9 +120,8 @@ only place it is applied.
 - One Focus read for every flow; no flow carries its own "no focused agent"
   check or message.
 - The Focus read moved from a Backend composition of `client_window(pid)` and
-  `agents()` to a single native Focus query
-  ([focus-is-one-driver-read](2026-09-13-focus-is-one-driver-read.md)), and
-  later onto the Attachment's View
+  `agents()` to a single native Focus query, and later onto the Attachment's
+  View
   ([backend-one-layer-and-view-keyed-attachment](2026-09-20-backend-one-layer-and-view-keyed-attachment.md));
   the split into `inventory` and a separate Focus read is unchanged.
 - `commands/` contains only `init.lua` and flows; the shared send path is gone.

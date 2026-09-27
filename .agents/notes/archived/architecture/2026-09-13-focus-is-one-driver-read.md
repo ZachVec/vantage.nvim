@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The Focus read cost two multiplexer queries. The Driver exposed

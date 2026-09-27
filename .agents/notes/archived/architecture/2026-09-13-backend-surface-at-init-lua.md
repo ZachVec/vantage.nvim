@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The module the Frontend imports as its door to the Backend lived at

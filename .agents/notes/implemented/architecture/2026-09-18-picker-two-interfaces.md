@@ -13,9 +13,8 @@ keep the callback shape stable.
 
 The item source was the deeper cost. `PickSpec.items_provider` was a synchronous
 pull that every implementation read *before* it opened anything. That read was
-where `empty, err` came from
-([a failed read is part of the pick's answer](2026-09-13-a-failed-read-is-part-of-the-picks-answer.md)),
-and it was why `commands/gather.lua`'s `files` froze the editor on `Util.run`
+where `empty, err` came from, and it was why `commands/gather.lua`'s `files`
+froze the editor on `Util.run`
 (`vim.system(...):wait()`) until `fd`/`rg` had printed its last line: no picker
 could open, let alone show anything, until the list was final. Both target
 engines stream natively — fzf-lua's function contents writes one item per
@@ -83,7 +82,7 @@ entry.
 `capabilities` is down to `command`. Preview and multi are per-pick requests
 that an implementation degrades when it cannot honor them, while `command` must
 be declared because the Agent picker decides its default Group scope *before* it
-opens ([agent picker group scope](../feature/2026-09-05-agent-picker-group-scope.md)).
+opens.
 
 A pick that has nothing to show opens empty and stays open until the user
 cancels it. The `empty, err` answer went with the read-before-opening design; a
@@ -146,6 +145,13 @@ and it made the flow's read failure a facade concern. A pick that shows nothing
 is the honest rendering of a stream that produced nothing, and the flow reports
 its own read failure from inside its source. The known gap is unchanged: a
 stream that fails after the picker opened has no channel back to the flow.
+
+### Why not let the seam report the read failure?
+
+The Picker stays presentation-only: the facade carries facts and the flow
+speaks. A failed read is the flow's own knowledge, so the flow reports it from
+inside its source — a user-facing line like "nothing to kill" is vocabulary the
+seam cannot own.
 
 ### Why not keep the preview function on the Entry?
 
@@ -213,7 +219,5 @@ This supersedes the contract parts of
 [the pluggable picker note](2026-08-31-pluggable-picker-frontend.md),
 [the pure-renderers note](2026-09-05-picker-pure-renderers.md),
 [the plain-selections note](2026-09-03-picker-owns-plain-selections.md) (the
-method is now `pick_naive`),
-[the failed-read note](2026-09-13-a-failed-read-is-part-of-the-picks-answer.md),
-and the preview half of
+method is now `pick_naive`), and the preview half of
 [the entries-are-data note](2026-09-13-picker-entries-are-data.md).

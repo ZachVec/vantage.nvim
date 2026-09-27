@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The note float (the editable scratch window behind `:Vantage review` and the

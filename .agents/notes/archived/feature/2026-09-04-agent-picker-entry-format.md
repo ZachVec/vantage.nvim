@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 Agent-list entries were formatted `cmd  ~cwd  [group]` — the launch command

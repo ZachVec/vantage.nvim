@@ -10,7 +10,7 @@ The plugin's door to the Backend and the Driver seam were two files —
 `backend/init.lua` and `backend/driver/init.lua`. The split was residue: the
 layered refactor created `backend/bridge.lua` beside `backend/driver/`, and the
 bridge was later renamed into place
-([backend-surface-at-init-lua](2026-09-13-backend-surface-at-init-lua.md)). The
+bridge was later renamed into place. The
 architecture gate files every `backend/**` module in one layer, so nothing
 enforced the split: it only made a Driver author read one file for the contract
 and another for the registry, and made the Backend's own door a different file
@@ -101,9 +101,7 @@ letting the hook collect the View — two mechanisms do not want one name.
 - The composition root resolves through `Backend.setup()`/`reset()` and
   `health.lua` reads `Backend.health()`, so `vantage.backend` is the only door
   and the only contract file.
-- Supersedes the pid-keyed half of
-  [focus-is-one-driver-read](2026-09-13-focus-is-one-driver-read.md) and the
-  `attach`/`kill_view`/pid facts of
+- Supersedes the `attach`/`kill_view`/pid facts of
   [restore-per-client-views](2026-09-10-restore-per-client-views.md). The
   read split, the reference-spelling owner, and
   [seam-types-live-with-their-seam](2026-09-13-seam-types-live-with-their-seam.md)'s

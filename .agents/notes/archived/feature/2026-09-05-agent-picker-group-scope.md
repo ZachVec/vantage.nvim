@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 The Agent picker could refresh in place, but nothing scoped the list to the

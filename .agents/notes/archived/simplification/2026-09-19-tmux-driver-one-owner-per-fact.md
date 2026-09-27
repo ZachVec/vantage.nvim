@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-27
+
 ## Problem
 
 `backend/tmux.lua`'s private layer had grown several places where one
