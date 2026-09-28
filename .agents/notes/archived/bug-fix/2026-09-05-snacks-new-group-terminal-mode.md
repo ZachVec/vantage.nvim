@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-28
+
 ## Problem
 
 The `switch` key from the vantage terminal, choosing a Tool entry and then

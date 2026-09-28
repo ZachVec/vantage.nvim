@@ -1,30 +1,13 @@
 --- The `:Vantage review` command and its sub-actions (add / list / clear):
 --- notes anchored to line ranges, batched through {reviews}.
-local Backend = require("vantage.backend")
 local Entries = require("vantage.frontend.entries")
 local Picker = require("vantage.frontend.picker")
 local Review = require("vantage.frontend.review")
-local Terminal = require("vantage.frontend.terminal")
 local Util = require("vantage.util")
 
 local M = {}
 
 local PROMPT = Util.picker_prompt
-
---- The Review list's display context: the Focus's Cwd and Tool dialect, so an
---- entry spells its `{lines}` reference exactly as a `{reviews}` send would.
---- Without a Focus — the list is reachable with no Terminal — the reference is
---- spelled against Neovim's cwd in the default dialect.
----@return string cwd
----@return string? tool
-local function list_context()
-  local attachment = Terminal.attachment
-  local agent = attachment and attachment:focus() or nil
-  if agent then
-    return agent.cwd, agent.tool
-  end
-  return Util.cwd(), nil
-end
 
 --- Reviews, sorted by (buffer name, start row). May be empty.
 ---@return vantage.PickSpec
@@ -34,10 +17,13 @@ local function spec()
     many = false,
     preview = Entries.preview,
     items = function(emit, done)
-      local cwd, tool = list_context()
+      -- The list is a display, not a send: it spells every `{lines}` against
+      -- Neovim's own cwd in the default dialect, so it needs no Focus and can
+      -- differ from the reference a send to the focused Agent would produce.
+      local cwd = Util.cwd()
       local items = {}
       for _, review in ipairs(Review.collect()) do
-        items[#items + 1] = Entries.review(review, cwd, tool)
+        items[#items + 1] = Entries.review(review, cwd, nil)
       end
       emit(items)
       done()
@@ -101,7 +87,9 @@ end
 
 --- Clear all reviews after a confirmation (built-in dialog, default No).
 local function review_clear()
-  if #Review.collect() == 0 then
+  -- `count`, not `collect`: an invalidated Review is hidden from the list but
+  -- is still registered, and a clear has to reach it.
+  if Review.count() == 0 then
     Util.warn("no reviews to clear")
     return
   end

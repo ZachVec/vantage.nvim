@@ -102,9 +102,8 @@ unsaved edits are not on disk. Where content is genuinely wanted, Reviews'
 - `files`/`buffers` work on a minimal install (the `find` fallback) and
   inherit the Picker's request degradation: several entries under
   `fzf-lua`/`snacks`, one entry at a time under `native`.
-- The pick states its own `many` and `preview` requests; `command` is the
-  Picker's one declared capability, and the single-choice degradation is
-  unchanged
+- The pick states its own `many` and `preview` requests; the single-choice
+  degradation is unchanged
   ([picker-two-interfaces](../architecture/2026-09-18-picker-two-interfaces.md)).
 - Gathered references are bare paths; the Tool's `format` hook owns their
   dialect decoration and has to tell a rendered prompt from a lone reference.

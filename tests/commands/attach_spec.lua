@@ -12,9 +12,11 @@ describe("vantage.commands.attach", function()
   local attachment_fixture
   local captured_spec
   local captured_opts
-  local command_capable
   local focused
   local agent_fixture
+  local input_result
+  local input_opts
+  local original_input
 
   --- The Agent an entry names when chosen, or nil for the pinned Focus entry
   --- and for Tool entries (which create instead of naming).
@@ -76,6 +78,7 @@ describe("vantage.commands.attach", function()
 
   setup(function()
     Helpers.reload_vantage()
+    original_input = vim.fn.input
     Config = require("vantage.config")
     Config.options.cli.tools = {
       zeta = { cmd = { "zeta" } },
@@ -115,9 +118,6 @@ describe("vantage.commands.attach", function()
     end
 
     picker = {}
-    function picker.capabilities()
-      return { command = command_capable }
-    end
     function picker.pick_fancy(spec, opts)
       captured_spec, captured_opts = spec, opts
       if picker.auto_select then
@@ -128,10 +128,6 @@ describe("vantage.commands.attach", function()
         end
       end
     end
-    function picker.pick_naive(_, _, on_choice)
-      on_choice(picker.plain_choice)
-    end
-
     attachment_fixture = {}
     function attachment_fixture:focus()
       if focused == nil then
@@ -170,6 +166,7 @@ describe("vantage.commands.attach", function()
   end)
 
   teardown(function()
+    vim.fn.input = original_input
     Helpers.reload_vantage()
   end)
 
@@ -179,15 +176,30 @@ describe("vantage.commands.attach", function()
     backend.captured = {}
     backend.retargeted = nil
     backend.killed = {}
+    backend.inventory = function()
+      return {
+        agents = vim.deepcopy(agent_fixture),
+        groups = { "a", "z" },
+      }, nil
+    end
     captured_spec = nil
     captured_opts = nil
-    command_capable = true
     picker.auto_select = false
-    picker.plain_choice = "z"
     terminal.attachment = nil
     terminal.show_result = false
     terminal.opened = nil
     terminal.open_result = true
+    input_result = "z"
+    input_opts = nil
+    -- The Group prompt is a synchronous cmdline input; stub it so the flow can
+    -- be driven without a user. The stub records the dict it was handed.
+    vim.fn.input = function(opts)
+      input_opts = opts
+      if input_result == "raise" then
+        error("Keyboard interrupt")
+      end
+      return input_result
+    end
   end)
 
   it("orders agent entries by group, cwd, tool, then creation seq, and tools by name", function()
@@ -205,7 +217,6 @@ describe("vantage.commands.attach", function()
 
   it("pins the focused agent first, excluded from the sorted entries, and choosing it names nothing", function()
     focused = agent_fixture[2]
-    command_capable = false
     local items = items_for(true)
 
     assert.is_true(vim.endswith(items[1].text, "(focused)"))
@@ -224,12 +235,14 @@ describe("vantage.commands.attach", function()
     )
   end)
 
-  it("scopes the list to the focused agent's group, keeping tool entries", function()
+  it("lists every Group's Agents, keeping tool entries", function()
     focused = agent_fixture[2]
     local items = items_for(true)
 
-    assert.are.equal(5, #items) -- pinned + 2 group-mates + 2 tools
-    assert.are.equal(3, #agent_entries(items))
+    -- Pinned + all four Agents (the pinned one excluded from the sorted tail)
+    -- + both tools: the list is not scoped to the Focus's Group.
+    assert.are.equal(6, #items)
+    assert.are.equal(4, #agent_entries(items))
   end)
 
   it("formats entries with tool, group, and cwd", function()
@@ -252,15 +265,53 @@ describe("vantage.commands.attach", function()
 
     Attach.show()
 
+    assert.are.equal("Group: ", input_opts.prompt)
+    assert.are.equal("", input_opts.default)
+    assert.are.equal(vim.NIL, input_opts.cancelreturn)
+    assert.is_true(input_opts.completion:find("complete_groups", 1, true) ~= nil)
     assert.are.equal("zeta", backend.created[1].tool)
     assert.are.equal("z", backend.created[1].group)
     assert.are.same({ "attach", "@9" }, terminal.opened)
   end)
 
-  it("creates nothing when the Group choice is cancelled", function()
+  it("trims the Group name it creates", function()
     local items = items_for(true)
     picker.auto_select = #items
-    picker.plain_choice = nil
+    input_result = "  work  "
+
+    Attach.show()
+
+    assert.are.equal("work", backend.created[1].group)
+  end)
+
+  it("creates nothing when the Group prompt is cancelled", function()
+    local items = items_for(true)
+    picker.auto_select = #items
+    input_result = vim.NIL
+
+    Attach.show()
+
+    assert.are.same({}, backend.created)
+    assert.are.equal(nil, terminal.opened)
+  end)
+
+  it("creates nothing when the Group prompt is empty or blank", function()
+    local items = items_for(true)
+    picker.auto_select = #items
+
+    for _, blank in ipairs({ "", "   " }) do
+      input_result = blank
+      Attach.show()
+    end
+
+    assert.are.same({}, backend.created)
+    assert.are.equal(nil, terminal.opened)
+  end)
+
+  it("creates nothing when the Group prompt is interrupted", function()
+    local items = items_for(true)
+    picker.auto_select = #items
+    input_result = "raise"
 
     Attach.show()
 
@@ -349,5 +400,23 @@ describe("vantage.commands.attach", function()
 
     assert.are.same({}, items)
     assert.are.same({ "vantage: no server running" }, notified)
+  end)
+
+  it("completes Group names by prefix from the live inventory", function()
+    backend.inventory = function()
+      return { agents = {}, groups = { "zeta", "alpha", "alpine" } }, nil
+    end
+
+    assert.are.same({ "alpha", "alpine" }, Attach.complete_groups("al", "", 2))
+    assert.are.same({ "alpha", "alpine", "zeta" }, Attach.complete_groups("", "", 0))
+    assert.are.same({}, Attach.complete_groups("nope", "", 4))
+  end)
+
+  it("completes nothing when the inventory cannot be read", function()
+    backend.inventory = function()
+      return nil, "no server running"
+    end
+
+    assert.are.same({}, Attach.complete_groups("a", "", 1))
   end)
 end)

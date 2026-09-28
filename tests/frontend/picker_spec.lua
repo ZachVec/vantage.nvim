@@ -46,7 +46,6 @@ describe("vantage.frontend.picker", function()
   it("fails fast when the configured picker dependency is missing", function()
     impl({
       requires = "vantage-no-such-picker",
-      capabilities = { command = true },
       pick_fancy = function() end,
       pick_naive = function() end,
     })
@@ -63,7 +62,6 @@ describe("vantage.frontend.picker", function()
     package.loaded[dep] = nil
     impl({
       requires = dep,
-      capabilities = { command = true },
       pick_fancy = function() end,
       pick_naive = function() end,
     })
@@ -75,7 +73,6 @@ describe("vantage.frontend.picker", function()
 
   it("fails fast when an implementation violates the PickerImpl contract", function()
     impl({
-      capabilities = { command = true },
       pick_fancy = function() end,
     })
     local ok, err = pcall(Picker.setup)
@@ -83,43 +80,18 @@ describe("vantage.frontend.picker", function()
     assert.is_true(tostring(err):find("does not implement vantage.PickerImpl", 1, true) ~= nil)
   end)
 
-  it("returns capabilities and does not expose get()", function()
+  it("does not expose get() or a capability table", function()
     impl({
-      capabilities = { command = false },
       pick_fancy = function() end,
       pick_naive = function() end,
     })
     Picker.setup()
 
-    assert.are.same({ command = false }, Picker.capabilities())
     assert.are.equal(nil, Picker.get)
+    assert.are.equal(nil, Picker.capabilities)
   end)
 
-  it("omits commands when the implementation has no command capability", function()
-    local received
-    impl({
-      capabilities = { command = false },
-      pick_fancy = function(_, opts)
-        received = opts
-      end,
-      pick_naive = function() end,
-    })
-    Picker.setup()
-
-    Picker.pick_fancy(pick_spec(), {
-      on_choices = function() end,
-      commands = { {
-        "<C-x>",
-        function()
-          return true
-        end,
-      } },
-    })
-
-    assert.are.equal(nil, received.commands)
-  end)
-
-  it("passes commands through when the implementation supports them", function()
+  it("hands a pick's commands to the implementation verbatim", function()
     local received
     local command = {
       "<C-x>",
@@ -129,7 +101,6 @@ describe("vantage.frontend.picker", function()
       desc = "delete",
     }
     impl({
-      capabilities = { command = true },
       pick_fancy = function(_, opts)
         received = opts
       end,
@@ -149,7 +120,6 @@ describe("vantage.frontend.picker", function()
   it("forwards a fancy pick unchanged and answers nothing of its own", function()
     local received_spec, received_opts
     impl({
-      capabilities = { command = false },
       pick_fancy = function(spec, opts)
         received_spec, received_opts = spec, opts
         return "ignored"
@@ -168,7 +138,6 @@ describe("vantage.frontend.picker", function()
   it("forwards a plain selection to the implementation", function()
     local received
     impl({
-      capabilities = { command = false },
       pick_fancy = function() end,
       pick_naive = function(items, opts, on_choice)
         received = { items = items, opts = opts, on_choice = on_choice }

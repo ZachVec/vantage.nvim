@@ -16,16 +16,33 @@ local M = {}
 --- is the last resort and the crudest — unlike fd and rg it reads no ignore
 --- files, so a find-only machine lists what find sees.
 local LISTERS = {
-  { "fd", "--type", "f", "--type", "l", "--color", "never", "-E", ".git" },
-  { "rg", "--files", "--no-messages", "--color", "never", "-g", "!.git" },
-  { "find", ".", "-type", "f", "-not", "-path", "*/.git/*" },
+  { name = "fd", argv = { "fd", "--type", "f", "--type", "l", "--color", "never", "-E", ".git" } },
+  { name = "rg", argv = { "rg", "--files", "--no-messages", "--color", "never", "-g", "!.git" } },
+  { name = "find", argv = { "find", ".", "-type", "f", "-not", "-path", "*/.git/*" } },
 }
+
+--- The lister `setup` resolved, or nil when none is installed.
+---@type { name: string, argv: string[] }?
+local lister
+
+--- Resolve the file lister from PATH: the first of fd, rg, find that is
+--- installed. The resolved program is used for every later run, so installing
+--- one or changing PATH takes another setup; a program that fails reports its
+--- own failure instead of falling through to the next one.
+function M.setup()
+  lister = nil
+  for _, candidate in ipairs(LISTERS) do
+    if vim.fn.executable(candidate.name) == 1 then
+      lister = candidate
+      return
+    end
+  end
+end
 
 --- Whether a lister's exit code is an answer rather than a failure. `rg --files`
 --- exits 1 when it found no files, which is a legitimate empty listing — a
---- project whose files are all ignored must not fall through to find, which
---- would list them. Every other non-zero code is a failure (fd reports errors
---- as 1, find as 1).
+--- project whose files are all ignored must not read as a failure. Every other
+--- non-zero code is a failure (fd reports errors as 1, find as 1).
 ---@param name string
 ---@param code integer
 ---@return boolean
@@ -35,60 +52,32 @@ end
 
 --- Stream the file candidates under `cwd`, the listing root and display base:
 --- Neovim's global cwd, the tree the user is browsing rather than the Agent's.
---- One batch per chunk of a lister's output. The chain is asynchronous — a
---- lister's failure is only known when it exits — so a failed attempt gives way
---- from its own callback, and a lister that already produced lines keeps them.
+--- One batch per chunk of the lister's output. The lister is the one `setup`
+--- resolved; a run that fails reports it and ends, and whatever the run
+--- produced before failing stays listed.
 ---@param cwd string
 ---@param emit fun(entries: vantage.picker.Entry[])
 ---@param done fun()
 ---@return fun() cancel
 local function stream_files(cwd, emit, done)
-  local cancel ---@type fun()?
-  local stopped = false
-  local attempted = false
-
-  ---@param index integer
-  local function try(index)
-    local lister = LISTERS[index]
-    if not lister then
-      Util.warn(attempted and "file listing failed" or "no file lister (fd, rg, or find)")
-      done()
-      return
-    end
-    if vim.fn.executable(lister[1]) ~= 1 then
-      try(index + 1)
-      return
-    end
-    attempted = true
-    local emitted = false
-    cancel = Util.run_lines(lister, { cwd = cwd }, function(lines)
-      local entries = {}
-      for _, line in ipairs(lines) do
-        entries[#entries + 1] = Entries.file(vim.fs.normalize(vim.fs.joinpath(cwd, line)), cwd)
-      end
-      emitted = true
-      emit(entries)
-    end, function(code)
-      if stopped then
-        return
-      end
-      if emitted or answered(lister[1], code) then
-        done()
-        return
-      end
-      try(index + 1)
-    end)
+  if not lister then
+    Util.warn("no file lister (fd, rg, or find)")
+    done()
+    return function() end
   end
-
-  try(1)
-
-  return function()
-    stopped = true
-    if cancel then
-      cancel()
-      cancel = nil
+  local name = lister.name
+  return Util.run_lines(lister.argv, { cwd = cwd }, function(lines)
+    local entries = {}
+    for _, line in ipairs(lines) do
+      entries[#entries + 1] = Entries.file(vim.fs.normalize(vim.fs.joinpath(cwd, line)), cwd)
     end
-  end
+    emit(entries)
+  end, function(code)
+    if not answered(name, code) then
+      Util.warn(("file listing failed (%s)"):format(name))
+    end
+    done()
+  end)
 end
 
 --- Buffer candidates: listed, normal-buftype, named, readable-on-disk
@@ -120,7 +109,7 @@ local function buffer_items(cwd)
   return items
 end
 
---- The two sources' streams: `files` runs the lister chain (live), and
+--- The two sources' streams: `files` runs the resolved lister (live), and
 --- `buffers` reads the in-memory list in one batch.
 ---@type table<string, { prompt: string, stream: fun(cwd: string, emit: fun(entries: vantage.picker.Entry[]), done: fun()): (fun()?) }>
 local SOURCES = {
@@ -141,15 +130,6 @@ local SOURCES = {
 --- focused Agent's input.
 ---@param source "files"|"buffers"
 local function run(source)
-  local attachment = Terminal.attachment
-  local agent, err
-  if attachment then
-    agent, err = attachment:focus()
-  end
-  if not agent then
-    Util.warn(err or "no focused agent")
-    return
-  end
   Picker.pick_fancy({
     prompt = SOURCES[source].prompt,
     many = true,
@@ -162,6 +142,20 @@ local function run(source)
     end,
   }, {
     on_choices = function(chosen)
+      -- The Focus is read here, at the send, not when the picker opened: the
+      -- Agent whose Cwd and Tool spell these references is the one displayed
+      -- when the user confirms, so a Focus that moved during the pick is the
+      -- one that gets the text. A missing Focus ends the flow with nothing
+      -- sent — there is no Agent to send to.
+      local attachment = Terminal.attachment
+      local agent, err
+      if attachment then
+        agent, err = attachment:focus()
+      end
+      if not agent then
+        Util.warn(err or "no focused agent")
+        return
+      end
       -- Every chosen path is spelled through the Tool's dialect, joined with
       -- `setup { gather = { join = … } }`, and pasted with a trailing space so
       -- continued typing stays off the last reference. A reference the hook

@@ -6,7 +6,7 @@ Status: implemented
 
 With `cli.win.layout = "float"` and `picker = "snacks"`, any pick that was
 invoked from the vantage terminal — the `switch` key to another Agent, the
-kill pick, the Group step, the `prompt` key — left the
+kill pick, the `prompt` key — left the
 cursor in the editor window behind the float instead of back on the agent
 terminal after the picker closed. The pick succeeded (the Terminal re-pointed),
 but focus was on the "next" tiled window, as if the pick came from the editor.
@@ -61,8 +61,8 @@ not looked up through a Vantage module).
 
 `retarget` does not know it was reached through a picker close, and focusing
 from there would change focus as a side effect of re-pointing. The
-compensation belongs to the engine that loses it, the
-same reasoning as the [new-Group terminal-mode note](2026-09-05-snacks-new-group-terminal-mode.md).
+compensation belongs to the engine that loses it, the same reasoning as
+[the Terminal-owns-its-mode note](2026-09-25-the-terminal-owns-its-mode.md).
 
 ### Why not fix the teardown (close picker floats in reverse-open order)?
 

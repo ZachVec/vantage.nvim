@@ -31,7 +31,6 @@ describe("vantage.backend", function()
       return driver.attachment, driver.attach_err
     end
     function driver.kill_agent() end
-    function driver.kill_group() end
     function driver.send_keys() end
     function driver.capture_pane() end
     function driver.status() end

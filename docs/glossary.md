@@ -4,7 +4,7 @@ One home per domain term. Code, docs, and Agent Notes use these terms exactly an
 
 ## Group
 
-A durable container of collaborating Agents, represented by one tmux session group: a persistent Anchor owns the Agent windows and transient Views provide each Terminal client an independent current window. Creating an Agent in a non-existent Group creates its Anchor. A Group survives with nothing attached to it, and ends only when its last Agent dies or it is killed.
+A durable container of collaborating Agents, represented by one tmux session group: a persistent Anchor owns the Agent windows and transient Views provide each Terminal client an independent current window. Creating an Agent in a non-existent Group creates its Anchor. A Group survives with nothing attached to it, and ends when its last Agent dies.
 _Avoid_: workspace, topic, 主题
 
 ## Anchor
@@ -59,7 +59,7 @@ _Avoid_: client session, connection
 
 ## Focus
 
-The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Terminal's Attachment answers it — `focus()` returns the Agent, or `nil` plus `no focused agent` or the multiplexer's own error. Prompt, gather, and review read it; each flow decides how to report a missing Focus.
+The Agent this Neovim instance's Terminal is currently showing, derived from live multiplexer state on every read and never stored Neovim-side. It exists only while a Terminal client is attached and pointed at an Agent window; the Terminal's Attachment answers it — `focus()` returns the Agent, or `nil` plus `no focused agent` or the multiplexer's own error. Prompt and gather read it, each deciding how to report a missing Focus; the Review list reads neither its Cwd nor its Tool dialect, because a list entry is a display rather than a send.
 _Avoid_: current agent, active agent, last agent, focused agent
 
 ## Terminal action
@@ -69,12 +69,12 @@ _Avoid_: action (unqualified), terminal key, shortcut
 
 ## Picker
 
-The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Agent-creation Group step, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick_fancy(spec, opts)` — a streaming pick, whose `spec.items` emits entries as the flow produces them — and `pick_naive(...)`, the static plain-list form. Implementations declare one capability, `command` (they bind the flow's picker commands); a pick states its own `many` and `preview` requests, and an implementation that cannot confirm several entries or render a preview pane degrades instead of declaring it. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
+The plugin's pluggable selection UI, rendering every Vantage selection — the Agent list, the kill list, the Review list, the Prompt choice, and the references gathered by `files`/`buffers` — chosen via `setup { picker = … }`: `native` (vim.ui.select, following any global override by definition), `fzf-lua`, or `snacks`. The `vantage.frontend.picker` facade exposes `pick_fancy(spec, opts)` — a streaming pick, whose `spec.items` emits entries as the flow produces them — and `pick_naive(...)`, the static plain-list form. A pick states its own `many` and `preview` requests, and an implementation that cannot confirm several entries or render a preview pane degrades instead of declaring it. Light Yes/No confirmations use Neovim's built-in confirm dialog, not the Picker.
 _Avoid_: launcher
 
 ## Picker command
 
-A keymap-shaped command supplied by a flow to a command-capable Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed, which restarts the pick's item stream. Delete and group-scope operations are ordinary Picker commands; the Picker knows no flow semantics.
+A keymap-shaped command supplied by a flow to the Picker: `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives the neutral `{ item, items }` context and returns `true` when the item list may have changed, which restarts the pick's item stream. An implementation that binds no keys ignores it. Delete is an ordinary Picker command; the Picker knows no flow semantics.
 _Avoid_: action, keybinding
 
 ## Entry
@@ -89,7 +89,7 @@ _Avoid_: command, template
 
 ## Reference
 
-A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered entry. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it.
+A location spelled for an Agent's input: a path relative to the Agent's Cwd — absolute when it escapes — plus its optional `:L` position suffix, in the Focus's Tool dialect. Every location Vantage produces is one: a Prompt's `{file}` and `{line}`, each Review's `{lines}` and `{file}`, and each gathered entry. A Tool may decline to spell one; the Reference then does not exist, and the flow that asked decides how to report it. A display is not a Reference: the Review list spells the same path against Neovim's cwd in the default dialect, because no Agent is being addressed.
 _Avoid_: path, link, location string, 引用
 
 ## Prompt

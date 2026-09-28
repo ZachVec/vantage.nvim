@@ -32,7 +32,8 @@ Restore the tmux session-group model:
   client is always on a View the plugin created, so no Anchor-migration branch
   remains.
 - A global `client-detached` hook destroys a View when its client exits, so
-  Views never accumulate. `kill_group` destroys the Anchor and every View.
+  Views never accumulate. Killing a Group's last Agent closes the Anchor, and
+  the Views die with their detaching clients.
 - `Attachment:focus()` still derives the Focus from the client's current
   window; with Views that window is per-client, so the Frontend stores no
   focus state.

@@ -97,4 +97,4 @@ terminal and remain `:Vantage` commands, not terminal actions.
   [picker-pure-renderers](../architecture/2026-09-05-picker-pure-renderers.md),
   [agent-picker-order](../feature/2026-09-04-agent-picker-order.md),
   [float-terminal-switch-loses-focus](../bug-fix/2026-09-05-float-terminal-switch-loses-focus.md),
-  and [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
+  and [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).

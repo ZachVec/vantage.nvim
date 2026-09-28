@@ -1,7 +1,7 @@
 --- The Terminal attachment flows and the shared Agent picker they use.
 ---
 --- `show` owns Terminal presence; `switch` owns the attached client's
---- target. The Agent/Tool entries, Group choice, and creation handoff are
+--- target. The Agent/Tool entries, Group prompt, and creation handoff are
 --- local to this module because both flows are their only consumers.
 local Backend = require("vantage.backend")
 local Config = require("vantage.config")
@@ -12,46 +12,29 @@ local Util = require("vantage.util")
 
 local M = {}
 
-local NEW_GROUP = "+ new group"
 local PROMPT = Util.picker_prompt
 
----@class vantage.AgentPickerState
----@field group_on boolean
----@field focused? vantage.Agent
-
---- Ask for a Group through the picker, or straight through input() when none
---- exist. The continuation is asynchronous.
----@param after fun(group: string)
-local function ask_group(after)
-  local inventory, err = Backend.inventory()
+--- The Group prompt's completion: existing Group names with `lead` as a
+--- prefix. `customlist` completion does no filtering of its own, so the
+--- function does it; the prompt's own spelling is not rewritten — a partial
+--- name the user confirms stays that name.
+---@param lead string
+---@param _line string
+---@param _pos integer
+---@return string[]
+function M.complete_groups(lead, _line, _pos)
+  local inventory = Backend.inventory()
   if inventory == nil then
-    Util.warn(err or "failed to read agents")
-    return
+    return {}
   end
-  local names = inventory.groups
-  local function prompt_name()
-    vim.schedule(function()
-      local name = vim.trim(vim.fn.input({ prompt = "Group name: " }))
-      if name ~= "" then
-        after(name)
-      end
-    end)
-  end
-  if #names == 0 then
-    prompt_name()
-    return
-  end
-  names[#names + 1] = NEW_GROUP
-  Picker.pick_naive(names, { prompt = "Group: " }, function(group)
-    if not group then
-      return
+  local names = {}
+  for _, group in ipairs(inventory.groups) do
+    if vim.startswith(group, lead) then
+      names[#names + 1] = group
     end
-    if group == NEW_GROUP then
-      prompt_name()
-    else
-      after(group)
-    end
-  end)
+  end
+  table.sort(names)
+  return names
 end
 
 --- The Agent entries' ascending order: group, cwd, tool name, then creation seq.
@@ -93,13 +76,11 @@ local function build_items(agents, focused)
   return items
 end
 
---- The Agent-list selection spec. The live group scope is read from `state`
---- by the flow-owned `<c-g>` command.
+--- The Agent-list selection spec: every Group's Agents plus the configured
+--- Tools, with the Terminal's own Focus pinned first when it has one.
 ---@param attachment? vantage.Attachment this Terminal's attachment, when it has one
----@param state? vantage.AgentPickerState
 ---@return vantage.PickSpec
-local function spec(attachment, state)
-  state = state or { group_on = false }
+local function spec(attachment)
   return {
     prompt = PROMPT,
     many = false,
@@ -113,21 +94,7 @@ local function spec(attachment, state)
       -- The Focus is a second read: the inventory never carries it, and only
       -- the Terminal's own attachment can answer it.
       local focused = attachment and attachment:focus() or nil
-      state.focused = focused
-      local items = build_items(inventory.agents, focused)
-      if state.group_on and focused then
-        items = vim
-          .iter(items)
-          :filter(function(entry)
-            if entry.kind == "tool" then
-              return true
-            end
-            ---@cast entry vantage.picker.AgentEntry
-            return entry.agent.group == focused.group
-          end)
-          :totable()
-      end
-      emit(items)
+      emit(build_items(inventory.agents, focused))
       done()
     end,
   }
@@ -153,12 +120,13 @@ local function kill_agent(ctx)
 end
 
 --- Pick an Agent to act on, resolving the chosen entry (creating an Agent from
---- a Tool entry when that is what was chosen).
+--- a Tool entry when that is what was chosen). Creating from a Tool entry asks
+--- for a Group through a synchronous completion-backed cmdline prompt; the
+--- name it answers is this creation's Group and nothing else.
 ---@param after fun(agent: vantage.Agent)
 ---@param attachment? vantage.Attachment the Terminal's attachment, when it has one
 local function pick(after, attachment)
-  local state = { group_on = Picker.capabilities().command }
-  Picker.pick_fancy(spec(attachment, state), {
+  Picker.pick_fancy(spec(attachment), {
     on_choices = function(entries)
       local entry = entries[1]
       if entry.kind == "focused" then
@@ -170,28 +138,35 @@ local function pick(after, attachment)
         return
       end
       ---@cast entry vantage.picker.ToolEntry
-      ask_group(function(group)
-        local agent, err = Backend.create({ group = group, tool = entry.name, cwd = Util.cwd() })
-        if not agent then
-          Util.warn(err or "failed to create agent")
-          return
-        end
-        after(agent)
-      end)
+      -- The prompt takes the whole creation flow inline: its return value is
+      -- this call's Group, so no continuation wraps the step. `cancelreturn`
+      -- answers Esc with vim.NIL (userdata, not nil), and CTRL-C interrupts
+      -- the prompt with an error; both mean "no Group", so nothing is created.
+      local ok, answer = pcall(vim.fn.input, {
+        prompt = "Group: ",
+        default = "",
+        completion = "customlist,v:lua.require'vantage.commands.attach'.complete_groups",
+        cancelreturn = vim.NIL,
+      })
+      if not ok or answer == nil or answer == vim.NIL then
+        return
+      end
+      local group = vim.trim(answer)
+      if group == "" then
+        return
+      end
+      local agent, err = Backend.create({ group = group, tool = entry.name, cwd = Util.cwd() })
+      if not agent then
+        Util.warn(err or "failed to create agent")
+        return
+      end
+      after(agent)
     end,
     commands = {
       {
         "<C-x>",
         kill_agent,
         desc = "kill agent",
-      },
-      {
-        "<C-g>",
-        function()
-          state.group_on = not state.group_on
-          return true
-        end,
-        desc = "toggle group scope",
       },
     },
   })

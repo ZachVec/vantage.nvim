@@ -10,14 +10,13 @@ describe("vantage.commands.kill", function()
 
   setup(function()
     Helpers.reload_vantage()
-    backend = { killed_agents = {}, killed_groups = {} }
+    backend = { killed_agents = {} }
     function backend.inventory()
       return {
         agents = {
           { group = "a", id = "@1", seq = 1, tool = "codex", cwd = "/a" },
           { group = "b", id = "@4", seq = 4, tool = "codex", cwd = "/b" },
         },
-        -- Deliberately not the Agents' order: the kill list sorts names.
         groups = { "b", "a" },
       },
         nil
@@ -26,11 +25,6 @@ describe("vantage.commands.kill", function()
       backend.killed_agents[#backend.killed_agents + 1] = agent.id
       return true, nil
     end
-    function backend.kill_group(group)
-      backend.killed_groups[#backend.killed_groups + 1] = group
-      return true, nil
-    end
-
     package.loaded["vantage.backend"] = backend
     package.loaded["vantage.frontend.picker"] = {
       pick_fancy = function(spec, opts)
@@ -44,28 +38,27 @@ describe("vantage.commands.kill", function()
     Helpers.reload_vantage()
   end)
 
-  it("lists agents in window order then groups in name order, and kills them", function()
+  it("lists every Agent in creation order and kills the chosen ones", function()
     captured_spec = nil
     Kill.run()
     assert.is_not_nil(captured_spec)
     local items = Helpers.entries(captured_spec)
 
-    assert.are.equal(4, #items)
+    assert.are.equal(2, #items)
     assert.are.same(
-      { "agent", "agent", "group", "group" },
+      { "agent", "agent" },
       vim.tbl_map(function(entry)
         return entry.kind
       end, items)
     )
     assert.are.same(
-      { "a", "b" },
+      { "@1", "@4" },
       vim.tbl_map(function(entry)
-        return entry.group
-      end, { items[3], items[4] })
+        return entry.agent.id
+      end, items)
     )
     captured_opts.on_choices(items)
     assert.are.same({ "@1", "@4" }, backend.killed_agents)
-    assert.are.same({ "a", "b" }, backend.killed_groups)
   end)
 
   it("warns the read's reason from its own source", function()

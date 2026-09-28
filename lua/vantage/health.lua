@@ -26,10 +26,10 @@ end
 function M.check()
   start("vantage")
 
-  if vim.fn.has("nvim-0.10") == 1 then
-    ok("Neovim >= 0.10")
+  if vim.fn.has("nvim-0.12") == 1 then
+    ok("Neovim >= 0.12")
   else
-    err("Neovim >= 0.10 is required")
+    err("Neovim >= 0.12 is required")
     return
   end
 
@@ -53,12 +53,7 @@ function M.check()
   end
 
   local picker = require("vantage.config").options.picker
-  local picker_ok, capabilities = pcall(require("vantage.frontend.picker").capabilities)
-  if not picker_ok then
-    err(tostring(capabilities))
-    return
-  end
-  ok(("picker: %s (command=%s)"):format(picker, capabilities.command and "yes" or "no"))
+  ok(("picker: %s"):format(picker))
 
   check_tools()
 end

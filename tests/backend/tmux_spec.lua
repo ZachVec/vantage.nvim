@@ -55,6 +55,17 @@ describe("vantage.backend.tmux", function()
     return nil
   end
 
+  --- The private socket's paste buffers, by name.
+  ---@return string[]
+  local function staged_buffers()
+    local _, out = tmux("list-buffers", "-F", "#{buffer_name}")
+    local names = {}
+    for line in (out or ""):gmatch("[^\r\n]+") do
+      names[#names + 1] = line
+    end
+    return names
+  end
+
   --- The Group's View sessions, by name: the group's sessions minus its Anchor.
   ---@param group string
   ---@return string[]
@@ -151,7 +162,6 @@ describe("vantage.backend.tmux", function()
       "agents",
       "attach",
       "kill_agent",
-      "kill_group",
       "send_keys",
       "capture_pane",
       "status",
@@ -331,6 +341,37 @@ describe("vantage.backend.tmux", function()
     )
   end)
 
+  it("stages under this instance's pid name, consuming it and leaving others alone", function()
+    local agent = create("g-send-name", "codex", "stty raw -echo; exec cat")
+    vim.wait(300)
+    -- A stale buffer under our own name, and one that belongs to a different
+    -- Neovim instance: the send overwrites and consumes ours, and touches
+    -- neither state nor the other instance's buffer.
+    tmux("set-buffer", "-b", "vantage-send-" .. vim.fn.getpid(), "--", "stale")
+    tmux("set-buffer", "-b", "vantage-send-999999", "--", "other instance")
+
+    assert.are.equal(true, Backend.send_keys(agent, "mine"))
+
+    assert.are.same({ "vantage-send-999999" }, staged_buffers())
+    assert.are.equal(
+      true,
+      wait_until(function()
+        return capture_contains(agent, "mine")
+      end, 3000)
+    )
+  end)
+
+  it("cleans up its own staging buffer when the paste target is gone", function()
+    local agent = create("g-send-fail", "codex", "exec sleep 300")
+    local gone = vim.tbl_extend("force", agent, { id = "@9999" })
+
+    local ok, err = Backend.send_keys(gone, "text")
+
+    assert.is_false(ok)
+    assert.is_true(err:find("failed to paste prompt text", 1, true) ~= nil)
+    assert.are.same({}, staged_buffers())
+  end)
+
   it("kills one agent and leaves its group-mates alive", function()
     local first = create("g-kill-agent", "codex")
     local second = create("g-kill-agent", "codex")
@@ -338,12 +379,5 @@ describe("vantage.backend.tmux", function()
     assert.are.equal(true, Backend.kill_agent(first))
     assert.are.equal(nil, find_agent(first.id))
     assert.are.same(second, find_agent(second.id))
-  end)
-
-  it("kills an entire group", function()
-    create("g-kill-group", "codex")
-
-    assert.are.equal(true, Backend.kill_group("g-kill-group"))
-    assert.are.same({}, Backend.agents())
   end)
 end)

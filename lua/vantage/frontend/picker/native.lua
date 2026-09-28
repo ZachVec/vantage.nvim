@@ -2,11 +2,6 @@
 --- user may have installed (dressing.nvim, snacks' ui_select, …).
 local M = {}
 
----@type vantage.PickerCapabilities
-M.capabilities = {
-  command = false,
-}
-
 --- Render a streaming pick. `vim.ui.select` takes a fixed list, so the stream
 --- is drained first and rendered through this implementation's own plain
 --- select: waiting for the final list is what an engine with no stream surface

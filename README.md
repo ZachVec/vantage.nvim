@@ -5,7 +5,7 @@ dsh, …) in tmux and shows them in a single persistent `:terminal`.
 
 ## Requirements
 
-- Neovim ≥ 0.10
+- Neovim ≥ 0.12
 - tmux 3.0+
 
 ## Install
@@ -32,13 +32,15 @@ reference.
 :Vantage review          " add a review over the current selection/line
 :Vantage review list     " open reviews
 :Vantage review clear    " remove all reviews
-:Vantage kill            " kill an Agent or Group
+:Vantage kill            " kill Agents (mark several to kill them together)
 :Vantage status          " show clients and sessions
 ```
 
 Create an Agent from the Agent picker: use the `switch` terminal key, or run
-`:Vantage show` when no terminal is open. Pick a Tool, then choose or create
-a Group. Multiple Neovim instances can show different Agents in the same Group.
+`:Vantage show` when no terminal is open. The list shows every Group's Agents
+and every Tool; pick a Tool and type a Group name — existing names complete,
+any other name creates the Group. Multiple Neovim instances can show different
+Agents in the same Group.
 
 ## Configuration
 
@@ -140,8 +142,11 @@ cli = {
 ```
 
 `files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
-tree you are browsing, wherever the Agent was started: `fd` when available,
-then `ripgrep`, then `find` — all three skip `.git`. With `fzf-lua` or `snacks`
+tree you are browsing, wherever the Agent was started, using the first of `fd`,
+`ripgrep`, and `find` that was installed when Vantage was set up — all three
+skip `.git`, and a program that fails reports the error instead of trying the
+next one (install one or change `PATH`, then set Vantage up again, to switch).
+With `fzf-lua` or `snacks`
 the list appears as the lister prints it, so cancelling the pick stops a long
 listing instead of waiting it out (`snacks`' prompt starts in insert mode, so
 `Esc` cancels on its second press; `<C-c>` cancels at once); `native` waits
@@ -183,6 +188,10 @@ exits.
 
 In the note window, `<Esc>` saves. An empty note deletes the Review.
 
+Deleting the code a Review covers hides it — from the list and from a send —
+until you undo that deletion; a redo hides it again. Deleting the Review,
+`:Vantage review clear`, or unloading the buffer ends it for good.
+
 Send Reviews with a prompt containing `{reviews}`:
 
 ```lua
@@ -191,7 +200,9 @@ prompts = { notes = "My notes:\n{reviews}" }
 
 `reviews.item` supports `{note}`, `{lines}`, `{code}`, `{file}`, `{start}`, and
 `{end}`. The default is `"{lines} {note}"`; `{lines}` and `{file}` are spelled
-through the tool's `format` hook.
+through the tool's `format` hook when sent. `:Vantage review list` shows every
+Review against Neovim's cwd in the default form, so a row can differ from the
+reference the send produces for the focused Agent.
 
 ### Pickers
 
@@ -208,15 +219,14 @@ file/buffer lists:
 
 | Key | Agent list | Review list |
 |-----|------------|-------------|
-| `<c-g>` | toggle Group scope | — |
 | `<c-x>` | kill the selected Agent | delete the selected Review |
 
-With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
-ignores the pinned `(focused)` entry and Tool entries. `"native"` binds no keys.
-Marking several entries (`<Tab>`) selects several: the kill list kills every
-marked Agent or Group, the `files` and `buffers` keys gather every marked
-reference, and the Agent and Review lists act on the entry under the cursor.
-`native` acts on one entry at a time.
+The Agent list shows every Group's Agents plus the Tools, with the Agent the
+Terminal is displaying pinned first; its `<c-x>` ignores the pinned `(focused)`
+entry and Tool entries. `"native"` binds no keys. Marking several entries
+(`<Tab>`) selects several: the kill list kills every marked Agent, the `files`
+and `buffers` keys gather every marked reference, and the Agent and Review
+lists act on the entry under the cursor. `native` acts on one entry at a time.
 
 ### Terminal keymaps
 

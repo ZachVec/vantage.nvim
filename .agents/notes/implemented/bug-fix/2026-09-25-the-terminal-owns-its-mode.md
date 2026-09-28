@@ -56,10 +56,9 @@ and `picker.main` must be set before `close()` because `Picker:close()` consumes
 it in the same pass.
 
 `pick_naive` issues `vim.cmd("startinsert")` before the flow's choice handler
-when the pick opened from the Terminal. That callback is snacks' own post-close
-tick — the naive path's deferral point — and issuing the insert first keeps it
-pending across a cmdline the handler opens (the new-Group name prompt; see
-[the new-Group note](2026-09-05-snacks-new-group-terminal-mode.md)).
+when the pick opened from the Terminal. That callback is snacks' own
+post-close tick — the naive path's deferral point — so the insert lands on the
+settled window and stays pending while the handler runs.
 
 ## Alternatives considered
 

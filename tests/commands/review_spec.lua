@@ -21,7 +21,7 @@ describe("vantage.commands.review", function()
     return Review.add(buf, 1, 2, "note")
   end
 
-  --- The Review list rows the flow builds for the current Focus.
+  --- The Review list rows the flow builds.
   ---@return vantage.picker.Entry[]
   local function rows()
     captured_spec = nil
@@ -77,7 +77,7 @@ describe("vantage.commands.review", function()
     Helpers.reload_vantage()
   end)
 
-  it("spells a row against the focused Agent's cwd and dialect", function()
+  it("spells rows against Neovim's cwd and the default dialect, reading no Focus", function()
     backend.focused = { cwd = tmp, tool = "dialect", id = "@1" }
     Config.options.cli.tools = {
       dialect = {
@@ -87,20 +87,44 @@ describe("vantage.commands.review", function()
         end,
       },
     }
-    review_at(vim.fs.joinpath(tmp, "a.lua"))
+    review_at(vim.fs.joinpath(Util.cwd(), "scratch", "a.lua"))
 
     local items = rows()
 
-    assert.is_true(attachment.called)
-    assert.are.equal("@a.lua :L1-2  note", items[1].text)
+    -- The list is a display, not a send: it never reads the Focus, so a live
+    -- Focus's cwd and dialect do not change the row.
+    assert.is_false(attachment.called)
+    assert.are.equal("scratch/a.lua :L1-2  note", items[1].text)
   end)
 
-  it("falls back to Neovim's cwd and the default dialect without a Focus", function()
+  it("spells rows without a Focus the same way", function()
     backend.focus_reason = Config.FOCUS_NO_FOCUS
     review_at(vim.fs.joinpath(Util.cwd(), "scratch", "a.lua"))
 
     local items = rows()
 
+    assert.is_false(attachment.called)
     assert.are.equal("scratch/a.lua :L1-2  note", items[1].text)
+  end)
+
+  it("clears Reviews that are invalidated and hidden from the list", function()
+    local path = vim.fs.joinpath(tmp, "a.lua")
+    local buf = Helpers.buffer({ "a", "b", "c" }, path)
+    bufs[#bufs + 1] = buf
+    Review.add(buf, 1, 1, "note")
+    -- Deleting the reviewed line invalidates the Review: it leaves the list
+    -- but stays registered, and a clear still has to reach it.
+    vim.api.nvim_buf_set_lines(buf, 0, 1, false, {})
+    assert.are.same({}, rows())
+
+    local original_confirm = vim.fn.confirm
+    vim.fn.confirm = function()
+      return 1
+    end
+    ReviewCmd.run("clear", 1, 1)
+    vim.fn.confirm = original_confirm
+
+    assert.are.equal(0, Review.count())
+    assert.are.same({}, rows())
   end)
 end)

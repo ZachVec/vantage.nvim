@@ -64,11 +64,6 @@ local function fzf_key(lhs)
   return table.concat(out, "-")
 end
 
----@type vantage.PickerCapabilities
-M.capabilities = {
-  command = true,
-}
-
 --- Render a pick through fzf_exec. The flow's source is started once per fzf
 --- run: the opening run, and a fresh run whenever a command reported that the
 --- list may have changed (fzf's `reload` binding re-enters the contents

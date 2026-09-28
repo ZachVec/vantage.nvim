@@ -43,8 +43,8 @@ lookup cannot miss. The `unknown tool` branch and the spec that pinned it are
 gone, and the function's annotation states the contract.
 
 **The Picker facade validates nothing; a flow conformance spec does.** The
-facade passes `opts.commands` through, dropping them for a renderer without
-the `command` capability. `tests/commands/picker_commands_spec.lua` drives
+facade passes `opts.commands` through to the renderer, which ignores keys it
+cannot bind. `tests/commands/picker_commands_spec.lua` drives
 every command-bearing flow and asserts each descriptor has a non-empty string
 `lhs` and a function `rhs`, and that `lhs` values are unique within one pick.
 A flow that gains commands is added there.

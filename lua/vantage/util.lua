@@ -97,12 +97,13 @@ function M.run_lines(cmd, opts, on_lines, on_done)
 end
 
 --- Render `{placeholder}` tokens in `template` against a caller-provided
---- whitelist and resolver. Unknown placeholders are left literal; a resolver
---- returning nil records the failing name and returns nil from this function.
---- This is the single implementation shared by Prompt and Annotation
---- templates.
+--- whitelist and resolver. A truthy `allowed[name]` means the name is
+--- supported — the whitelist's keys say which names exist. Unknown
+--- placeholders are left literal; a resolver returning nil records the failing
+--- name and returns nil from this function. This is the single implementation
+--- shared by Prompt and Review templates.
 ---@param template string
----@param allowed table<string, boolean>
+---@param allowed table<string, any>
 ---@param resolve fun(name: string): string?
 ---@return string?
 ---@return string? failed placeholder name, when nil is returned
