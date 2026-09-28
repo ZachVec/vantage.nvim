@@ -22,9 +22,8 @@ A seam's contract types live with the seam, and `AGENTS.md` now says so:
   Driver emits those records, so its file carries their shape.
 - The picker contract — `vantage.picker.Entry`, `vantage.picker.Source`,
   `vantage.PickSpec`, `vantage.PickerCommand`, `vantage.PickerCommandCtx`,
-  `vantage.PickOpts`, `vantage.NaiveOpts`, `vantage.PickerCapabilities`,
-  `vantage.PickerImpl` — lives in `frontend/picker/init.lua`, the facade that
-  enforces capabilities.
+  `vantage.PickOpts`, `vantage.NaiveOpts`, `vantage.PickerImpl` — lives in
+  `frontend/picker/init.lua`, the facade that owns those shapes.
 - `config.lua` keeps the option types (`vantage.Config`, `vantage.Tool`,
   `vantage.Win`, `vantage.WinKey`, `vantage.ReviewConfig`,
   `vantage.ReviewFloatConfig`, `vantage.GatherConfig`) and

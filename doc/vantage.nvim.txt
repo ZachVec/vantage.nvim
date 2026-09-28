@@ -20,7 +20,7 @@ different Agents in the same Group.
 ==============================================================================
 2. REQUIREMENTS                                *vantage.nvim-requirements*
 
-- Neovim >= 0.10
+- Neovim >= 0.12
 - tmux 3.0+
 
 ==============================================================================
@@ -134,11 +134,15 @@ type their references into the focused Agent without submitting: >
 
 <
 `files` lists files under Neovim's global cwd (`:cd`; not `:lcd`/`:tcd`) — the
-tree you are browsing, wherever the Agent was started (`fd`, then `ripgrep`,
-then `find`; all three skip `.git`). With `fzf-lua` or `snacks` the list fills
-in as the lister prints, so cancelling the pick stops a long listing instead of
-waiting it out (`snacks`' prompt starts in insert mode, so `Esc` cancels on its
-second press; `<C-c>` cancels at once); `native` waits for the whole listing
+tree you are browsing, wherever the Agent was started, with the first of `fd`,
+`ripgrep`, and `find` that was installed when Vantage was set up (`fd` is
+preferred, `find` is the last resort; all three skip `.git`). A program that
+fails reports the error instead of trying the next one; install one or change
+`PATH`, then set Vantage up again, to switch. With `fzf-lua` or `snacks` the
+list fills in as the lister prints, so cancelling the pick stops a long listing
+instead of waiting it out (`snacks`' prompt starts in insert mode, so `Esc`
+cancels on its second press; `<C-c>` cancels at once); `native` waits for the
+whole listing
 before it opens. `buffers` lists listed buffers whose file exists
 on disk, most recently used first; a modified buffer is marked `[+]` because
 the Agent reads the on-disk version. Each chosen entry is typed as its path
@@ -175,9 +179,15 @@ Reviews with a prompt containing `{reviews}`, for example: >
     })
 
 <
+Deleting the code a Review covers hides it — from the list and from a send —
+until you undo that deletion; a redo hides it again. Deleting the Review,
+`:Vantage review clear`, or unloading the buffer ends it for good.
+
 `reviews.item` supports `{note}`, `{lines}`, `{code}`, `{file}`, `{start}`, and
 `{end}`. The default is `"{lines} {note}"`; `{lines}` and `{file}` are spelled
-through the Tool's `format` hook.
+through the Tool's `format` hook when sent. `:Vantage review list` shows every
+Review against Neovim's cwd in the default form, so a row can differ from the
+reference the send produces for the focused Agent.
 
 PICKERS ~
 
@@ -190,15 +200,14 @@ lists:
 
 With `fzf-lua` or `snacks`:
 
-  `<c-g>`      toggle the Agent list's Group scope
   `<c-x>`      kill the selected Agent, or delete the selected Review
 
-With a focused Agent, the Agent list opens scoped to its Group; its `<c-x>`
-ignores the pinned `(focused)` entry and Tool entries.
-Marking several entries (`<Tab>`) selects several: the kill list kills every
-marked Agent or Group, the `files` and `buffers` actions gather every marked
-reference, and the Agent and Review lists act on the entry under the cursor.
-`native` acts on one entry at a time.
+The Agent list shows every Group's Agents plus the Tools, with the Agent the
+Terminal is displaying pinned first; its `<c-x>` ignores the pinned `(focused)`
+entry and Tool entries. Marking several entries (`<Tab>`) selects several: the
+kill list kills every marked Agent, the `files` and `buffers` actions gather
+every marked reference, and the Agent and Review lists act on the entry under
+the cursor. `native` acts on one entry at a time.
 
 KEYMAPS ~
 
@@ -242,7 +251,9 @@ attached client running; `:Vantage detach` is the one that destroys them.
 
 `:Vantage show`
     Show the terminal: focus it when it is open, re-open it when it is hidden.
-    With no terminal, pick an Agent and open one on it.
+    With no terminal, pick an Agent and open one on it. Creating an Agent from
+    a Tool asks for a Group name; existing names complete, and any other name
+    creates the Group.
 
 `:Vantage hide`
     Hide the terminal window. The attached client and the Agent keep running;
@@ -261,7 +272,8 @@ attached client running; `:Vantage detach` is the one that destroys them.
     Remove all Reviews.
 
 `:Vantage kill`
-    Pick an Agent or Group and kill it.
+    Pick Agents and kill them. Mark several to kill them together; killing a
+    whole Group means marking its members.
 
 `:Vantage status`
     Show clients and sessions.

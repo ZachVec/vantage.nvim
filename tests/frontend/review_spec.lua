@@ -68,10 +68,9 @@ describe("vantage.frontend.review", function()
     local review = Review.add(buf, 2, 3, "note")
 
     assert.are.equal(buf, review.buf)
-    assert.are.equal(2, review.start_row)
-    assert.are.equal(3, review.end_row)
     assert.are.equal("note", review.note)
     assert.are.same(review, Review.get(buf, review.id))
+    assert.are.same({ 2, 3 }, { Review.range(review) })
 
     local position =
       vim.api.nvim_buf_get_extmark_by_id(buf, vim.api.nvim_create_namespace("vantage_review"), review.id, {})
@@ -143,9 +142,8 @@ describe("vantage.frontend.review", function()
     press_escape()
 
     local review = Review.collect()[1]
-    assert.are.equal(1, review.start_row)
-    assert.are.equal(2, review.end_row)
     assert.are.equal("hello", review.note)
+    assert.are.same({ 1, 2 }, { Review.range(review) })
 
     Review.create(buf, 3, 3)
     press_escape()
@@ -165,6 +163,73 @@ describe("vantage.frontend.review", function()
         return r.id
       end, Review.collect())
     )
+  end)
+
+  it("reads the live range as the buffer is edited", function()
+    local buf = named_buffer("/tmp/rev/live.lua", { "a", "b", "c", "d" })
+    local review = Review.add(buf, 2, 3, "note")
+
+    -- Inserting a line before the range moves it with its code.
+    vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "zero" })
+    assert.are.same({ 3, 4 }, { Review.range(review) })
+
+    -- Deleting a line inside the range shrinks it.
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, {})
+    assert.are.same({ 3, 3 }, { Review.range(review) })
+  end)
+
+  it("invalidates when its whole range is deleted and restores on undo", function()
+    local buf = named_buffer("/tmp/rev/undo.lua", { "a", "b", "c", "d" })
+    local review = Review.add(buf, 2, 3, "note")
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("let &l:undolevels = &l:undolevels")
+    end)
+
+    vim.api.nvim_buf_set_lines(buf, 1, 3, false, {})
+    assert.are.same({}, { Review.range(review) })
+    assert.are.equal(0, #Review.collect())
+    assert.are.equal(1, Review.count())
+    assert.are.equal("", Review.render_item(review, "/tmp/rev"))
+
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("silent undo")
+    end)
+    assert.are.same({ 2, 3 }, { Review.range(review) })
+    assert.are.equal(1, #Review.collect())
+
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("silent redo")
+    end)
+    assert.are.same({}, { Review.range(review) })
+  end)
+
+  it("clear removes hidden invalidated records so a later undo cannot revive them", function()
+    local buf = named_buffer("/tmp/rev/clear.lua", { "a", "b", "c" })
+    local review = Review.add(buf, 2, 2, "note")
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("let &l:undolevels = &l:undolevels")
+    end)
+    vim.api.nvim_buf_set_lines(buf, 1, 2, false, {})
+    assert.are.equal(1, Review.count())
+
+    Review.clear()
+    assert.are.equal(0, Review.count())
+
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("silent undo")
+    end)
+    assert.is_nil(Review.get(buf, review.id))
+    assert.are.equal(0, Review.count())
+  end)
+
+  it("keeps the range while the highlight toggles", function()
+    local buf = named_buffer("/tmp/rev/tint.lua", { "a", "b", "c" })
+    local review = Review.add(buf, 1, 2, "note")
+
+    Review.edit(buf, review.id)
+    assert.are.same({ 1, 2 }, { Review.range(review) })
+    press_escape()
+    assert.are.same({ 1, 2 }, { Review.range(review) })
   end)
 
   it("clear removes every review", function()

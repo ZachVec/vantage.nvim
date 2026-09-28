@@ -1,5 +1,6 @@
---- Picker frontend facade: resolve the configured implementation and own the
---- capability/command negotiation shared by every pick.
+--- Picker frontend facade: resolve the configured implementation and hand a
+--- pick's commands to it. An implementation that binds no keys ignores them,
+--- so a flow never branches on its picker's engine.
 
 ---@class vantage.picker.Entry One selectable thing a pick offers: the line the
 --- implementation renders (`text`) and the flow's own name for it (`kind`).
@@ -57,9 +58,6 @@
 ---@field prompt? string
 ---@field format_item? fun(item: any): string
 
----@class vantage.PickerCapabilities
----@field command boolean
-
 ---@class vantage.PickerImpl A selection-UI implementation (native | fzf-lua |
 --- snacks) rendering every Vantage selection on its own engine. The command
 --- flows write a `PickSpec` per flow; the implementations stay
@@ -79,9 +77,9 @@
 --- its engine can, and calls the cancel function a source returned when the
 --- picker closes or a command restarts the run. `pick_naive` renders a static
 --- list through the engine's own plain select, so a flow never mixes renderer
---- families.
+--- families. `opts.commands` are handed to implementations verbatim; one that
+--- binds no keys ignores them.
 ---@field requires? string optional runtime module dependency
----@field capabilities vantage.PickerCapabilities
 ---@field pick_fancy fun(spec: vantage.PickSpec, opts: vantage.PickOpts)
 ---@field pick_naive fun(items: any[], opts: vantage.NaiveOpts, on_choice: fun(item: any?, index?: integer))
 
@@ -113,12 +111,7 @@ function M.setup()
   if not ok then
     error(("vantage: picker '%s' unavailable (%s)"):format(name, tostring(impl)), 0)
   end
-  if
-    type(impl.capabilities) ~= "table"
-    or type(impl.capabilities.command) ~= "boolean"
-    or type(impl.pick_fancy) ~= "function"
-    or type(impl.pick_naive) ~= "function"
-  then
+  if type(impl.pick_fancy) ~= "function" or type(impl.pick_naive) ~= "function" then
     error(("vantage: picker '%s' does not implement vantage.PickerImpl"):format(name), 0)
   end
   if impl.requires then
@@ -144,21 +137,14 @@ function M.reset()
   resolved = nil
 end
 
---- The resolved Picker's static capability table.
----@return vantage.PickerCapabilities
-function M.capabilities()
-  return get().capabilities
-end
-
 --- Render a streaming pick through the configured implementation.
 ---@param spec vantage.PickSpec
 ---@param opts vantage.PickOpts
 function M.pick_fancy(spec, opts)
   local impl = get()
-  local commands = impl.capabilities.command and opts.commands or nil
   impl.pick_fancy(spec, {
     on_choices = opts.on_choices,
-    commands = commands,
+    commands = opts.commands,
   })
 end
 

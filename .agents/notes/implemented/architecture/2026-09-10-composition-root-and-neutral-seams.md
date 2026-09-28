@@ -43,24 +43,23 @@ The formal
 returns `Agent` or `nil, err`; queries return `data, nil` or `nil, err`. The Driver never
 notifies. `create` rolls back a partially-created Agent when metadata/config
 application fails and appends a rollback failure when cleanup also fails;
-`send_keys` cleans its temporary buffer. `kill_agent`/`kill_group` report a
-missing target as an error.
+`send_keys` cleans its temporary buffer. `kill_agent` reports a missing target
+as an error.
 
-**Picker facade.** Commands call `Picker.pick(spec, opts)`,
-`Picker.pick_multi(spec, opts)`, or `Picker.pick_plain(...)`; `get()` is
-internal. A renderer declares the capabilities the
-[pure-renderers note](2026-09-05-picker-pure-renderers.md) owns —
-`preview`, `command`, and `multi`, the last one added by
-[file-buffer-references](../feature/2026-09-11-file-buffer-references.md).
-`opts.commands` is a list of
+**Picker facade.** Commands call `Picker.pick_fancy(spec, opts)` or
+`Picker.pick_naive(...)`; `get()` is internal. A pick states its own `many` and
+`preview` requests and degrades in the renderer when the engine cannot honor
+them; a renderer declares no capability table
+([picker-two-interfaces](2026-09-18-picker-two-interfaces.md)). `opts.commands`
+is a list of
 keymap-shaped `{ lhs, rhs, desc? }` descriptors; `rhs(ctx)` receives
 `{ item, items }` and returns `true` when the list may have changed. Commands
-are globally bound; a renderer without `command` drops them, and the flow
+are globally bound; a renderer that binds no keys ignores them, and the flow
 conformance spec enforces well-formed descriptors and unique `lhs` values
 ([owners-and-annotations](../simplification/2026-09-26-owners-and-annotations-replace-runtime-guards.md)).
 `spec.group`, the `dynamic` option, and semantic
-`pick_agent`/`pick_kill`/`pick_review` methods are gone; group scoping is a
-flow-owned ordinary command.
+`pick_agent`/`pick_kill`/`pick_review` methods are gone; the Agent list is
+global, and the Group is a creation-time cmdline prompt.
 
 **Command ownership.** `commands/attach.lua` owns `show`/`switch`
 plus their shared Agent/Tool selection and Group creation;
@@ -85,7 +84,7 @@ multiplexer identity format.
 
 The renderer methods had converged on the same `on_choice(item)` result and
 differed only in optional capabilities. Keeping three methods forced every new
-flow to edit every renderer; one facade with explicit capabilities moves the
+flow to edit every renderer; one facade with per-pick requests moves the
 difference to data.
 
 ### Why not a Result table for every Driver verb?
@@ -98,13 +97,11 @@ or `nil, err`.
 
 - `make check` now runs `scripts/verify-architecture.lua`, which rejects
   reverse module dependencies.
-- `:checkhealth vantage` reports the configured picker's `preview`/`command`
-  capabilities and reports an initialization failure instead of replaying
-  setup.
-- The picker facade's methods and its capability table are current as of
+- `:checkhealth vantage` reports the configured picker name and reports an
+  initialization failure instead of replaying setup.
+- The picker facade's methods are current as of
   [picker-two-interfaces](2026-09-18-picker-two-interfaces.md):
-  `pick_fancy`/`pick_naive`, and `command` as the one capability
-  (`:checkhealth` now reports `command` alone).
+  `pick_fancy`/`pick_naive`, with no capability table.
 - Invalid backend/picker configuration now raises during `setup()`; user docs
   state that there is no fallback.
 - `frontend/review.lua` remains editor-local state in the Frontend; the

@@ -24,7 +24,7 @@ Backend:
 
 - `backend/init.lua` is the Backend's public surface and the Driver seam: the
   domain verbs (`inventory()` → the flat Agents plus the Groups derived from
-  them, `create`, `send`, `capture`, `attach`, `kill_agent`, `kill_group`,
+  them, `create`, `send`, `capture`, `attach`, `kill_agent`,
   `status`, `health`), the `REGISTRY`/`REQUIRED` pair that resolves and checks
   the configured driver (a whitelist; an unknown or unavailable name fails fast
   at `setup()`, per
@@ -34,7 +34,7 @@ Backend:
   [one-layer, View-keyed Attachment note](2026-09-20-backend-one-layer-and-view-keyed-attachment.md)
   folded the registry and the contract into that one file.
 - `tmux.lua` is pure tmux mapping with the domain-shaped verbs `create`,
-  `agents()`, `attach(agent, launch)`, `kill_agent`, `kill_group`, `send_keys`,
+  `agents()`, `attach(agent, launch)`, `kill_agent`, `send_keys`,
   `capture_pane`, `status`, `health`. zellij remains a distant seam only; no
   compatibility promise hardens the interface for it.
 
@@ -103,8 +103,8 @@ Renames and behavior references:
 
 - **Annotation → Review** everywhere: `:Vantage review`, `setup.reviews`,
   the `{reviews}` placeholder, `frontend/review.lua`, `commands/review.lua`.
-- `kill` keeps its name at the domain layer (`kill_agent`/`kill_group`) because
-  it terminates processes; `delete()` is only the generic entry protocol verb.
+- `kill` keeps its name at the domain layer (`kill_agent`) because it
+  terminates processes; `delete()` is only the generic entry protocol verb.
 - A new Agent's cwd is the global Neovim cwd (follows `:cd`, ignores
   `:lcd`/`:tcd`); the Frontend resolves and passes it explicitly.
 
@@ -135,9 +135,9 @@ own tail.
 
 ### Why not rename kill to delete?
 
-`kill_agent`/`kill_group` terminate live processes (`kill-window`/
-`kill-session`); `delete` reads as removing a record and would understate the
-effect, especially for a Group other terminals are attached to.
+`kill_agent` terminates a live process (`kill-window`); `delete` reads as
+removing a record and would understate the effect, especially for an Agent
+other terminals are attached to.
 
 ### Why not keep the `from_terminal` PickSpec flag?
 

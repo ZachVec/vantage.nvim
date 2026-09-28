@@ -29,10 +29,11 @@ a query is typed):
   after any picker close back onto it — Esc cancels and the no-op confirm
   alike — because snacks pickers close into Normal (see
   [gotchas](../../../../docs/gotchas.md)); fzf-lua and native leave the
-  terminal in terminal mode and need nothing. The plain step's wrapper queues
-  the re-entry before its choice handler so the new-Group cmdline cannot
-  swallow it — see
-  [the new-Group terminal-mode note](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md).
+  terminal in terminal mode and need nothing. The creation path's plain step is
+  gone — the Group name is a cmdline prompt answered after the picker closed —
+  and `pick_naive`'s wrapper still queues its re-entry before the choice
+  handler, which is now shared with `:Vantage prompt`
+  ([the Terminal-owns-its-mode note](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md)).
   No engine-specific disabled-entry machinery is used (see Alternatives).
   Declared not-from-terminal (`show`'s open-path fallback), there is no
   focused Agent and no pin.
@@ -118,7 +119,7 @@ creation, unique, and already the storage key.
   from the terminal), Agents sorted by group → cwd → tool, then one
   toggle-off entry per configured Tool.
 - `+ new agent` disappears from every picker; creation from the Agent list
-  is one confirm (Tool entry) + one Group choice instead of the two-step
+  is one confirm (Tool entry) + one Group prompt instead of the two-step
   wizard.
 - README and `doc/vantage.nvim.txt` describe the new list layout and creation
   channels; the entry-format note's consequences are corrected in place for

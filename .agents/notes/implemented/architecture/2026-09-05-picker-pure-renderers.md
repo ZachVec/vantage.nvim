@@ -76,14 +76,13 @@ site. The callback result channel keeps each engine's native async shape.
   preview-capable path hands the terminal back from its own close, and
   `pick_naive` from its wrapped `on_choice`, preserving the terminal-window
   re-entry described in
-  [snacks-new-group-terminal-mode](../bug-fix/2026-09-05-snacks-new-group-terminal-mode.md)
-  and [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
-- The capability set above is this note's; the picker's current interface and
-  the facade's failure semantics are current as of
+  [the-terminal-owns-its-mode](../bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
+- The capability set above is this note's history; the picker's current
+  interface and the facade's failure semantics are current as of
   [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).
 
 The method, spec, and capability shapes above are superseded by
 [picker-two-interfaces](2026-09-18-picker-two-interfaces.md): implementations
 are still pure renderers over a flow-owned spec, but a pick now carries a
-streaming item source plus the flow's `many` and `preview` requests, and the
-only declared capability is `command`.
+streaming item source plus the flow's `many` and `preview` requests, and there
+is no declared capability table.

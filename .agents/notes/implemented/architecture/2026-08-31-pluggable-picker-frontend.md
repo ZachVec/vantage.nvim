@@ -64,8 +64,8 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
 ## Consequences
 
 - A new picker implementation adds one module and one registry entry; nothing
-  above `frontend/picker/` changes. It declares its `preview`/`command`/`multi`
-  capabilities and implements `pick`/`pick_multi`/`pick_plain`.
+  above `frontend/picker/` changes. It implements `pick_fancy`/`pick_naive`
+  and declares no capabilities.
 - The Backend interface exposes `capture` (read-only, a few lines, over the
   Driver's `capture_pane`) so picker previews obey the "never touch tmux
   directly" invariant; it is a portable
@@ -79,6 +79,5 @@ inside `fzf_lua.lua` leaves the shared items module presentation-free.
 The Backend seam it mirrors is [the backend-driver-seam note](2026-08-31-backend-driver-seam.md); the single-Terminal Frontend it lives in is [the single-terminal-frontend note](2026-08-31-single-terminal-frontend.md).
 
 The facade's current surface — `pick_fancy` with its streaming item source, its
-`many` and `preview` requests, and `pick_naive`, with `command` as the one
-declared capability — is
+`many` and `preview` requests, and `pick_naive`, with no capability table — is
 [picker-two-interfaces](2026-09-18-picker-two-interfaces.md).

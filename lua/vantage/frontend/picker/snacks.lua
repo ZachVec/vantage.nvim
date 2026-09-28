@@ -48,11 +48,6 @@ local function terminal_window()
   return nil
 end
 
----@type vantage.PickerCapabilities
-M.capabilities = {
-  command = true,
-}
-
 --- The pick's item stream, driven through snacks' finder. snacks calls the
 --- finder once per run — the opening pick, and again whenever a command
 --- reports the list may have changed — and each emitted batch becomes finder
@@ -329,10 +324,9 @@ function M.pick_naive(items, opts, on_choice)
     format_item = opts.format_item,
   }, function(item, idx)
     -- Hand terminal mode back before the choice handler runs: this callback is
-    -- snacks' own post-close tick, so the insert lands on the settled window —
-    -- and issued first, it stays pending across a cmdline the handler opens
-    -- (the new-Group name prompt; see .agents/notes/implemented/bug-fix/
-    -- 2026-09-05-snacks-new-group-terminal-mode.md).
+    -- snacks' own post-close tick, so the insert lands on the settled window
+    -- and stays pending while the handler runs
+    -- (.agents/notes/implemented/bug-fix/2026-09-25-the-terminal-owns-its-mode.md).
     if terminal_win then
       vim.cmd("startinsert")
     end

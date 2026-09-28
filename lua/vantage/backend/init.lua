@@ -33,7 +33,6 @@
 ---@field agents fun(): vantage.Agent[]?, string?
 ---@field attach fun(agent: vantage.Agent, launch: fun(argv: string[]): boolean, string?): vantage.Attachment?, string?
 ---@field kill_agent fun(agent: vantage.Agent): boolean, string?
----@field kill_group fun(group: string): boolean, string?
 ---@field send_keys fun(agent: vantage.Agent, text: string): boolean, string?
 ---@field capture_pane fun(agent: vantage.Agent, max_lines?: integer): string[]?, string?
 ---@field status fun(): { clients: string[], sessions: string[] }?, string?
@@ -55,7 +54,6 @@ local REQUIRED = {
   "agents",
   "attach",
   "kill_agent",
-  "kill_group",
   "send_keys",
   "capture_pane",
   "status",
@@ -168,13 +166,6 @@ end
 ---@return string?
 function M.kill_agent(agent)
   return M.get().kill_agent(agent)
-end
-
----@param group string
----@return boolean
----@return string?
-function M.kill_group(group)
-  return M.get().kill_group(group)
 end
 
 ---@return { clients: string[], sessions: string[] }?

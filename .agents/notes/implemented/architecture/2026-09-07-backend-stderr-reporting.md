@@ -34,7 +34,7 @@ by `exec`; including it in the returned error costs no extra process.
 
 ## Consequences
 
-- `create`, `retarget`, `send_keys`, `capture_pane`, `kill_agent`,
-  `kill_group`, and `status` report the tmux reason through their result.
+- `create`, `retarget`, `send_keys`, `capture_pane`, `kill_agent`, and `status`
+  report the tmux reason through their result.
 - Expected no-server reads are treated as empty state, not failures.
 - Error rendering is single-sourced in command flows.

@@ -22,10 +22,6 @@ local PREVIEW_LINES = 200
 ---@field kind "tool"
 ---@field name string
 
----@class vantage.picker.GroupEntry : vantage.picker.Entry
----@field kind "group"
----@field group string
-
 ---@class vantage.picker.FileEntry : vantage.picker.Entry
 ---@field kind "file"
 ---@field path string
@@ -105,7 +101,6 @@ local PREVIEW = {
   focused = agent_preview,
   agent = agent_preview,
   tool = none,
-  group = none,
   file = file_preview,
   buffer = buffer_preview,
   review = review_preview,
@@ -140,13 +135,6 @@ function M.tool(name)
   return { kind = "tool", text = TOOL_ICON .. name, name = name }
 end
 
---- A Group entry.
----@param group string
----@return vantage.picker.GroupEntry
-function M.group(group)
-  return { kind = "group", text = ("group %s"):format(group), group = group }
-end
-
 --- A file entry: the reference source is the absolute path.
 ---@param path string absolute file path
 ---@param cwd string display base (Neovim's global cwd, the listing root)
@@ -175,11 +163,12 @@ end
 --- A Review entry: the flow hands the Review to `Review.edit`, which opens its
 --- float. The entry is a display of the Review, not a second spelling of it:
 --- `Review.location` spells its `{lines}` reference through the one owner, and
---- the note's first line follows. The preview renders exactly what a
---- `{reviews}` send would produce.
+--- the note's first line follows. The entry and its preview render in the
+--- context the flow passes — the Review list passes Neovim's cwd and the
+--- default dialect, a send passes the focused Agent's.
 ---@param review vantage.Review
----@param cwd string relativization base (the Focus's Cwd, or Neovim's cwd)
----@param tool? string the focused Tool's reference dialect; nil spells the default
+---@param cwd string relativization base (the flow's choice)
+---@param tool? string the Tool's reference dialect; nil spells the default
 ---@return vantage.picker.ReviewEntry
 function M.review(review, cwd, tool)
   local lines = Review.location(review, cwd, tool)

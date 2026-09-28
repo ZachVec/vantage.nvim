@@ -48,6 +48,13 @@ tmux paste-buffer -p -t <pane> -b <name>
 tmux delete-buffer -b <name>
 ```
 
+Vantage names the staging buffer per Neovim instance (`vantage-send-<pid>`):
+the tmux server is shared, so a fixed name lets two instances paste each
+other's text. `paste-buffer -d` consumes the buffer when the paste succeeds,
+so the delete above belongs only on the failure path — running it
+unconditionally turns a successful paste into a reported failure when anything
+else has already consumed the buffer.
+
 Consequence: bracketed paste inserts the text verbatim, so a trailing `\n`
 becomes a **visible empty line**. Do NOT append `\n` to the pasted text — the
 old `send-keys -l` needed the LF to move the cursor to the next line; paste
@@ -136,10 +143,11 @@ Opening floats from a plain (non-terminal) window never races.
 Do not try to repair the mode inside the window (`stopinsert` is ineffective
 while the transfer is unsettled); the transient clears by itself once the
 teardown finishes. Vantage avoids the pattern structurally: every selection it
-makes — the Agent-creation Group step and `:Vantage prompt` included — renders
-through the configured Picker's own engine (`pick_naive`), so a flow is
-homogeneous by construction and no pick step ever opens a second window inside
-another renderer's teardown. The residual boundary is a terminal-family
+makes — `:Vantage prompt` included — renders through the configured Picker's
+own engine, so a pick chain is homogeneous by construction and no pick step
+opens a second renderer's window inside another renderer's teardown. (The Group
+name is a cmdline prompt, which opens no window at all.) The residual boundary
+is a terminal-family
 renderer (the `fzf-lua` Picker, or `native` with a terminal-style
 `vim.ui.select` override) plus a trigger from a terminal in Normal mode: the
 first closing float leaves the transient and the next step can land frozen —
@@ -202,18 +210,16 @@ snacks' own cancel names the invoking window as its main and closes from
 Normal mode. One path covers an Esc cancel, a confirm, and the no-op confirm
 of the pinned `(focused)` entry, split or floated (verified on nvim 0.12.3).
 
-`pick_naive` (the Agent-creation Group step and `:Vantage prompt`) hands
-terminal mode back from inside snacks' own post-close callback, the one
+`pick_naive` (the `:Vantage prompt` choice) hands terminal mode back from
+inside snacks' own post-close callback, the one
 deferral point the plain select gives the implementation: its wrapped
 `on_choice` issues `startinsert` *before* the flow's choice handler runs, so
-the insert is pending while the handler runs. The ordering is load-bearing:
-the new-Group name prompt (a cmdline `input()` scheduled from inside the
-handler) keeps the scheduler alive while its `c` mode is active, so an insert
-issued after the handler would see `c` and be dropped, stranding the terminal
-in Normal once the prompt closes (verified on nvim 0.12.3). A Tool-entry
-creation through `:Vantage show` ends in terminal mode via the show tail's
-`Terminal.open` (`startinsert`) and skips the re-entry; a `switch` re-points
-without showing (`retarget`), so it depends on the wrapped callback above.
+the insert is pending while the handler runs, before any later cmdline can turn
+the mode into `c`. A Tool-entry creation is not `pick_naive`: it confirms in
+`pick_fancy` and then opens the inline Group cmdline from the picker's
+post-close callback, so it rides the confirm ordering described above — the
+show tail's `Terminal.open` (`startinsert`) ends in terminal mode, and a
+`switch` re-points without showing (`retarget`).
 
 ### A pick's insert mode is dropped when the terminal-mode leave is unsettled
 
@@ -296,17 +302,17 @@ has closed.
 
 Measured with fd 10.2.0 and ripgrep 15.2.0: `fd` exits 0 whenever it ran (empty
 result included) and 1 on error; **`rg --files` exits 1 when it found no
-files** and 2 on error; `find` exits 0 whenever it ran and 1 on error. So a
-chain that treats every non-zero code as a failure would fall through on rg's
-legitimate empty answer — and land on `find`, which reads no ignore files and
-would list exactly the files the project ignores. Vantage's chain reads rg's 1
-as an answer and only falls through on a real failure.
+files** and 2 on error; `find` exits 0 whenever it ran and 1 on error. A run
+that reads every non-zero code as a failure therefore reports a spurious error
+whenever rg legitimately finds nothing. Vantage resolves one lister at setup
+and reads rg's 1 as an empty answer, not a failure.
 
 ### fd and rg respect ignore files; find does not
 
 `fd` and `rg --files` honour `.gitignore` and friends, `find` honours nothing
-but the arguments it is given. That is why find is the last resort: on a
-machine with neither fd nor rg, the listing is whatever find sees.
+but the arguments it is given. That is why find is the last resort in the
+setup-time choice: on a machine with neither fd nor rg, the listing is whatever
+find sees.
 
 ### None of the three sorts
 

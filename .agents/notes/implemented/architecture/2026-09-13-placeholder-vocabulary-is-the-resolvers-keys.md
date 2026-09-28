@@ -49,5 +49,5 @@ buffer. Setup is the earliest moment the applied config exists.
 - Unknown placeholders are warned about once, at setup, instead of being
   reported by `:checkhealth vantage`; `Util.interpolate` still leaves them
   literal.
-- `:checkhealth vantage` reports Driver health, picker capabilities, and dropped
-  `cli.tools` entries only.
+- `:checkhealth vantage` reports Driver health, the configured picker name, and
+  dropped `cli.tools` entries only.

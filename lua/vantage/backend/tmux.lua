@@ -131,22 +131,6 @@ local function apply_global_config()
   return true, nil
 end
 
---- Sessions belonging to a Group: the Anchor plus its Views.
----@param group string
----@return string[]?
----@return string?
-local function group_sessions(group)
-  local filter = "#{==:#{?#{session_group},#{session_group},#{session_name}}," .. group .. "}"
-  local sessions, err = exec_lines("list-sessions", "-F", "#{session_name}", "-f", filter)
-  if err then
-    if missing_server(err) then
-      return {}, nil
-    end
-    return nil, err
-  end
-  return sessions, nil
-end
-
 --- The session group of a session, falling back to its own name for an Anchor.
 ---@param session string
 ---@return string?
@@ -355,7 +339,9 @@ function M.create(opts)
   return agent_record(opts.group, window_id, opts.cmd, opts.cwd, opts.tool, "idle"), nil
 end
 
---- Agent rows: six tab-delimited fields.
+--- Agent rows: six tab-delimited fields, in the one order every query uses —
+--- the inventory lists every Agent's row, and a Focus read resolves the View's
+--- current window through the same fields.
 local AGENT_FMT = table.concat({
   "#{@agent-group}",
   "#{window_id}",
@@ -365,17 +351,17 @@ local AGENT_FMT = table.concat({
   "#{@agent-state}",
 }, "\t")
 
---- Focus rows: a View's current window id, then that window's Agent fields
---- (empty when the window is not an Agent). A session-targeted display resolves
---- both from the View alone, so a Focus read needs no client.
-local VIEW_FOCUS_FMT = table.concat({
-  "#{window_id}",
-  "#{@agent-group}",
-  "#{@agent-cmd}",
-  "#{@agent-cwd}",
-  "#{@agent-tool}",
-  "#{@agent-state}",
-}, "\t")
+--- The six fields of one tab-delimited Agent row, or nil when the line does
+--- not have six. The one place the row's field order is decoded.
+---@param line string
+---@return string[]? fields group, id, cmd, cwd, tool, state
+local function split_agent_row(line)
+  local fields = vim.split(line, "\t", { plain = true })
+  if #fields ~= 6 then
+    return nil
+  end
+  return fields
+end
 
 --- The live Agent inventory, in creation order. One multiplexer query; a
 --- missing server reads as an empty inventory rather than an error.
@@ -393,13 +379,10 @@ function M.agents()
   local agents = {}
   local seen = {}
   for line in (result.stdout or ""):gmatch("[^\r\n]+") do
-    local fields = vim.split(line, "\t", { plain = true })
-    if #fields == 6 then
-      local group, id, cmd, cwd, tool, state = fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]
-      if group ~= "" and id ~= "" and not seen[id] then
-        seen[id] = true
-        agents[#agents + 1] = agent_record(group, id, cmd, cwd, tool, state)
-      end
+    local fields = split_agent_row(line)
+    if fields and fields[1] ~= "" and fields[2] ~= "" and not seen[fields[2]] then
+      seen[fields[2]] = true
+      agents[#agents + 1] = agent_record(fields[1], fields[2], fields[3], fields[4], fields[5], fields[6])
     end
   end
   table.sort(agents, function(left, right)
@@ -419,21 +402,22 @@ end
 ---@return vantage.Agent?
 ---@return string?
 local function view_focus(view)
-  local result = exec("display", "-p", "-t", view, VIEW_FOCUS_FMT)
+  local result = exec("display", "-p", "-t", view, AGENT_FMT)
   if result.code ~= 0 then
     return nil, fail_message(("can't read view '%s'"):format(view), result)
   end
   -- Do not trim: the row is tab-delimited and may carry a trailing empty State.
   local line = (result.stdout or ""):match("^([^\r\n]*)") or ""
-  local fields = vim.split(line, "\t", { plain = true })
-  if #fields ~= 6 then
+  local fields = split_agent_row(line)
+  if not fields then
     return nil, ("can't read view '%s': unexpected output"):format(view)
   end
-  local window, group = fields[1], fields[2]
-  if group == "" then
+  -- A window with no Agent metadata answers with an empty Group field: the
+  -- View is pointed at something that is not an Agent.
+  if fields[1] == "" then
     return nil, Config.FOCUS_NO_FOCUS
   end
-  return agent_record(group, window, fields[3], fields[4], fields[5], fields[6]), nil
+  return agent_record(fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]), nil
 end
 
 --- Create this Terminal's View and attach its client through `launch`: the View
@@ -527,61 +511,35 @@ function M.kill_agent(agent)
   return true, nil
 end
 
---- Kill an entire Group: its Anchor and every View.
----@param group string
----@return boolean
----@return string?
-function M.kill_group(group)
-  local sessions, err = group_sessions(group)
-  if not sessions then
-    return false, err or ("failed to list group '%s'"):format(group)
-  end
-  if #sessions == 0 then
-    return false, ("no such group '%s'"):format(group)
-  end
-  table.sort(sessions, function(left, right)
-    if left == group then
-      return false
-    end
-    if right == group then
-      return true
-    end
-    return left < right
-  end)
-  for _, session in ipairs(sessions) do
-    local result = exec("kill-session", "-t", session)
-    if result.code ~= 0 then
-      return false, fail_message(("can't kill group '%s'"):format(group), result)
-    end
-  end
-  return true, nil
-end
-
 --- Paste text into an Agent's pane via bracketed paste, so embedded newlines
 --- survive (multi-line Prompts and Reviews), without submitting (no Enter/CR):
 --- the user reviews and presses Enter. `send-keys -l` would collapse newlines
 --- in claude, so this uses set-buffer + paste-buffer -p instead.
+---
+--- The staging buffer is namespaced by this Neovim instance's pid, because the
+--- tmux server is shared: two instances staging one fixed name can interleave
+--- (A stages, B overwrites, A pastes B's text, B finds no buffer). `-d`
+--- consumes the buffer on a successful paste; only a failed paste is left to
+--- clean up, so a paste that succeeded is never reported as a failure.
 ---@param agent vantage.Agent
 ---@param text string
 ---@return boolean
 ---@return string?
 function M.send_keys(agent, text)
-  local set_result = exec("set-buffer", "-b", "vantage-send", "--", text)
+  local name = "vantage-send-" .. vim.fn.getpid()
+  local set_result = exec("set-buffer", "-b", name, "--", text)
   if set_result.code ~= 0 then
     return false, fail_message("failed to stage prompt text", set_result)
   end
 
-  local paste_result = exec("paste-buffer", "-p", "-t", agent.id, "-b", "vantage-send")
-  local delete_result = exec("delete-buffer", "-b", "vantage-send")
+  local paste_result = exec("paste-buffer", "-d", "-p", "-t", agent.id, "-b", name)
   if paste_result.code ~= 0 then
     local message = fail_message("failed to paste prompt text", paste_result)
+    local delete_result = exec("delete-buffer", "-b", name)
     if delete_result.code ~= 0 then
       message = message .. "; " .. fail_message("failed to clean prompt buffer", delete_result)
     end
     return false, message
-  end
-  if delete_result.code ~= 0 then
-    return false, fail_message("failed to clean prompt buffer", delete_result)
   end
   return true, nil
 end

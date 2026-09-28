@@ -56,7 +56,6 @@ rather than a third method the facade negotiates.
 ---@field commands? vantage.PickerCommand[]
 
 ---@class vantage.PickerImpl
----@field capabilities { command: boolean }
 ---@field pick_fancy fun(spec: vantage.PickSpec, opts: vantage.PickOpts)
 ---@field pick_naive fun(items: any[], opts: NaiveOpts, on_choice: fun(item: any?, index?: integer))
 ```
@@ -79,10 +78,12 @@ leaves it empty for that nil answer; without the function there is no pane.
 Entries are plain data: the earlier design bound a preview function to each
 entry.
 
-`capabilities` is down to `command`. Preview and multi are per-pick requests
-that an implementation degrades when it cannot honor them, while `command` must
-be declared because the Agent picker decides its default Group scope *before* it
-opens.
+There is no capability table. Preview and multi are per-pick requests that an
+implementation degrades when it cannot honor them, and `opts.commands` are
+handed to the implementation verbatim — an implementation that binds no keys
+ignores them — so a flow never negotiates its picker's engine. (The `command`
+capability existed for the Agent picker's default Group scope, which the
+global-list change removed.)
 
 A pick that has nothing to show opens empty and stays open until the user
 cancels it. The `empty, err` answer went with the read-before-opening design; a
@@ -91,11 +92,11 @@ knowledge of that read lives.
 
 ### Adapters
 
-**native** — `capabilities = { command = false }`. `pick_fancy` starts the
-stream, waits for it with `vim.wait` (which pumps the event loop, so a source
-that ends asynchronously ends the wait), then renders the final list through
-`pick_naive` with `format_item = entry.text` and answers `on_choices` with the
-one choice.
+**native** — `pick_fancy` starts the stream, waits for it with `vim.wait`
+(which pumps the event loop, so a source that ends asynchronously ends the
+wait), then renders the final list through `pick_naive` with
+`format_item = entry.text` and answers `on_choices` with the one choice; it
+binds no keys.
 
 **fzf-lua** — function contents: each emitted batch becomes prefixed lines in
 fzf's stdin, and `done` calls `on_write_nl(nil)`. `many` adds `--multi`; a
@@ -115,14 +116,13 @@ cancels the run.
 
 ### Flows
 
-`attach`, `kill`, `review`, and `gather` keep their reads and hand them over as
-one-shot sources; the Agent-creation Group step and `:Vantage prompt` call
-`pick_naive`. `attach` and `review` ask for one entry, `kill` and `gather` for
-several, and all four ask for the standard preview. The `files` listing is still
-synchronous: making the lister a live stream, so entries appear while `fd`/`rg`
-runs and closing the picker stops the child, is the next step this seam exists
-for and is recorded in
-[the file-listing note](../feature/2026-09-19-streaming-file-listing.md).
+`attach`, `kill`, `review`, and `gather` hand their reads over as sources; the
+`:Vantage prompt` choice is the one `pick_naive` caller, and the Agent-creation
+Group name is a cmdline prompt, not a pick. `attach` and `review` ask for one
+entry, `kill` and `gather` for several, and all four ask for the standard
+preview. `files` is a live stream — entries appear while the lister runs, and
+closing the picker stops the child
+([the file-listing note](../feature/2026-09-19-streaming-file-listing.md)).
 
 ## Alternatives considered
 
@@ -172,8 +172,10 @@ the standard function") plus a second type from the seam.
 ### Why not keep `preview` and `multi` in `capabilities`?
 
 Nothing negotiates them any more: a pick asks for a pane or several choices and
-an implementation that cannot deliver degrades. `command` survives because the
-flow must know *before* it opens whether its keys will be bound.
+an implementation that cannot deliver degrades. `command` did not survive
+either — the only consumer was the Agent picker's default Group scope, and once
+the list became global no flow branched on it, so the table went away and
+`opts.commands` are simply handed over.
 
 ### Why not let native re-open `vim.ui.select` as batches arrive?
 
@@ -190,7 +192,7 @@ implementation answers both interfaces in its own terms.
 ## Consequences
 
 - `Picker.pick_fancy` and `Picker.pick_naive` are the facade's only entries;
-  `vantage.PickerImpl` requires both methods and declares `{ command }`.
+  `vantage.PickerImpl` requires both methods and declares no capability table.
 - `vantage.picker.Entry` carries `text`, `kind`, and the flow's own fields — no
   preview. `Entries.preview` is the one preview function, and a flow that wants
   a pane hands it to the pick.
@@ -204,8 +206,8 @@ implementation answers both interfaces in its own terms.
 - Implementations still `require` nothing but their engine — the preview
   function arrives through the spec, so the entries vocabulary stays out of the
   adapters — and `native` keeps delegating to the live global `vim.ui.select`.
-- `:checkhealth` reports `picker: <name> (command=…)`; whether a picker shows
-  previews lives in the user-facing picker table.
+- `:checkhealth` reports `picker: <name>`; whether a picker shows previews lives
+  in the user-facing picker table.
 - The engine mechanics this design leans on — fzf-lua's pipe staying open across
   pushes, `--preview-window=hidden:right:0` for no preview, snacks' async finder
   and `layout = { preview = false }` — are recorded in `docs/gotchas.md`.

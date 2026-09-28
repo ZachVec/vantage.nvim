@@ -133,8 +133,8 @@ whitelist):
   `retarget(agent)` re-points the client, selecting a window in the same View
   or moving it into a fresh View of another Group and adopting that one. A
   View that is gone answers the multiplexer's own reason.
-- `kill_agent(agent)` / `kill_group(group)` → `true` or `false, err`.
-  `kill_group` destroys the Anchor and every View.
+- `kill_agent(agent)` → `true` or `false, err`. Killing a Group means killing
+  its Agents; the Anchor dies with its last window.
 - `send_keys(agent, text)` → `true` or `false, err`; temporary buffers are
   cleaned up.
 - `capture_pane(agent, max_lines?)` → `lines, nil` or `nil, err`;
@@ -146,7 +146,7 @@ results through; command flows decide how to report them.
 
 `backend/init.lua` is the Frontend's only door to the Backend: `inventory()`,
 `create`, `send(agent, text)`, `capture(agent)`, `attach(agent, launch)`,
-`kill_agent`, `kill_group`, `status`, `health`. It holds no state and does no UI; the
+`kill_agent`, `status`, `health`. It holds no state and does no UI; the
 prompt flow renders templates against the Focus its Attachment answers, then
 hands the Backend the final text. Everything that needs a live Terminal client
 lives on that Attachment and everything else lives here: no verb above the seam
@@ -155,8 +155,9 @@ takes a process pid.
 The two reads are separate because they answer different questions.
 `inventory()` returns the flat Agent list plus the Groups derived from it (each
 Group once, in the Agents' order) and never reads the clients, so a caller that
-does not care what the Terminal shows — the kill flow, the Group prompt — does
-not pay for the extra multiplexer query. The [Focus](glossary.md#focus) is the
+does not care what the Terminal shows — the kill flow, the Group prompt's
+completion — does not pay for the extra multiplexer query. The
+[Focus](glossary.md#focus) is the
 other read, and only the Terminal's own Attachment answers it: one query reads
 the View's current window and that window's Agent fields together, and a window
 that carries no Agent metadata is `no focused agent` rather than an error.
@@ -172,7 +173,8 @@ start_row, end_row)` is the one place a reference is spelled — it relativizes
 the path against the Agent's cwd, builds the `:L` suffix from the position,
 applies the hook, and reads a nil or "" return as "no reference". `tool` is nil
 with no Focus, or names a Tool a later setup dropped; both spell the default
-form, which is how an Agent created under a since-dropped Tool still renders.
+form, which is how an Agent created under a since-dropped Tool still renders —
+and a display with no Agent to address passes nil on purpose (the Review list).
 The read-split, the reference-spelling owner, and where seam types live are
 recorded in
 [focus-is-its-own-read](../.agents/notes/implemented/architecture/2026-09-13-focus-is-its-own-read.md),
@@ -194,12 +196,12 @@ One Terminal per Neovim instance.
 
 **Picker** (`frontend/picker/init.lua`) is a facade over a pluggable renderer.
 Commands call `Picker.pick_fancy(spec, opts)` or `Picker.pick_naive(...)`;
-`get()` is internal. A picker declares one capability: `command` — it can bind
-the flow's picker commands. A pick beside its prompt states `many` (how many
-entries the flow acts on) and `preview` (the standard preview function, when it
-wants a preview pane); neither needs a capability declaration, because an
-implementation that cannot confirm several or render a pane simply degrades —
-`native` drains the stream and shows one choice, and shows no pane.
+`get()` is internal. A pick beside its prompt states `many` (how many entries
+the flow acts on) and `preview` (the standard preview function, when it wants a
+preview pane); an implementation that cannot confirm several or render a pane
+simply degrades — `native` drains the stream and shows one choice, and shows no
+pane. The pick's `opts.commands` are handed to the implementation verbatim; one
+that binds no keys ignores them.
 
 `spec.items` is the pick's item stream, written by the flow: `emit(chunk)`
 appends entries as they are produced, `done()` ends the run, and the optional
@@ -211,8 +213,8 @@ and picks from the final list.
 
 What a pick offers is a list of Entries — the shared type is
 `vantage.picker.Entry` in `frontend/picker/init.lua`, and the vocabulary that
-builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.group`,
-`.file`, `.buffer`, `.review`). An Entry carries `text` (the line the
+builds them is `frontend/entries.lua` (`Entries.agent`, `.tool`, `.file`,
+`.buffer`, `.review`). An Entry carries `text` (the line the
 implementation renders), `kind` (the flow's own name for it), and whatever
 fields the flow put there — plain data with no preview of its own. A flow asks
 for a preview pane by handing `spec.preview` the one preview function the
@@ -243,27 +245,32 @@ report, from inside its stream.
 `{ lhs, rhs, desc? }`, where `rhs(ctx)` receives `{ item, items }` and returns
 `true` when the item list may have changed; a true result starts a fresh item
 stream and refreshes the picker. Commands are global to the picker UI; the
-facade drops commands for a picker without the `command` capability, and the
 descriptors' shape — non-empty string `lhs`, function `rhs`, unique `lhs`
 within one pick — is enforced by the flow conformance spec
-(`tests/commands/picker_commands_spec.lua`), not at runtime. Group scoping is
-an ordinary command, not a Picker concept.
+(`tests/commands/picker_commands_spec.lua`), not at runtime.
 
 ## Flows and the command surface
 
 - `commands/attach.lua` owns `show`/`switch` plus their shared
-  Agent/Tool entries, Group choice, creation handoff, and the `<c-g>` scope and
-  `<c-x>` kill commands. An Entry is data: its `kind` (`focused`, `agent`,
-  `tool`) says what choosing it means, and the flow — not the Entry — creates,
-  retargets, or opens the Terminal. `show` and `switch` each keep their own
-  tail; only the "attach a client and hold it" step is shared.
+  Agent/Tool entries, Group prompt, creation handoff, and the `<c-x>` kill
+  command. The list is every Group's Agents plus the configured Tools, with the
+  Terminal's own Focus pinned first when it has one; choosing a Tool entry
+  reads a Group name from a synchronous, completion-backed cmdline prompt —
+  existing names complete, any other name is a new Group — and that name is
+  this creation's local argument, not a stored selection. An Entry is data: its
+  `kind` (`focused`, `agent`, `tool`) says what choosing it means, and the flow
+  — not the Entry — creates, retargets, or opens the Terminal. `show` and
+  `switch` each keep their own tail; only the "attach a client and hold it"
+  step is shared.
 - `commands/gather.lua` owns the `files` and `buffers` Terminal actions: it
   lists candidates under Neovim's global cwd — the tree the user browses,
-  which the Focus's cwd need not contain (fd → ripgrep → find, streamed as the
-  lister prints them), spells every chosen reference against the Focus's cwd
-  through the Tool's `format` (relative inside it, absolute outside), joins the
-  results with `setup { gather = { join = … } }`, and pastes them with a
-  trailing space. One reference dropped by the hook drops the whole send.
+  which the Focus's cwd need not contain — with the one lister `setup`
+  resolved (fd, else ripgrep, else find; streamed as that program prints them),
+  reads the Focus at the send, and spells every chosen reference against its
+  cwd through the Tool's `format` (relative inside it, absolute outside), joins
+  the results with `setup { gather = { join = … } }`, and pastes them with a
+  trailing space. One reference dropped by the hook drops the whole send; a
+  lister that fails reports the failure instead of giving way to another.
 - `commands/init.lua` owns the Terminal action tokens (`hide`, `switch`,
   `prompt`, `files`, `buffers`) — the strings a `cli.win.keys` `rhs` may name —
   and resolves each to the function that runs it, next to the `:Vantage`
@@ -284,35 +291,40 @@ an ordinary command, not a Picker concept.
 - `:Vantage status` shows the Driver's session/client summary.
 - `:Vantage review [list|clear]` manages Reviews (bare adds over the range);
   the `{reviews}` placeholder batches them into a Prompt.
-- `:Vantage kill` picks an Agent or Group and kills it.
+- `:Vantage kill` picks Agents and kills them; marking several kills them
+  together, so killing a whole Group means marking its members.
 - Terminal actions via `cli.win.keys`: `hide`, `switch`, `prompt`, `files`,
   `buffers`.
 
 Creating an Agent from a Tool entry resolves the tool to its command, uses the
-global Neovim cwd, and always asks for a Group; `switch` re-points the client
-through the Attachment the Terminal holds.
+global Neovim cwd, and always asks for a Group through a synchronous cmdline
+prompt whose completion lists the existing Group names; `switch` re-points the
+client through the Attachment the Terminal holds.
 
 `:Vantage` subcommands are dispatched from `commands/init.lua`; the prompt and
 gather flows resolve the Focus before acting and warn the reason string when
-there is none. The Review list resolves it only to spell its entries: the base
-is the Focus's Cwd and its Tool dialect, or Neovim's cwd and the default
-dialect when no Terminal is attached.
+there is none — gather reads it at the send, not when the pick opens. The
+Review list resolves no Focus at all: it spells every entry against Neovim's
+cwd in the default dialect, so a row can differ from the `{reviews}` send that
+would address the focused Agent.
 
 ## Review and Prompt
 
-Reviews live entirely in memory (`frontend/review.lua`: extmark + per-buffer
-registry) and render through `setup { reviews = { item = … } }`; the Prompt
-vocabulary (`{file}`, `{line}`, `{reviews}`) is the prompt flow's own resolver
-keys, and `Prompt.setup()` warns about a configured template that names an
-unknown token — `health.lua` may not import the command layer. Prompt text and
-gathered references are pasted with bracketed paste and never auto-submit.
-Every location reference — a Prompt's placeholders, each Review's `{lines}` /
-`{file}`, and each gathered entry — is spelled by the Focus's Tool through
-`Config.tool_reference` (default: `file` and its `loc` suffix separated by a
-space), and `gather.join` decides how gathered references are joined. A Review
-reads the same in the list, in its preview, and in the `{reviews}` send — an
-entry is the `{lines}` reference plus the note's first line — and the note
-float's title names no reference of its own. `frontend/review.lua` also owns
-that editing float (`Review.edit` / `Review.create`), including the jump, the
-active tint, and the empty-deletes policy; the command layer only wires the
-list and the add range.
+Reviews live entirely in memory (`frontend/review.lua`: identity, a note, and
+one extmark per Review) and render through `setup { reviews = { item = … } }`;
+the Prompt vocabulary (`{file}`, `{line}`, `{reviews}`) is the prompt flow's
+own resolver keys, and `Prompt.setup()` warns about a configured template that
+names an unknown token — `health.lua` may not import the command layer. Prompt
+text and gathered references are pasted with bracketed paste and never
+auto-submit. Every location reference — a Prompt's placeholders, each Review's
+`{lines}` / `{file}`, and each gathered entry — is spelled by the Focus's Tool
+through `Config.tool_reference` (default: `file` and its `loc` suffix separated
+by a space), and `gather.join` decides how gathered references are joined. The
+Review's extmark owns its line range: the registry keeps identity and the note
+only, every reader takes the live range from the mark, and a range the user
+deleted leaves the list and the send until a code undo restores it (a redo
+invalidates it again). An explicit delete, `Review.clear`, or the buffer
+unloading ends a Review for good. `frontend/review.lua` also owns the editing
+float (`Review.edit` / `Review.create`), including the jump, the active tint,
+and the empty-deletes policy; the command layer only wires the list and the add
+range.

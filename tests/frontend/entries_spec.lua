@@ -85,11 +85,10 @@ describe("vantage.frontend.entries", function()
     local entries = {
       Entries.agent(agent()), -- 1
       Entries.agent(agent(), true), -- 2
-      Entries.tool("codex"),
-      Entries.group("work"),
-      Entries.file(path, tmp), -- 5
-      Entries.buffer(review_buf, path, tmp, false), -- 6
-      Entries.review(Review.add(review_buf, 1, 2, "note"), tmp, nil),
+      Entries.tool("codex"), -- 3
+      Entries.file(path, tmp), -- 4
+      Entries.buffer(review_buf, path, tmp, false), -- 5
+      Entries.review(Review.add(review_buf, 1, 2, "note"), tmp, nil), -- 6
     }
 
     for _, entry in ipairs(entries) do
@@ -102,7 +101,6 @@ describe("vantage.frontend.entries", function()
 
   it("previews through the one kind-keyed preview function", function()
     assert.is_nil(Entries.preview(Entries.tool("codex")))
-    assert.is_nil(Entries.preview(Entries.group("work")))
   end)
 
   it("spells an Agent entry with its Tool, Group, and cwd, pinning the Focus", function()

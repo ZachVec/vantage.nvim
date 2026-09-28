@@ -72,6 +72,20 @@ describe("vantage.commands.gather", function()
     vim.env.PATH = keep_path and (dir .. ":" .. original_path) or dir
   end
 
+  --- Resolve the lister the way the composition root does, after this test
+  --- has pinned PATH. `files` uses whatever `Gather.setup` resolved.
+  local function ready()
+    Gather.setup()
+  end
+
+  --- The failure warning is raised from the lister's libuv exit callback, so
+  --- `Util.notify` schedules it; wait for it before reading `notified`.
+  local function wait_notified()
+    vim.wait(500, function()
+      return #notified > 0
+    end, 10)
+  end
+
   --- Run a flow without choosing rows; captures the spec and options.
   ---@param source "files"|"buffers"
   local function capture(source)
@@ -206,6 +220,7 @@ describe("vantage.commands.gather", function()
   it("streams files under Neovim's cwd, relative to it", function()
     write("a.lua", { "a" })
     write("sub/b.lua", { "b" })
+    ready()
 
     local items = run("files")
     local listed = texts(items)
@@ -224,6 +239,7 @@ describe("vantage.commands.gather", function()
     vim.fn.writefile({ "b" }, vim.fs.joinpath(sub, "b.lua"))
     vim.fn.chdir(root)
     focused.cwd = sub
+    ready()
 
     local items, opts = run("files")
     local listed = texts(items)
@@ -242,6 +258,7 @@ describe("vantage.commands.gather", function()
     vim.fn.mkdir(other, "p")
     vim.fn.writefile({ "z" }, vim.fs.joinpath(other, "z.lua"))
     vim.fn.chdir(other)
+    ready()
 
     local items, opts = run("files")
     assert.are.same({ "z.lua" }, texts(items))
@@ -254,6 +271,7 @@ describe("vantage.commands.gather", function()
     write("z.lua", { "z" })
     write("a.lua", { "a" })
     use_bins(bins({ fd = "printf 'z.lua\\na.lua\\n'" }))
+    ready()
 
     local items, batches = drain(capture("files"))
 
@@ -261,51 +279,80 @@ describe("vantage.commands.gather", function()
     assert.are.equal(1, batches)
   end)
 
-  it("gives way to the next lister when one fails before producing a line", function()
+  it("prefers fd over rg and find", function()
+    use_bins(bins({
+      fd = "printf 'from-fd.lua\\n'",
+      rg = "printf 'from-rg.lua\\n'",
+      find = "printf 'from-find.lua\\n'",
+    }))
+    ready()
+
+    assert.are.same({ "from-fd.lua" }, texts(run("files")))
+  end)
+
+  it("reports a failure instead of trying the next installed program", function()
     use_bins(bins({
       fd = "exit 2",
       rg = "printf 'b.lua\\n'",
-      find = "printf 'z.lua\\n'",
     }))
+    ready()
 
-    assert.are.same({ "b.lua" }, texts(run("files")))
+    assert.are.same({}, texts(run("files")))
+    wait_notified()
+    assert.is_true(notified[1]:find("file listing failed (fd)", 1, true) ~= nil)
   end)
 
-  it("keeps what a lister produced before failing", function()
-    use_bins(bins({
-      fd = "printf 'a.lua\\n'; exit 2",
-      rg = "printf 'b.lua\\n'",
-    }))
+  it("keeps what the lister produced before failing", function()
+    use_bins(bins({ fd = "printf 'a.lua\\n'; exit 2" }))
+    ready()
 
     assert.are.same({ "a.lua" }, texts(run("files")))
+    wait_notified()
+    assert.is_true(notified[1]:find("file listing failed (fd)", 1, true) ~= nil)
   end)
 
-  it("takes rg's empty answer as final instead of falling through to find", function()
+  it("takes rg's exit 1 as an empty answer, not a failure", function()
     -- rg exits 1 when it found no files; find would list the ignored ones.
     use_bins(bins({
       rg = "exit 1",
       find = "printf 'z.lua\\n'",
     }))
+    ready()
 
     assert.are.same({}, texts(run("files")))
+    assert.are.same({}, notified)
   end)
 
   it("uses find when it is the only lister", function()
     use_bins(bins({ find = "printf 'c.lua\\n'" }))
+    ready()
 
     assert.are.same({ "c.lua" }, texts(run("files")))
   end)
 
+  it("re-resolves the lister when setup runs again", function()
+    local first = bins({ fd = "printf 'from-fd.lua\\n'" })
+    use_bins(first)
+    ready()
+    assert.are.same({ "from-fd.lua" }, texts(run("files")))
+
+    local second = bins({ rg = "printf 'from-rg.lua\\n'" })
+    use_bins(second)
+    ready()
+    assert.are.same({ "from-rg.lua" }, texts(run("files")))
+  end)
+
   it("warns when no lister is installed", function()
     vim.env.PATH = ""
+    ready()
 
     assert.are.same({}, run("files"))
     assert.is_true(notified[1]:find("no file lister", 1, true) ~= nil)
   end)
 
-  it("finishes the chain when the last lister fails from its exit callback", function()
+  it("reports a failing lister from its exit callback", function()
     -- Neovim's default `vim.notify` calls `nvim_echo`, which raises E5560 in a
-    -- libuv callback; the chain's warning comes from exactly there.
+    -- libuv callback; the warning comes from exactly there.
     local strict = vim.notify
     vim.notify = function(msg)
       notified[#notified + 1] = msg
@@ -316,6 +363,7 @@ describe("vantage.commands.gather", function()
 
     local ok, result = pcall(function()
       use_bins(bins({ fd = "exit 2" }))
+      ready()
       return run("files")
     end)
     vim.wait(500, function()
@@ -325,7 +373,7 @@ describe("vantage.commands.gather", function()
 
     assert.is_true(ok, tostring(result))
     assert.are.same({}, result)
-    assert.is_true(notified[1]:find("file listing failed", 1, true) ~= nil)
+    assert.is_true(notified[1]:find("file listing failed (fd)", 1, true) ~= nil)
   end)
 
   it("stops the running lister when the source is cancelled", function()
@@ -337,6 +385,7 @@ describe("vantage.commands.gather", function()
       }),
       true
     )
+    ready()
 
     local spec = capture("files")
     local listed = false
@@ -397,6 +446,7 @@ describe("vantage.commands.gather", function()
   it("adds the dialect prefix per reference and joins them", function()
     write("a.lua", { "a" })
     write("sub/b.lua", { "b" })
+    ready()
     Config.options.cli.tools = {
       codex = {
         cmd = { "codex" },
@@ -419,6 +469,7 @@ describe("vantage.commands.gather", function()
 
   it("drops the send and warns when the format hook returns nothing", function()
     write("a.lua", { "a" })
+    ready()
     for _, declined in ipairs({
       function()
         return nil
@@ -436,13 +487,32 @@ describe("vantage.commands.gather", function()
     assert.is_true(notified[1]:find("format hook", 1, true) ~= nil)
   end)
 
-  it("warns instead of picking when no agent is focused", function()
+  it("opens the pick and warns after choosing when no agent is focused", function()
     focused = nil
+    write("a.lua", { "a" })
+    ready()
 
-    Gather.files()
+    local items, opts = run("files")
+    assert.are.equal(1, #items)
+    opts.on_choices({ items[1] })
 
-    assert.are.equal(nil, pick_spec)
+    assert.are.same({}, backend.sent)
     assert.is_true(notified[1]:find("no focused agent", 1, true) ~= nil)
+  end)
+
+  it("spells references against the Focus read at the send", function()
+    write("a.lua", { "a" })
+    ready()
+
+    local items, opts = run("files")
+    -- The Focus moves while the pick is open; the send uses the live one.
+    local other = { id = "@2", seq = 2, group = "g", cmd = "codex", cwd = "/tmp/other", tool = "codex" }
+    focused = other
+    opts.on_choices({ items[1] })
+
+    assert.are.equal(other, backend.sent[1].agent)
+    -- Spelled against the new Agent's cwd, not the one from the open.
+    assert.are.equal(vim.fs.normalize(vim.fs.joinpath(tmp, "a.lua")) .. " ", backend.sent[1].text)
   end)
 
   it("opens the picker with nothing when a source has no candidates", function()

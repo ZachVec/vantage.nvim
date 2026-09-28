@@ -2,12 +2,19 @@
 --- batched into the focused Agent's input through the `{reviews}` prompt
 --- placeholder.
 ---
---- A Review is a line range (`start_row..end_row`, 1-based inclusive) plus a
---- free-text `note`. It lives entirely in memory: a per-buffer registry maps
---- an extmark id to { buf, start_row, end_row, note }. The extmark carries the
---- range and a `number_hl_group` tint; when the number column is off there is
+--- A Review is identity (`buf` + extmark `id`) and a free-text `note`. It
+--- lives entirely in memory: a per-buffer registry maps an extmark id to
+--- { buf, id, note }. The extmark is the one owner of the range — a whole-line
+--- half-open range plus a `number_hl_group` tint — so edits move the range and
+--- every reader sees the moved one. When the number column is off there is
 --- nothing to tint, so nothing renders (the review stays reachable via
 --- `list`).
+---
+--- A range the user deleted is *invalidated*, not deleted: with
+--- `undo_restore` a code undo brings the extmark — and with it the Review —
+--- back, and a redo invalidates it again. Invalid Reviews stay in the registry
+--- but leave the list and the send; only an explicit delete, `clear`, or the
+--- buffer unloading ends them.
 ---
 --- This module also owns the Review's editing float: `edit` and `create` open
 --- a scratch buffer in a centered float whose `<Esc>` commits, and the Review
@@ -20,18 +27,19 @@ local M = {}
 
 local NS = vim.api.nvim_create_namespace("vantage_review")
 
---- The fields a Review's `item` template may name.
-local FIELDS = { note = true, lines = true, code = true, file = true, start = true, ["end"] = true }
-
 --- registry[buf][extmark_id] = vantage.Review
 ---@type table<integer, table<integer, vantage.Review>>
 local registry = {}
 
+--- The `reviews.item` placeholder vocabulary: one resolver per name, so the
+--- vocabulary and the dispatch cannot disagree. Assigned below, once the code
+--- reader it uses exists.
+---@type table<string, fun(review: vantage.Review, cwd: string, tool: string?, start_row: integer, end_row: integer): string?>
+local FIELDS = {}
+
 ---@class vantage.Review
 ---@field buf integer source buffer
 ---@field id integer extmark id (unique per buffer)
----@field start_row integer 1-based inclusive
----@field end_row integer 1-based inclusive
 ---@field note string
 
 -- ---------------------------------------------------------------------------
@@ -87,12 +95,22 @@ function M.add(buf, start_row, end_row, note)
   if start_row > end_row then
     start_row, end_row = end_row, start_row
   end
+  -- A whole-line range: the start sits at column 0 of the first covered line
+  -- and the end at column 0 of the line after the last one, so the 0-based end
+  -- row is the last covered 1-based line number. `invalidate` keeps the mark
+  -- alive (with `invalid = true`) when the covered code is deleted, and
+  -- `undo_restore` lets a code undo bring back its position and validity.
   local id = vim.api.nvim_buf_set_extmark(buf, NS, start_row - 1, 0, {
-    end_row = end_row - 1,
+    end_row = end_row,
+    end_col = 0,
+    right_gravity = true,
+    end_right_gravity = false,
+    invalidate = true,
+    undo_restore = true,
     number_hl_group = "VantageReview",
     strict = false,
   })
-  local review = { buf = buf, id = id, start_row = start_row, end_row = end_row, note = note }
+  local review = { buf = buf, id = id, note = note }
   registry[buf] = registry[buf] or {}
   registry[buf][id] = review
   return review
@@ -104,6 +122,42 @@ end
 function M.get(buf, id)
   local by_id = registry[buf]
   return by_id and by_id[id]
+end
+
+--- A Review's live range, read from its extmark: 1-based inclusive
+--- `start_row, end_row`, or nil when the mark is gone or invalid (the code it
+--- covered was deleted; a code undo can bring it back). The extmark owns the
+--- range, so this is the only answer a reader needs — there is no second copy
+--- to keep in sync when an edit moves or shrinks it.
+---@param review vantage.Review
+---@return integer? start_row
+---@return integer? end_row
+function M.range(review)
+  if not vim.api.nvim_buf_is_valid(review.buf) then
+    return nil, nil
+  end
+  local pos = vim.api.nvim_buf_get_extmark_by_id(review.buf, NS, review.id, { details = true })
+  if #pos == 0 or pos[3].invalid then
+    return nil, nil
+  end
+  local start_row = pos[1] + 1
+  -- The end is the 0-based row of the line after the last covered one, which
+  -- is that last line's 1-based number.
+  local end_row = math.max(start_row, pos[3].end_row or pos[1])
+  return start_row, end_row
+end
+
+--- How many Reviews are registered, valid or not. The list and send paths see
+--- only valid ones (`M.collect`); a clear must reach the hidden ones too.
+---@return integer
+function M.count()
+  local total = 0
+  for _, by_id in pairs(registry) do
+    for _ in pairs(by_id) do
+      total = total + 1
+    end
+  end
+  return total
 end
 
 --- Replace a review's note text.
@@ -142,29 +196,36 @@ function M.clear()
   registry = {}
 end
 
---- Every live review, sorted by (buffer name, start row). Entries whose
---- extmark no longer exists (e.g. after `:e!`) are skipped.
+--- Every valid Review, sorted by (buffer name, live start row). Entries whose
+--- extmark no longer exists or is invalidated (its code was deleted) are
+--- skipped — they leave the list and the send until a code undo restores them.
 ---@return vantage.Review[]
 function M.collect()
-  local out = {}
+  local rows = {}
   for buf, by_id in pairs(registry) do
     if vim.api.nvim_buf_is_valid(buf) then
       for _, review in pairs(by_id) do
-        local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, review.id, {})
-        if pos and pos[1] then
-          out[#out + 1] = review
+        local start_row = M.range(review)
+        if start_row then
+          rows[#rows + 1] = {
+            review = review,
+            name = vim.api.nvim_buf_get_name(buf),
+            start_row = start_row,
+          }
         end
       end
     end
   end
-  table.sort(out, function(a, b)
-    local na = vim.api.nvim_buf_get_name(a.buf)
-    local nb = vim.api.nvim_buf_get_name(b.buf)
-    if na ~= nb then
-      return na < nb
+  table.sort(rows, function(a, b)
+    if a.name ~= b.name then
+      return a.name < b.name
     end
     return a.start_row < b.start_row
   end)
+  local out = {}
+  for _, row in ipairs(rows) do
+    out[#out + 1] = row.review
+  end
   return out
 end
 
@@ -172,7 +233,11 @@ end
 -- Visual emphasis (read/edit)
 -- ---------------------------------------------------------------------------
 
---- Swap one review's range tint between the resting and active highlight.
+--- Swap one review's range tint between the resting and active highlight,
+--- keeping the range and the movement it was created with. Re-setting an
+--- extmark with only a start position would turn it into a point mark and
+--- change how later edits move it, so the full range and options are carried
+--- over; an invalidated mark is left alone (its Review is not showing).
 ---@param buf integer
 ---@param id integer
 ---@param active boolean
@@ -180,12 +245,18 @@ local function set_active(buf, id, active)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
-  local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, id, {})
-  if not pos or not pos[1] then
+  local pos = vim.api.nvim_buf_get_extmark_by_id(buf, NS, id, { details = true })
+  if #pos == 0 or pos[3].invalid then
     return
   end
   vim.api.nvim_buf_set_extmark(buf, NS, pos[1], pos[2], {
     id = id,
+    end_row = pos[3].end_row,
+    end_col = pos[3].end_col,
+    right_gravity = pos[3].right_gravity,
+    end_right_gravity = pos[3].end_right_gravity,
+    invalidate = true,
+    undo_restore = true,
     number_hl_group = active and "VantageReviewActive" or "VantageReview",
   })
 end
@@ -208,15 +279,19 @@ local function jump_to_review(review)
   if not vim.api.nvim_buf_is_valid(review.buf) then
     return false
   end
+  local start_row = M.range(review)
+  if not start_row then
+    return false
+  end
   local win = vim.fn.bufwinid(review.buf)
   if win ~= -1 then
     vim.api.nvim_set_current_win(win)
   else
     vim.api.nvim_win_set_buf(0, review.buf)
   end
-  local line = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.start_row, false)[1]
+  local line = vim.api.nvim_buf_get_lines(review.buf, start_row - 1, start_row, false)[1]
   local _, first = line:find("%S")
-  vim.api.nvim_win_set_cursor(0, { review.start_row, first and (first - 1) or 0 })
+  vim.api.nvim_win_set_cursor(0, { start_row, first and (first - 1) or 0 })
   return true
 end
 
@@ -331,9 +406,11 @@ end
 
 --- The review's selected lines, with leading/trailing blank lines dropped.
 ---@param review vantage.Review
+---@param start_row integer 1-based inclusive
+---@param end_row integer 1-based inclusive
 ---@return string
-local function code_text(review)
-  local lines = vim.api.nvim_buf_get_lines(review.buf, review.start_row - 1, review.end_row, false)
+local function code_text(review, start_row, end_row)
+  local lines = vim.api.nvim_buf_get_lines(review.buf, start_row - 1, end_row, false)
   while #lines > 0 and lines[1]:find("^%s*$") do
     table.remove(lines, 1)
   end
@@ -343,27 +420,44 @@ local function code_text(review)
   return table.concat(lines, "\n")
 end
 
+--- One resolver per `reviews.item` placeholder. The keys *are* the vocabulary
+--- `Util.interpolate` is given, so a name cannot be known without something to
+--- resolve it. `start_row`/`end_row` are the Review's live 1-based range.
+---@type table<string, fun(review: vantage.Review, cwd: string, tool: string?, start_row: integer, end_row: integer): string?>
+FIELDS = {
+  note = function(review)
+    return review.note
+  end,
+  lines = function(review, cwd, tool, start_row, end_row)
+    return Config.tool_reference(tool, cwd, vim.api.nvim_buf_get_name(review.buf), start_row, end_row)
+  end,
+  code = function(review, _, _, start_row, end_row)
+    return code_text(review, start_row, end_row)
+  end,
+  file = function(review, cwd, tool)
+    return Config.tool_reference(tool, cwd, vim.api.nvim_buf_get_name(review.buf))
+  end,
+  start = function(_, _, _, start_row)
+    return tostring(start_row)
+  end,
+  ["end"] = function(_, _, _, _, end_row)
+    return tostring(end_row)
+  end,
+}
+
+--- Resolve one placeholder against a Review's live range, or nil when the
+--- Review's range is gone (invalid) or the location has no reference.
 ---@param review vantage.Review
 ---@param name string
 ---@param cwd string
 ---@param tool? string the focused Tool's reference dialect; nil spells the default
----@return string? nil when the location has no reference
+---@return string?
 local function field(review, name, cwd, tool)
-  local path = vim.api.nvim_buf_get_name(review.buf)
-  if name == "note" then
-    return review.note
-  elseif name == "lines" then
-    return Config.tool_reference(tool, cwd, path, review.start_row, review.end_row)
-  elseif name == "code" then
-    return code_text(review)
-  elseif name == "file" then
-    return Config.tool_reference(tool, cwd, path)
-  elseif name == "start" then
-    return tostring(review.start_row)
-  elseif name == "end" then
-    return tostring(review.end_row)
+  local start_row, end_row = M.range(review)
+  if not start_row or not end_row then
+    return nil
   end
-  return "" -- unknown name: unreachable from whitelisted callers
+  return FIELDS[name](review, cwd, tool, start_row, end_row)
 end
 
 ---@param review vantage.Review
@@ -377,8 +471,8 @@ local function render_item(review, template, cwd, tool)
   end)
 end
 
---- Render one review through the configured `item` template (for picker
---- previews: what you see is what gets sent).
+--- Render one review through the configured `item` template in the caller's
+--- context (a picker row and the send that follows it each spell their own).
 ---@param review vantage.Review
 ---@param cwd string focused Agent cwd (relativization base)
 ---@param tool? string the focused Tool's reference dialect; nil spells the default

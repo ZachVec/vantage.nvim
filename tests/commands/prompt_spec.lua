@@ -28,6 +28,11 @@ describe("vantage.commands.prompt", function()
     bufs = {}
   end)
 
+  before_each(function()
+    -- A test that rewrites `prompts` must not leak its table into the next one.
+    Config.options.prompts = { ["{file}"] = "{file}", ["{line}"] = "{line}", ["{reviews}"] = "{reviews}" }
+  end)
+
   teardown(function()
     Review.clear()
     Helpers.reload_vantage()
@@ -108,6 +113,48 @@ describe("vantage.commands.prompt", function()
     assert.are.equal("Notes:\nsrc/a.lua :L2 fix this", Prompt.render("Notes:\n{reviews}", context(buf, 1, "/tmp/proj")))
   end)
 
+  it("does not re-scan a resolved value for placeholders", function()
+    local buf = Helpers.buffer({ "a", "b" }, "/tmp/proj/src/a.lua")
+    bufs[#bufs + 1] = buf
+    Review.add(buf, 1, 1, "{file} stays literal")
+
+    assert.are.equal("src/a.lua :L1 {file} stays literal", Prompt.render("{reviews}", context(buf, 1, "/tmp/proj")))
+  end)
+
+  it("reads the most recent named normal-file window, skipping special buffers", function()
+    local dir = vim.fn.tempname()
+    local path = vim.fs.joinpath(dir, "file.lua")
+    vim.fn.mkdir(dir, "p")
+    vim.fn.writefile({ "a", "b", "c" }, path)
+    local filebuf = vim.fn.bufadd(path)
+    vim.fn.bufload(filebuf)
+    bufs[#bufs + 1] = filebuf
+
+    local tab = vim.api.nvim_get_current_tabpage()
+    vim.cmd("tabnew")
+    vim.api.nvim_win_set_buf(0, filebuf)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+    -- A scratch float was visited later; a special buffer is not a file source.
+    local scratch = Helpers.buffer({ "" })
+    bufs[#bufs + 1] = scratch
+    local float = vim.api.nvim_open_win(scratch, true, {
+      relative = "editor",
+      row = 1,
+      col = 1,
+      width = 10,
+      height = 3,
+    })
+
+    local ctx = Prompt.context({ cwd = dir })
+
+    assert.are.equal(filebuf, ctx.buf)
+    assert.are.equal(2, ctx.row)
+
+    vim.api.nvim_win_close(float, true)
+    vim.api.nvim_set_current_tabpage(tab)
+  end)
+
   it("warns at setup about a template naming an unknown placeholder", function()
     local notified = {}
     local original_notify = vim.notify
@@ -120,5 +167,56 @@ describe("vantage.commands.prompt", function()
     vim.notify = original_notify
 
     assert.is_true(notified[1]:find("{bogus}", 1, true) ~= nil)
+  end)
+
+  it("clears every Review, hidden ones included, after a successful {reviews} send", function()
+    local path = "/tmp/proj/src/a.lua"
+    local buf = Helpers.buffer({ "a", "b", "c", "d" }, path)
+    bufs[#bufs + 1] = buf
+    Review.add(buf, 1, 1, "kept")
+    Review.add(buf, 3, 3, "doomed")
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd("let &l:undolevels = &l:undolevels")
+    end)
+    -- Deleting line 3 invalidates the second Review, which leaves the send.
+    vim.api.nvim_buf_set_lines(buf, 2, 3, false, {})
+    assert.are.equal(2, Review.count())
+    assert.are.equal(1, #Review.collect())
+
+    local sent
+    package.loaded["vantage.backend"] = {
+      send = function(agent, text)
+        sent = { agent = agent, text = text }
+        return true, nil
+      end,
+    }
+    package.loaded["vantage.frontend.terminal"] = {
+      attachment = {
+        focus = function()
+          return { id = "@1", cwd = "/tmp/proj", tool = "codex" }, nil
+        end,
+      },
+    }
+    package.loaded["vantage.frontend.picker"] = {
+      pick_naive = function(_, _, on_choice)
+        on_choice("{reviews}")
+      end,
+    }
+    package.loaded["vantage.commands.prompt"] = nil
+    local fresh = require("vantage.commands.prompt")
+    fresh.run()
+
+    assert.are.same({ text = "src/a.lua :L1 kept" }, { text = sent.text })
+    -- clear_on_send (default true) clears the whole registry, hidden included.
+    assert.are.equal(0, Review.count())
+
+    for _, name in ipairs({
+      "vantage.backend",
+      "vantage.frontend.terminal",
+      "vantage.frontend.picker",
+      "vantage.commands.prompt",
+    }) do
+      package.loaded[name] = nil
+    end
   end)
 end)

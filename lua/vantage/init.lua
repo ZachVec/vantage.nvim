@@ -6,6 +6,7 @@
 local Backend = require("vantage.backend")
 local Commands = require("vantage.commands")
 local Config = require("vantage.config")
+local Gather = require("vantage.commands.gather")
 local Picker = require("vantage.frontend.picker")
 local Prompt = require("vantage.commands.prompt")
 local Review = require("vantage.frontend.review")
@@ -24,6 +25,7 @@ function M.setup(opts)
     Backend.setup()
     Picker.setup()
 
+    Gather.setup()
     Prompt.setup()
     Review.setup()
     -- The Frontend cannot import the command layer, so the terminal's action

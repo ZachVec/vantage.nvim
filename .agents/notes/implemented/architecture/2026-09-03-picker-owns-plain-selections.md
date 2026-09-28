@@ -27,8 +27,8 @@ never mixes renderer families:
 
 - `PickerImpl` gains one generic `pick_plain(items, { prompt, format_item },
   on_choice)` mirroring the `vim.ui.select` contract (cancel calls back with
-  nil). It backs the Agent-creation Group step and the `prompt` terminal
-  action.
+  nil). It backs the `prompt` terminal action; the Agent-creation Group name is
+  a cmdline prompt, not a pick.
 - **snacks** implements `pick_plain` with snacks' own select (its compact
   select layout: preview hidden, non-terminal).
 - **fzf-lua** implements `pick_plain` with fzf-lua's own ui_select shim.
@@ -39,10 +39,8 @@ never mixes renderer families:
   in `docs/gotchas.md`, not patched in code.
 - Light two-choice confirmations (delete-Review, clear-all) leave the
   selection path entirely and use Neovim's built-in `confirm()` dialog.
-- `lua/vantage/select.lua` is deleted: the Agent-creation Group-step assembly
-  and the new-Group cmdline name prompt live in
-  `commands/attach.lua`, which also keeps the zero-Group behavior (no
-  Group exists → the Group step is skipped and the name is prompted directly).
+- `lua/vantage/select.lua` is deleted: the Group name prompt lives in
+  `commands/attach.lua`.
 
 ## Alternatives considered
 

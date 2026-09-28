@@ -85,11 +85,13 @@ one expression inside `tool_reference`. The accessor existed for the call sites
 - One owner for what a reference looks like and for what a declining hook
   means; each flow keeps only its own policy — skip the Prompt, drop the send,
   blank preview.
-- A Review reads the same in the list, in its preview, and in the `{reviews}`
-  send: one spelling, one base (the Focus's Cwd, or Neovim's cwd without a
-  Focus). `frontend/entries.lua` spells no path of its own any more — the
-  hand-built `Util.tilde` + `:L` entry is gone, leaving `Util.tilde` two
-  callers: the Agent entry and the tmux Driver's `@agent-cwd-tilde`.
+- A Review and its preview spell through the same owner as a send; a *display*
+  passes its own base on purpose, so the Review list reads against Neovim's cwd
+  in the default dialect while a `{reviews}` send addresses the Focus
+  ([the Review-list note](2026-09-28-review-list-is-a-display.md)).
+  `frontend/entries.lua` spells no path of its own any more — the hand-built
+  `Util.tilde` + `:L` entry is gone, leaving `Util.tilde` two callers: the
+  Agent entry and the tmux Driver's `@agent-cwd-tilde`.
 - The note float is titled `Review`, and `New Review` when adding, instead of
   naming the Review's reference in the title.
 - "" no longer survives as an empty fragment in a Prompt or a Review: like nil,

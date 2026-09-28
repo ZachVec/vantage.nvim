@@ -77,13 +77,19 @@ function M.setup()
   end
 end
 
---- The most-recently-visited non-terminal window, tracked by the `WinEnter`
---- autocmd registered in `Prompt.setup` (per-window `vantage_visit` stamp).
+--- The most-recently-visited window showing a normal file, tracked by the
+--- `WinEnter` autocmd registered in `Prompt.setup` (per-window `vantage_visit`
+--- stamp). A normal file is a named buffer with no special buftype — that
+--- excludes help, the Terminal, any other `:terminal`, the Review editor's
+--- scratch float, and every other special buffer, so a `{file}`/`{line}`
+--- reference names the file the user was reading. With no such window the
+--- current one stands in, and its (empty) context fails the location
+--- placeholders instead of naming a special buffer.
 ---@return integer window id
 local function context_window()
   local wins = vim.tbl_filter(function(w)
     local buf = vim.api.nvim_win_get_buf(w)
-    return vim.bo[buf].filetype ~= "vantage_terminal"
+    return vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) ~= ""
   end, vim.api.nvim_list_wins())
   table.sort(wins, function(a, b)
     return (vim.w[a].vantage_visit or 0) > (vim.w[b].vantage_visit or 0)
@@ -110,17 +116,9 @@ end
 ---@return string?
 ---@return string?
 function M.render(template, ctx, tool)
-  local out = {}
-  for _, line in ipairs(vim.split(template, "\n", { plain = true })) do
-    local rendered, failed = Util.interpolate(line, PLACEHOLDERS, function(name)
-      return resolvers[name](ctx, tool)
-    end)
-    if rendered == nil then
-      return nil, failed
-    end
-    out[#out + 1] = rendered
-  end
-  return table.concat(out, "\n")
+  return Util.interpolate(template, PLACEHOLDERS, function(name)
+    return resolvers[name](ctx, tool)
+  end)
 end
 
 --- Render a prompt against the focused Agent's context and type it into the

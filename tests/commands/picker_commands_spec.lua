@@ -49,9 +49,6 @@ describe("vantage flow picker commands", function()
       attachment = nil,
     }
     package.loaded["vantage.frontend.picker"] = {
-      capabilities = function()
-        return { command = true }
-      end,
       pick_fancy = function(_, opts)
         captured = opts
       end,

@@ -28,7 +28,7 @@ describe("vantage.init", function()
     assert.are.equal(2, vim.fn.exists(":Vantage"))
     assert.are.equal("tmux", Config.options.backend)
     assert.is_true(pcall(Backend.get))
-    assert.are.same({ command = false }, Picker.capabilities())
+    assert.is_nil(Picker.capabilities)
   end)
 
   it("installs the terminal's action resolver", function()

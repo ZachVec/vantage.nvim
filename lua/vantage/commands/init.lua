@@ -80,7 +80,7 @@ local SUBCOMMANDS = {
   },
   {
     name = "kill",
-    help = "kill an Agent or Group",
+    help = "kill Agents (mark several to kill them together)",
     run = function()
       Kill.run()
     end,
@@ -167,8 +167,9 @@ function M.complete(arglead, cmdline)
 end
 
 --- The Terminal action tokens: what a `cli.win.keys` `rhs` string may name. A
---- token's meaning is a command, and the two flows the dispatch above does not
---- require — `prompt` and gather — load when a token names them.
+--- token's meaning is a command. `prompt` and gather are installed by the
+--- composition root, which also runs their setup; the table resolves the
+--- tokens to their flows on demand.
 ---@type table<string, fun()>
 local ACTIONS = {
   hide = function()

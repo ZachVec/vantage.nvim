@@ -21,7 +21,7 @@ The command layer is a directory mirroring the repo's existing
   functions. No complex logic sits in `run`: the subcommand table drives
   dispatch, the usage text, and completion alike.
 - `commands/attach.lua` owns `show`/`switch` and their shared
-  Agent/Tool selection, Group choice, and creation handoff;
+  Agent/Tool selection, Group prompt, and creation handoff;
   `commands/kill.lua` owns the kill flow.
 - `commands/prompt.lua` owns the `prompt` terminal action (`run` +
   `send_prompt`).
